@@ -1,0 +1,211 @@
+---
+import { getCollection } from "astro:content";
+import ProjectCard from "../../components/project/ProjectCard.astro";
+import ProjectFilters, { type ProjectStatus } from "../../components/project/ProjectFilters.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+
+const projects = [...await getCollection("projects")].sort(
+  (left, right) =>
+    Number(right.data.featured) - Number(left.data.featured) ||
+    right.data.date.getTime() - left.data.date.getTime() ||
+    left.id.localeCompare(right.id),
+);
+const counts = projects.reduce<Record<ProjectStatus, number>>(
+  (result, project) => {
+    result[project.data.status] += 1;
+    return result;
+  },
+  { active: 0, completed: 0, archived: 0 },
+);
+---
+
+<BaseLayout
+  title="项目"
+  description="浏览 233昭 正在推进、已经完成与收进档案的项目记录。"
+  page="projects"
+  class="projects-page"
+>
+  <section class="projects-hero" aria-labelledby="projects-title">
+    <div class="site-container projects-hero__inner">
+      <div>
+        <p class="eyebrow">Projects · 小型世界</p>
+        <h1 id="projects-title">把兴趣做成<br />可以继续生长的东西</h1>
+      </div>
+      <div class="projects-hero__aside">
+        <p>开发实验、内容整理与视觉笔记。每个项目都保留真实状态，外部链接只在确实配置后出现。</p>
+        <dl aria-label="项目概览">
+          <div><dt>全部</dt><dd>{projects.length}</dd></div>
+          <div><dt>进行中</dt><dd>{counts.active}</dd></div>
+          <div><dt>已完成</dt><dd>{counts.completed}</dd></div>
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  <section class="projects-browser" data-project-browser aria-label="项目列表">
+    <div class="site-container">
+      <ProjectFilters total={projects.length} counts={counts} />
+
+      {projects.length > 0 ? (
+        <div class="projects-grid" id="project-grid" data-pagefind-body>
+          {projects.map((project, index) => <ProjectCard project={project} index={index} />)}
+        </div>
+      ) : (
+        <div class="projects-empty" role="status">
+          <span aria-hidden="true">○</span>
+          <h2>项目架上还是空的</h2>
+          <p>新的实验整理好后，会从这里开始记录。</p>
+        </div>
+      )}
+
+      <div class="projects-empty" data-project-empty role="status" hidden>
+        <span aria-hidden="true">○</span>
+        <h2>这个状态下还没有项目</h2>
+        <p>换一个状态看看，或稍后再来。</p>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    import "../../scripts/project-filters";
+  </script>
+</BaseLayout>
+
+<style>
+  .projects-page {
+    overflow: clip;
+  }
+
+  .projects-hero {
+    position: relative;
+    padding-block: clamp(4.5rem, 10vw, 8rem) clamp(4rem, 8vw, 6.5rem);
+    border-block-end: 1px solid var(--color-border);
+  }
+
+  .projects-hero::before {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(circle at 82% 18%, color-mix(in srgb, var(--color-pink-soft) 76%, transparent), transparent 24rem),
+      linear-gradient(120deg, color-mix(in srgb, var(--color-accent-soft) 54%, transparent), transparent 47%);
+    content: "";
+    pointer-events: none;
+  }
+
+  .projects-hero__inner {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(17rem, 0.55fr);
+    align-items: end;
+    gap: clamp(2rem, 8vw, 8rem);
+  }
+
+  .projects-hero h1 {
+    max-inline-size: 14ch;
+    margin: 0;
+    font-size: clamp(2.7rem, 7.2vw, 6rem);
+    font-weight: 610;
+    letter-spacing: -0.052em;
+    line-height: 1.04;
+  }
+
+  .projects-hero__aside > p {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: 0.88rem;
+    line-height: 1.9;
+  }
+
+  .projects-hero__aside dl {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.8rem;
+    margin: 2rem 0 0;
+    padding-block-start: 1rem;
+    border-block-start: 1px solid var(--color-border);
+  }
+
+  .projects-hero__aside dl div {
+    display: grid;
+  }
+
+  .projects-hero__aside dt {
+    color: var(--color-text-muted);
+    font-size: 0.62rem;
+  }
+
+  .projects-hero__aside dd {
+    margin: 0;
+    color: var(--color-accent-strong);
+    font-family: var(--font-serif);
+    font-size: 1.55rem;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+  }
+
+  .projects-browser {
+    padding-block: clamp(3rem, 7vw, 5rem) clamp(5rem, 10vw, 8rem);
+  }
+
+  .projects-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: clamp(0.85rem, 2vw, 1.35rem);
+    padding-block-start: clamp(2rem, 5vw, 3.5rem);
+  }
+
+  .projects-empty {
+    display: grid;
+    min-block-size: 17rem;
+    place-items: center;
+    align-content: center;
+    margin-block-start: clamp(2rem, 5vw, 3.5rem);
+    padding: 2rem;
+    border-block: 1px solid var(--color-border);
+    text-align: center;
+  }
+
+  .projects-empty span {
+    color: var(--color-pink);
+    font-family: var(--font-serif);
+    font-size: 2.5rem;
+    line-height: 1;
+  }
+
+  .projects-empty h2 {
+    margin: 0.65rem 0 0.35rem;
+    font-size: 1.45rem;
+  }
+
+  .projects-empty p {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: 0.82rem;
+  }
+
+  @media (max-width: 940px) {
+    .projects-hero__inner {
+      grid-template-columns: 1fr;
+      align-items: start;
+      gap: 2rem;
+    }
+
+    .projects-hero__aside {
+      max-inline-size: 36rem;
+    }
+
+    .projects-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 620px) {
+    .projects-hero h1 {
+      font-size: clamp(2.45rem, 13vw, 4.2rem);
+    }
+
+    .projects-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

@@ -1,0 +1,35 @@
+services:
+  blog:
+    build:
+      context: .
+    init: true
+    working_dir: /workspace/mizuki-blog
+    command: npm run dev -- --host 0.0.0.0 --port 4321
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: "250"
+    ports:
+      - "4321:4321"
+    volumes:
+      - .:/workspace/mizuki-blog
+      - blog_node_modules:/workspace/mizuki-blog/node_modules
+
+  cms:
+    build:
+      context: .
+    init: true
+    working_dir: /workspace/mizuki-blog
+    command: npm run cms
+    environment:
+      BIND_HOST: 0.0.0.0
+      GIT_REPO_DIRECTORY: /workspace
+      MODE: fs
+      PORT: "8081"
+    ports:
+      - "8081:8081"
+    volumes:
+      - ..:/workspace
+      - blog_node_modules:/workspace/mizuki-blog/node_modules
+
+volumes:
+  blog_node_modules:

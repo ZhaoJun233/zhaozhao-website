@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "astro dev",
+    "cms": "node scripts/start-cms.mjs",
+    "author": "concurrently -k -n BLOG,CMS -c cyan,magenta \"npm run dev -- --host 127.0.0.1 --port 4321\" \"npm run cms\"",
+    "validate:authoring": "vitest run tests/unit/authoring.test.ts",
     "check": "astro check && tsc --noEmit",
     "build": "astro build && pagefind --site dist",
     "preview": "astro preview",
@@ -25,7 +28,10 @@
     "@axe-core/playwright": "4.12.1",
     "@lhci/cli": "0.15.1",
     "@playwright/test": "1.61.1",
+    "concurrently": "10.0.3",
+    "decap-server": "3.9.1",
     "typescript": "6.0.3",
-    "vitest": "4.1.10"
+    "vitest": "4.1.10",
+    "yaml": "2.9.0"
   }
 }

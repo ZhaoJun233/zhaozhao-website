@@ -1,6 +1,7 @@
 ---
 import { Menu, Search } from "lucide-astro";
 import { siteConfig } from "../../config/site";
+import SearchDialog from "../ui/SearchDialog.astro";
 import ThemeToggle from "../ui/ThemeToggle.astro";
 import MobileNav from "./MobileNav.astro";
 
@@ -26,7 +27,7 @@ function isCurrent(href: string): boolean {
 <header class:list={["site-header", { "site-header--overlay": overlay }]} data-site-header>
   <div class="site-header__inner site-container">
     <a class="site-brand" href="/" aria-label={`${siteConfig.name} 首页`}>
-      <span>{siteConfig.name.slice(0, -1)}</span><b aria-hidden="true">.</b>
+      <span>{siteConfig.name}</span>
     </a>
 
     <nav class="desktop-nav" aria-label="主导航">
@@ -42,7 +43,14 @@ function isCurrent(href: string): boolean {
     </nav>
 
     <div class="site-header__actions">
-      <a class="icon-button search-link" href="/search/" aria-label="搜索">
+      <a
+        class="icon-button search-link"
+        href="/search/"
+        aria-label="搜索"
+        aria-haspopup="dialog"
+        aria-controls="global-search-dialog"
+        data-search-open
+      >
         <Search size={18} stroke-width={1.8} aria-hidden="true" />
         <span class="search-link__hint" aria-hidden="true">/</span>
       </a>
@@ -62,6 +70,11 @@ function isCurrent(href: string): boolean {
 </header>
 
 <MobileNav currentPath={currentPath} />
+<SearchDialog />
+
+<script>
+  import "../../scripts/search";
+</script>
 
 <style>
   .site-header {
@@ -109,11 +122,6 @@ function isCurrent(href: string): boolean {
     letter-spacing: -0.035em;
     line-height: 1;
     text-decoration: none;
-  }
-
-  .site-brand b {
-    color: var(--color-pink);
-    font-weight: 700;
   }
 
   .desktop-nav {

@@ -1,0 +1,610 @@
+---
+import { Image } from "astro:assets";
+import type { MarkdownHeading } from "astro";
+import type { CollectionEntry } from "astro:content";
+import { ArrowLeft, ArrowRight, CalendarDays, Clock3, Link2, RefreshCw } from "lucide-astro";
+import Comments from "../components/blog/Comments.astro";
+import ReadingProgress from "../components/blog/ReadingProgress.astro";
+import RelatedPosts from "../components/blog/RelatedPosts.astro";
+import TableOfContents from "../components/blog/TableOfContents.astro";
+import { siteConfig } from "../config/site";
+import { estimateReadingMinutes } from "../lib/content";
+import { buildBlogPostingJsonLd } from "../lib/seo";
+import { taxonomySlug } from "../lib/slug";
+import BaseLayout from "./BaseLayout.astro";
+
+interface Props {
+  post: CollectionEntry<"posts">;
+  headings: MarkdownHeading[];
+  relatedPosts: CollectionEntry<"posts">[];
+  previousPost?: CollectionEntry<"posts">;
+  nextPost?: CollectionEntry<"posts">;
+}
+
+const { post, headings, relatedPosts, previousPost, nextPost } = Astro.props;
+const postPath = encodeURI(`/posts/${post.id}/`);
+const canonical = post.data.canonicalUrl ?? postPath;
+const readingMinutes = estimateReadingMinutes(post.body ?? "");
+const dateFormatter = new Intl.DateTimeFormat(siteConfig.locale, {
+  timeZone: siteConfig.timeZone,
+  year: "numeric",
+  month: "long",
+  day: "numeric",
+});
+const jsonLd = buildBlogPostingJsonLd({
+  title: post.data.title,
+  description: post.data.description,
+  path: postPath,
+  canonicalUrl: post.data.canonicalUrl,
+  publishedAt: post.data.publishedAt,
+  updatedAt: post.data.updatedAt,
+  image: post.data.cover,
+  category: post.data.category,
+  tags: post.data.tags,
+});
+---
+
+<BaseLayout
+  title={post.data.title}
+  description={post.data.description}
+  image={post.data.cover}
+  type="article"
+  jsonLd={jsonLd}
+  canonical={canonical}
+  page="post"
+  class="post-page"
+>
+  <ReadingProgress />
+
+  <article class="article" data-article-root>
+    <header class="article-hero">
+      <div class="site-container article-hero__inner">
+        <nav class="article-breadcrumb" aria-label="面包屑导航">
+          <a href="/posts/">文章</a>
+          <span aria-hidden="true">/</span>
+          <a
+            href={encodeURI(`/categories/${taxonomySlug(post.data.category)}/`)}
+            data-pagefind-filter={`category:${post.data.category}`}
+          >
+            {post.data.category}
+          </a>
+        </nav>
+
+        <h1 data-pagefind-meta="title">{post.data.title}</h1>
+        <p class="article-hero__description" data-pagefind-meta="description">
+          {post.data.description}
+        </p>
+
+        <div class="article-meta" aria-label="文章信息">
+          <span>
+            <CalendarDays size={15} stroke-width={1.8} aria-hidden="true" />
+            <time datetime={post.data.publishedAt.toISOString()}>
+              {dateFormatter.format(post.data.publishedAt)}
+            </time>
+          </span>
+          {post.data.updatedAt && (
+            <span>
+              <RefreshCw size={15} stroke-width={1.8} aria-hidden="true" />
+              更新于
+              <time datetime={post.data.updatedAt.toISOString()}>
+                {dateFormatter.format(post.data.updatedAt)}
+              </time>
+            </span>
+          )}
+          <span>
+            <Clock3 size={15} stroke-width={1.8} aria-hidden="true" />
+            {readingMinutes} 分钟阅读
+          </span>
+        </div>
+
+        <div class="article-hero__footer">
+          <div class="article-author">
+            <Image
+              src={siteConfig.author.avatar}
+              alt={`${siteConfig.author.name} 的头像`}
+              width={48}
+              height={48}
+              quality="high"
+            />
+            <div>
+              <span>Written by</span>
+              <strong>{siteConfig.author.name}</strong>
+            </div>
+          </div>
+
+          <ul class="article-tags" aria-label="文章标签">
+            {post.data.tags.map((tag) => (
+              <li>
+                <a
+                  href={encodeURI(`/tags/${taxonomySlug(tag)}/`)}
+                  data-pagefind-filter={`tag:${tag}`}
+                >
+                  <span aria-hidden="true">#</span>{tag}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </header>
+
+    {post.data.cover && (
+      <figure class="article-cover site-container">
+        <Image
+          src={post.data.cover}
+          alt={post.data.coverAlt!}
+          widths={[720, 1080, 1440, 1920]}
+          sizes="(min-width: 1180px) 1180px, 100vw"
+          layout="full-width"
+          fit="cover"
+          position="center"
+          quality="high"
+          loading="eager"
+        />
+      </figure>
+    )}
+
+    <div class="article-shell site-container">
+      <aside class="article-shell__toc">
+        <TableOfContents headings={headings} />
+      </aside>
+
+      <div class="article-shell__main">
+        <div class="prose article-body" data-article-body data-pagefind-body>
+          <slot />
+        </div>
+
+        <footer class="article-end">
+          <div class="article-end__author">
+            <Image
+              src={siteConfig.author.avatar}
+              alt=""
+              width={56}
+              height={56}
+              quality="high"
+            />
+            <div>
+              <p>感谢读到这里</p>
+              <strong>{siteConfig.author.name}</strong>
+              <span>{siteConfig.author.bio}</span>
+            </div>
+          </div>
+
+          <button class="copy-link" type="button" data-copy-link>
+            <Link2 size={16} stroke-width={1.8} aria-hidden="true" />
+            <span data-copy-link-label>复制文章链接</span>
+          </button>
+          <p class="sr-only" data-article-announcer aria-live="polite"></p>
+        </footer>
+
+        <nav class="post-navigation" aria-label="文章翻页">
+          {previousPost ? (
+            <a class="post-navigation__previous" href={encodeURI(`/posts/${previousPost.id}/`)} rel="prev">
+              <ArrowLeft size={18} stroke-width={1.7} aria-hidden="true" />
+              <span><small>上一篇</small><strong>{previousPost.data.title}</strong></span>
+            </a>
+          ) : <span></span>}
+          {nextPost && (
+            <a class="post-navigation__next" href={encodeURI(`/posts/${nextPost.id}/`)} rel="next">
+              <span><small>下一篇</small><strong>{nextPost.data.title}</strong></span>
+              <ArrowRight size={18} stroke-width={1.7} aria-hidden="true" />
+            </a>
+          )}
+        </nav>
+
+        <RelatedPosts posts={relatedPosts} />
+        <Comments />
+      </div>
+    </div>
+  </article>
+
+  <script>
+    import "../scripts/article";
+  </script>
+</BaseLayout>
+
+<style>
+  .article {
+    overflow: clip;
+  }
+
+  .article-hero {
+    position: relative;
+    padding-block: clamp(4rem, 9vw, 7.25rem) clamp(2.75rem, 7vw, 5rem);
+    border-block-end: 1px solid var(--color-border);
+    background:
+      linear-gradient(100deg, color-mix(in srgb, var(--color-accent-soft) 48%, transparent), transparent 44%),
+      radial-gradient(circle at 88% 22%, color-mix(in srgb, var(--color-pink-soft) 74%, transparent), transparent 25rem),
+      color-mix(in srgb, var(--color-bg-soft) 72%, transparent);
+  }
+
+  .article-hero::after {
+    position: absolute;
+    inset-inline-end: clamp(1rem, 8vw, 8rem);
+    inset-block-start: clamp(2rem, 5vw, 4rem);
+    inline-size: clamp(4.5rem, 10vw, 8rem);
+    block-size: clamp(4.5rem, 10vw, 8rem);
+    border: 1px solid color-mix(in srgb, var(--color-accent) 25%, transparent);
+    border-radius: 50%;
+    content: "";
+    opacity: 0.55;
+    pointer-events: none;
+  }
+
+  .article-hero__inner {
+    position: relative;
+    z-index: 1;
+    max-inline-size: 58rem;
+  }
+
+  .article-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    margin-block-end: 1.25rem;
+    color: var(--color-text-muted);
+    font-size: 0.7rem;
+    font-weight: 690;
+  }
+
+  .article-breadcrumb a {
+    text-decoration: none;
+  }
+
+  .article-breadcrumb a:last-child {
+    color: var(--color-accent-strong);
+  }
+
+  .article-hero h1 {
+    max-inline-size: 18ch;
+    margin: 0;
+    font-size: clamp(2.35rem, 7vw, 5.7rem);
+    font-weight: 650;
+    letter-spacing: -0.045em;
+    line-height: 1.06;
+  }
+
+  .article-hero__description {
+    max-inline-size: 48rem;
+    margin: 1.35rem 0 0;
+    color: var(--color-text-soft);
+    font-size: clamp(1rem, 2vw, 1.15rem);
+    line-height: 1.8;
+  }
+
+  .article-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.15rem;
+    margin-block-start: 1.5rem;
+    color: var(--color-text-muted);
+    font-size: 0.74rem;
+  }
+
+  .article-meta > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.38rem;
+  }
+
+  .article-meta :global(svg) {
+    color: var(--color-accent);
+  }
+
+  .article-hero__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.25rem 2rem;
+    margin-block-start: clamp(2rem, 5vw, 3rem);
+    padding-block-start: 1.2rem;
+    border-block-start: 1px solid var(--color-border);
+  }
+
+  .article-author {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .article-author :global(img),
+  .article-end__author :global(img) {
+    inline-size: 3rem;
+    block-size: 3rem;
+    border: 2px solid var(--color-surface-raised);
+    border-radius: 50%;
+    box-shadow: var(--shadow-card);
+    object-fit: cover;
+  }
+
+  .article-author div {
+    display: grid;
+  }
+
+  .article-author span {
+    color: var(--color-text-muted);
+    font-size: 0.58rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .article-author strong {
+    font-family: var(--font-serif);
+    font-size: 0.88rem;
+  }
+
+  .article-tags {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.4rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .article-tags a {
+    display: inline-flex;
+    min-block-size: 1.75rem;
+    align-items: center;
+    padding: 0.25rem 0.58rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-pill);
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    font-size: 0.68rem;
+    font-weight: 680;
+    text-decoration: none;
+  }
+
+  .article-tags a:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent-strong);
+  }
+
+  .article-cover {
+    max-inline-size: 74rem;
+    margin-block: clamp(2rem, 5vw, 4rem) 0;
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+  }
+
+  .article-cover :global(img) {
+    inline-size: 100%;
+    max-block-size: 42rem;
+    object-fit: cover;
+  }
+
+  .article-shell {
+    display: grid;
+    grid-template-columns: minmax(10.5rem, 13rem) minmax(0, 1fr) minmax(10.5rem, 13rem);
+    padding-block: clamp(3.5rem, 8vw, 7rem) clamp(5rem, 10vw, 8rem);
+  }
+
+  .article-shell__toc {
+    grid-column: 1;
+    min-inline-size: 0;
+  }
+
+  .article-shell__main {
+    grid-column: 2;
+    min-inline-size: 0;
+  }
+
+  .article-body {
+    margin-inline: 0;
+  }
+
+  .article-body :global(pre) {
+    padding-block-start: 3.4rem;
+  }
+
+  .article-body :global(.code-copy-button) {
+    position: absolute;
+    z-index: 2;
+    inset-block-start: 0.65rem;
+    inset-inline-end: 0.7rem;
+    display: inline-flex;
+    min-block-size: 2rem;
+    align-items: center;
+    padding: 0.35rem 0.65rem;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-control);
+    background: color-mix(in srgb, var(--color-bg-elevated) 92%, transparent);
+    color: var(--color-text-soft);
+    font-family: var(--font-sans);
+    font-size: 0.68rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    transition: border-color var(--transition-fast), color var(--transition-fast);
+  }
+
+  .article-body :global(.code-copy-button:hover) {
+    border-color: var(--color-accent);
+    color: var(--color-accent-strong);
+  }
+
+  .article-end {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    margin-block-start: clamp(3.5rem, 8vw, 5.5rem);
+    padding: 1.25rem 0;
+    border-block: 1px solid var(--color-border);
+  }
+
+  .article-end__author {
+    display: flex;
+    min-inline-size: 0;
+    align-items: center;
+    gap: 0.8rem;
+  }
+
+  .article-end__author :global(img) {
+    inline-size: 3.5rem;
+    block-size: 3.5rem;
+  }
+
+  .article-end__author div {
+    display: grid;
+    min-inline-size: 0;
+  }
+
+  .article-end__author p,
+  .article-end__author span {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: 0.7rem;
+  }
+
+  .article-end__author strong {
+    font-family: var(--font-serif);
+    font-size: 0.95rem;
+  }
+
+  .article-end__author span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .copy-link {
+    display: inline-flex;
+    min-block-size: 2.55rem;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.65rem 0.9rem;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
+    color: var(--color-text-soft);
+    font-size: 0.76rem;
+    font-weight: 710;
+    cursor: pointer;
+  }
+
+  .copy-link:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent-strong);
+  }
+
+  .post-navigation {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    margin-block-start: clamp(2rem, 5vw, 3.5rem);
+  }
+
+  .post-navigation a {
+    display: flex;
+    min-inline-size: 0;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    background: var(--color-surface);
+    text-decoration: none;
+    transition: border-color var(--transition-fast), transform var(--transition-fast);
+  }
+
+  .post-navigation a:hover {
+    border-color: color-mix(in srgb, var(--color-accent) 55%, var(--color-border));
+    transform: translateY(-2px);
+  }
+
+  .post-navigation__next {
+    justify-content: flex-end;
+    text-align: end;
+  }
+
+  .post-navigation a span {
+    display: grid;
+    min-inline-size: 0;
+  }
+
+  .post-navigation small {
+    margin-block-end: 0.25rem;
+    color: var(--color-text-muted);
+    font-size: 0.62rem;
+    letter-spacing: 0.08em;
+  }
+
+  .post-navigation strong {
+    overflow: hidden;
+    font-family: var(--font-serif);
+    font-size: 0.83rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .post-navigation :global(svg) {
+    flex: 0 0 auto;
+    color: var(--color-accent);
+  }
+
+  @media (max-width: 1023px) {
+    .article-shell {
+      display: block;
+      max-inline-size: calc(var(--prose-width) + 2 * var(--page-gutter));
+    }
+
+    .article-shell__toc {
+      display: block;
+      margin-block-end: 2rem;
+    }
+  }
+
+  @media (max-width: 639px) {
+    .article-hero {
+      padding-block-start: 3rem;
+    }
+
+    .article-hero::after {
+      display: none;
+    }
+
+    .article-hero__footer,
+    .article-end {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .article-tags {
+      justify-content: flex-start;
+    }
+
+    .article-end__author span {
+      white-space: normal;
+    }
+
+    .post-navigation {
+      grid-template-columns: 1fr;
+    }
+
+    .post-navigation > span:empty {
+      display: none;
+    }
+
+    .post-navigation__next {
+      grid-column: 1;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .article-body :global(.code-copy-button),
+    .post-navigation a {
+      transition: none;
+    }
+
+    .post-navigation a:hover {
+      transform: none;
+    }
+  }
+</style>

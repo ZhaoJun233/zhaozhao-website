@@ -6,7 +6,7 @@ test("desktop hero keeps the complete source image visible", async ({ page }) =>
 
   await expect(image).toBeVisible();
   await expect(image).toHaveCSS("object-fit", "contain");
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("Mizuki");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("233昭");
 });
 
 test("mobile moves copy below the artwork", async ({ page }) => {

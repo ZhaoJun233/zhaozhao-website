@@ -8,7 +8,7 @@ export const timeline = [
   {
     date: "2026-03",
     title: "创建这间网络小屋",
-    description: "确定 Mizuki. 的名字，把动画、代码与生活碎片放进同一份写作计划。",
+    description: "确定 233昭 的名字，把动画、代码与生活碎片放进同一份写作计划。",
   },
   {
     date: "2026-04",

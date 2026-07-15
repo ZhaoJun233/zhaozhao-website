@@ -1,0 +1,115 @@
+import { expect, test } from "@playwright/test";
+
+test("project filters expose one active status and a live result count", async ({ page }) => {
+  await page.goto("/projects/");
+
+  const projectCards = page.locator("[data-project-card]");
+  const resultCount = page.getByRole("status", { name: "项目筛选结果" });
+
+  await expect(projectCards).toHaveCount(3);
+  await expect(resultCount).toContainText("3 个项目");
+
+  const activeFilter = page.getByRole("button", { name: "进行中" });
+  await activeFilter.click();
+
+  await expect(activeFilter).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "全部" })).toHaveAttribute(
+    "aria-pressed",
+    "false",
+  );
+  await expect(projectCards.filter({ visible: true })).toHaveCount(2);
+  await expect(resultCount).toContainText("2 个项目");
+
+  await page.getByRole("button", { name: "已归档" }).click();
+  await expect(projectCards.filter({ visible: true })).toHaveCount(0);
+  await expect(resultCount).toContainText("0 个项目");
+  await expect(page.getByText("这个状态下还没有项目", { exact: true })).toBeVisible();
+});
+
+test("project cards link to statically generated detail pages", async ({ page }) => {
+  await page.goto("/projects/");
+  await page.getByRole("link", { name: "查看项目：Anime Watchlist" }).click();
+
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Anime Watchlist" }),
+  ).toBeVisible();
+  await expect(page.getByText("按观看状态、季节与个人笔记整理动画条目的轻量清单概念。"))
+    .toBeVisible();
+});
+
+test("friends page labels all four cards as demonstration data", async ({ page }) => {
+  await page.goto("/friends/");
+
+  await expect(page.getByText(/以下友链为演示数据/)).toBeVisible();
+  const friendCards = page.locator("[data-friend-card]");
+  await expect(friendCards).toHaveCount(4);
+  await expect(page.getByRole("link", { name: /春潮放映室/ })).toHaveAttribute(
+    "href",
+    "https://spring-screen.example/",
+  );
+});
+
+test("about page prominently presents the author and approved artwork source", async ({ page }) => {
+  await page.goto("/about/");
+
+  await expect(page.getByRole("heading", { level: 1, name: "233昭" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "233昭 的头像" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "粉紫色海边的白发少女插画" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /查看《【动态壁纸】夏日白色绮梦》来源/ }))
+    .toHaveAttribute("href", "https://www.bilibili.com/video/BV1NCjx6oEhj/");
+});
+
+test("guestbook renders the shared missing-Giscus state", async ({ page }) => {
+  const giscusRequests: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().includes("giscus.app/client.js")) giscusRequests.push(request.url());
+  });
+
+  await page.goto("/guestbook/");
+
+  await expect(page.getByRole("heading", { level: 1, name: "留言簿" })).toBeVisible();
+  await expect(page.getByText("评论功能尚未配置", { exact: true })).toBeVisible();
+  expect(giscusRequests).toEqual([]);
+});
+
+test("credits records the exact approved Bilibili artwork metadata", async ({ page }) => {
+  await page.goto("/credits/");
+
+  await expect(page.getByText("233昭首页主视觉", { exact: true })).toBeVisible();
+  await expect(page.getByText("BV1NCjx6oEhj", { exact: true })).toBeVisible();
+  await expect(page.getByText("清水未萌_Minamo", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Bilibili 原视频/ })).toHaveAttribute(
+    "href",
+    "https://www.bilibili.com/video/BV1NCjx6oEhj/",
+  );
+});
+
+test("404 page offers direct home and search recovery", async ({ page }) => {
+  await page.goto("/missing-supporting-route/");
+
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("404");
+  await expect(page.getByRole("link", { name: "返回首页" })).toHaveAttribute("href", "/");
+  await expect(page.getByRole("link", { name: "搜索文章" })).toHaveAttribute(
+    "href",
+    "/search/",
+  );
+  await expect(page.getByRole("heading", { level: 2, name: "最近写下" })).toBeVisible();
+});
+
+test("RSS contains all six published posts", async ({ request }) => {
+  const response = await request.get("/rss.xml");
+  expect(response.ok()).toBe(true);
+
+  const xml = await response.text();
+  expect(xml.match(/<item>/g)).toHaveLength(6);
+  expect(xml).toContain("七月动画随记：把喜欢的片段留住");
+});
+
+test("robots.txt advertises the configured sitemap URL", async ({ request }) => {
+  const response = await request.get("/robots.txt");
+  expect(response.ok()).toBe(true);
+
+  await expect(response.text()).resolves.toContain(
+    "Sitemap: http://localhost:4321/sitemap-index.xml",
+  );
+});

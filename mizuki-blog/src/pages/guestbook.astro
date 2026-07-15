@@ -1,0 +1,212 @@
+---
+import Giscus from "../components/integrations/Giscus.astro";
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout
+  title="留言簿"
+  description="给 233昭 留下一句话、一个问题，或一段路过这里的心情。"
+  page="guestbook"
+  class="guestbook-page"
+>
+  <section class="guestbook-hero" aria-labelledby="guestbook-title">
+    <div class="site-container guestbook-hero__inner">
+      <div class="guestbook-hero__number" aria-hidden="true">留言<br />簿</div>
+      <div>
+        <p class="eyebrow">Guestbook · 留下回声</p>
+        <h1 id="guestbook-title">留言簿</h1>
+        <p>
+          如果一篇文章让你想起了什么，或只是想说一声“来过”，都可以把话留在这里。讨论会固定映射到这一本留言簿，不随页面路径变化。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="guestbook-content" aria-labelledby="guestbook-discussion-title">
+    <div class="site-container guestbook-shell">
+      <aside class="guestbook-notes" aria-labelledby="guestbook-notes-title">
+        <p class="eyebrow">Before writing</p>
+        <h2 id="guestbook-notes-title">写之前的小约定</h2>
+        <ol>
+          <li><span>01</span><p>尊重彼此，不发布私人信息、广告或攻击性内容。</p></li>
+          <li><span>02</span><p>谈论文章时可以直接贴链接，方便后来者理解上下文。</p></li>
+          <li><span>03</span><p>这里使用 GitHub Discussions；发布留言需要登录 GitHub。</p></li>
+        </ol>
+        <a href="/credits/#giscus-setup">了解讨论区配置 <span aria-hidden="true">→</span></a>
+      </aside>
+
+      <div class="guestbook-discussion" data-guestbook-term="guestbook">
+        <header>
+          <p class="eyebrow">Open page</p>
+          <h2 id="guestbook-discussion-title">把想说的话留在这里</h2>
+          <p>配置完成后，讨论区会在靠近视口时加载；当前缺少配置时会显示清楚的设置说明。</p>
+        </header>
+        <Giscus term="guestbook" />
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .guestbook-page {
+    overflow: clip;
+  }
+
+  .guestbook-hero {
+    position: relative;
+    padding-block: clamp(4.5rem, 10vw, 8rem) clamp(4rem, 8vw, 6rem);
+    border-block-end: 1px solid var(--color-border);
+    background:
+      radial-gradient(circle at 88% 18%, color-mix(in srgb, var(--color-pink-soft) 76%, transparent), transparent 25rem),
+      linear-gradient(120deg, color-mix(in srgb, var(--color-accent-soft) 52%, transparent), transparent 48%);
+  }
+
+  .guestbook-hero::after {
+    position: absolute;
+    inset-inline-end: clamp(1rem, 8vw, 8rem);
+    inset-block-end: -2.5rem;
+    inline-size: 7rem;
+    block-size: 7rem;
+    border: 1px solid color-mix(in srgb, var(--color-pink) 28%, transparent);
+    border-radius: 50%;
+    content: "";
+    pointer-events: none;
+  }
+
+  .guestbook-hero__inner {
+    display: grid;
+    grid-template-columns: auto minmax(0, 48rem);
+    align-items: center;
+    justify-content: start;
+    gap: clamp(2rem, 7vw, 6rem);
+  }
+
+  .guestbook-hero__number {
+    display: grid;
+    inline-size: clamp(7rem, 16vw, 12rem);
+    aspect-ratio: 1;
+    place-items: center;
+    border: 1px solid color-mix(in srgb, var(--color-accent) 32%, var(--color-border));
+    border-radius: 50%;
+    color: var(--color-accent-strong);
+    font-family: var(--font-serif);
+    font-size: clamp(1.2rem, 3vw, 1.8rem);
+    line-height: 1.25;
+    text-align: center;
+  }
+
+  .guestbook-hero h1 {
+    margin: 0;
+    font-size: clamp(3.2rem, 9vw, 7rem);
+    font-weight: 610;
+    letter-spacing: -0.06em;
+    line-height: 0.95;
+  }
+
+  .guestbook-hero__inner > div:last-child > p:last-child {
+    max-inline-size: 43rem;
+    margin: 1.25rem 0 0;
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+    line-height: 1.9;
+  }
+
+  .guestbook-content {
+    padding-block: clamp(4.5rem, 10vw, 8rem);
+  }
+
+  .guestbook-shell {
+    display: grid;
+    grid-template-columns: minmax(15rem, 0.42fr) minmax(0, 1fr);
+    align-items: start;
+    gap: clamp(2.5rem, 8vw, 7rem);
+  }
+
+  .guestbook-notes {
+    position: sticky;
+    inset-block-start: calc(var(--header-height) + 2rem);
+  }
+
+  .guestbook-notes h2,
+  .guestbook-discussion h2 {
+    margin: 0;
+    font-size: clamp(1.55rem, 3vw, 2.2rem);
+    letter-spacing: -0.035em;
+  }
+
+  .guestbook-notes ol {
+    margin: 1.6rem 0 1.5rem;
+    padding: 0;
+    border-block-start: 1px solid var(--color-border);
+    list-style: none;
+  }
+
+  .guestbook-notes li {
+    display: grid;
+    grid-template-columns: 2rem minmax(0, 1fr);
+    gap: 0.75rem;
+    padding-block: 0.9rem;
+    border-block-end: 1px solid var(--color-border);
+  }
+
+  .guestbook-notes li span {
+    color: var(--color-pink);
+    font-family: var(--font-serif);
+    font-size: 0.7rem;
+    font-style: italic;
+  }
+
+  .guestbook-notes li p {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: 0.76rem;
+    line-height: 1.75;
+  }
+
+  .guestbook-notes > a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.7rem;
+    color: var(--color-accent-strong);
+    font-size: 0.72rem;
+    font-weight: 720;
+    text-decoration: none;
+  }
+
+  .guestbook-discussion {
+    min-inline-size: 0;
+  }
+
+  .guestbook-discussion > header {
+    margin-block-end: 1.8rem;
+    padding-block-end: 1.4rem;
+    border-block-end: 1px solid var(--color-border);
+  }
+
+  .guestbook-discussion > header > p:last-child {
+    max-inline-size: 46rem;
+    margin: 0.75rem 0 0;
+    color: var(--color-text-muted);
+    font-size: 0.8rem;
+    line-height: 1.8;
+  }
+
+  @media (max-width: 760px) {
+    .guestbook-hero__inner {
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+    }
+
+    .guestbook-hero__number {
+      inline-size: 6rem;
+    }
+
+    .guestbook-shell {
+      grid-template-columns: 1fr;
+    }
+
+    .guestbook-notes {
+      position: static;
+    }
+  }
+</style>

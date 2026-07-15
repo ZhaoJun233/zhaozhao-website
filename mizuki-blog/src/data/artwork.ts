@@ -26,7 +26,7 @@ export type ArtworkCatalog = {
 export const artwork: ArtworkCatalog = {
   homeHero: {
     image: homeHeroImage,
-    title: "Mizuki 首页主视觉",
+    title: "233昭首页主视觉",
     alt: "粉蓝海浪间微笑的白发少女插画",
     placements: ["home-hero"],
   },

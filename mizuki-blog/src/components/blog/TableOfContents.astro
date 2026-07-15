@@ -1,0 +1,165 @@
+---
+import type { MarkdownHeading } from "astro";
+
+interface Props {
+  headings: MarkdownHeading[];
+}
+
+const headings = Astro.props.headings.filter(({ depth }) => depth >= 2 && depth <= 4);
+---
+
+{headings.length > 0 && (
+  <div class="toc" data-table-of-contents>
+    <nav class="toc__desktop" aria-labelledby="toc-desktop-title">
+      <p class="toc__eyebrow">On this page</p>
+      <h2 id="toc-desktop-title">文章目录</h2>
+      <ol>
+        {headings.map((heading) => (
+          <li class={`toc__depth-${heading.depth}`}>
+            <a href={`#${heading.slug}`} data-toc-link>{heading.text}</a>
+          </li>
+        ))}
+      </ol>
+    </nav>
+
+    <details class="toc__mobile">
+      <summary>文章目录 <span aria-hidden="true">＋</span></summary>
+      <nav aria-label="文章目录">
+        <ol>
+          {headings.map((heading) => (
+            <li class={`toc__depth-${heading.depth}`}>
+              <a href={`#${heading.slug}`} data-toc-link>{heading.text}</a>
+            </li>
+          ))}
+        </ol>
+      </nav>
+    </details>
+  </div>
+)}
+
+<style>
+  .toc__desktop {
+    position: sticky;
+    inset-block-start: calc(var(--header-height) + 2rem);
+    padding-inline-start: 1.15rem;
+    border-inline-start: 1px solid var(--color-border);
+  }
+
+  .toc__eyebrow {
+    margin: 0 0 0.25rem;
+    color: var(--color-text-muted);
+    font-size: 0.62rem;
+    font-weight: 760;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .toc h2 {
+    margin: 0 0 1rem;
+    font-family: var(--font-sans);
+    font-size: 0.84rem;
+    font-weight: 760;
+    letter-spacing: 0.04em;
+  }
+
+  .toc ol {
+    display: grid;
+    gap: 0.42rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .toc li {
+    min-inline-size: 0;
+  }
+
+  .toc__depth-3 {
+    padding-inline-start: 0.8rem;
+  }
+
+  .toc__depth-4 {
+    padding-inline-start: 1.5rem;
+  }
+
+  .toc a {
+    display: block;
+    padding-block: 0.14rem;
+    color: var(--color-text-muted);
+    font-size: 0.76rem;
+    line-height: 1.55;
+    text-decoration: none;
+    transition: color var(--transition-fast), transform var(--transition-fast);
+  }
+
+  .toc a:hover,
+  .toc a[data-active] {
+    color: var(--color-accent-strong);
+  }
+
+  .toc a[data-active] {
+    font-weight: 720;
+    transform: translateX(0.22rem);
+  }
+
+  .toc__mobile {
+    display: none;
+  }
+
+  @media (max-width: 1023px) {
+    .toc__desktop {
+      display: none;
+    }
+
+    .toc__mobile {
+      display: block;
+      padding: 0.85rem 1rem;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-card);
+      background: var(--color-surface);
+    }
+
+    .toc__mobile summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      color: var(--color-text);
+      font-size: 0.84rem;
+      font-weight: 720;
+      cursor: pointer;
+      list-style: none;
+    }
+
+    .toc__mobile summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .toc__mobile summary span {
+      color: var(--color-accent);
+      font-size: 1.1rem;
+      transition: transform var(--transition-fast);
+    }
+
+    .toc__mobile[open] summary span {
+      transform: rotate(45deg);
+    }
+
+    .toc__mobile nav {
+      margin-block-start: 0.85rem;
+      padding-block-start: 0.8rem;
+      border-block-start: 1px solid var(--color-border);
+    }
+
+    .toc a {
+      font-size: 0.8rem;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .toc a,
+    .toc__mobile summary span {
+      transition: none;
+    }
+  }
+</style>

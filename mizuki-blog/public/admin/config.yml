@@ -1,0 +1,93 @@
+locale: zh_Hans
+local_backend:
+  url: http://localhost:8081/api/v1
+
+backend:
+  name: git-gateway
+  branch: master
+
+site_url: http://localhost:4321
+display_url: http://localhost:4321
+
+media_folder: mizuki-blog/src/assets/uploads
+public_folder: ../../assets/uploads
+
+slug:
+  encoding: unicode
+  clean_accents: true
+  sanitize_replacement: "-"
+
+collections:
+  - name: posts
+    label: 文章
+    label_singular: 文章
+    folder: mizuki-blog/src/content/posts
+    create: true
+    extension: md
+    format: frontmatter
+    slug: "{{year}}-{{month}}-{{day}}-{{slug}}"
+    summary: "{{title}} · {{publishedAt}}"
+    sortable_fields: [publishedAt, title, category]
+    view_filters:
+      - label: 草稿
+        field: draft
+        pattern: true
+      - label: 已精选
+        field: featured
+        pattern: true
+    fields:
+      - { label: 标题, name: title, widget: string }
+      - { label: 摘要, name: description, widget: text }
+      - { label: 发布时间, name: publishedAt, widget: datetime, date_format: YYYY-MM-DD, time_format: false }
+      - { label: 更新时间, name: updatedAt, widget: datetime, date_format: YYYY-MM-DD, time_format: false, required: false }
+      - { label: 草稿, name: draft, widget: boolean, default: false }
+      - { label: 精选, name: featured, widget: boolean, default: false }
+      - { label: 分类, name: category, widget: string }
+      - { label: 标签, name: tags, widget: list, min: 1, max: 8 }
+      - { label: 系列, name: series, widget: string, required: false }
+      - { label: 封面, name: cover, widget: image, required: false }
+      - { label: 封面说明, name: coverAlt, widget: string, required: false, hint: 添加封面时请填写 }
+      - { label: 原文链接, name: canonicalUrl, widget: string, required: false }
+      - { label: 正文, name: body, widget: markdown }
+
+  - name: projects
+    label: 项目
+    label_singular: 项目
+    folder: mizuki-blog/src/content/projects
+    create: true
+    extension: md
+    format: frontmatter
+    slug: "{{slug}}"
+    fields:
+      - { label: 标题, name: title, widget: string }
+      - { label: 摘要, name: description, widget: text }
+      - { label: 日期, name: date, widget: datetime, date_format: YYYY-MM-DD, time_format: false }
+      - label: 状态
+        name: status
+        widget: select
+        options:
+          - { label: 进行中, value: active }
+          - { label: 已完成, value: completed }
+          - { label: 已归档, value: archived }
+      - { label: 标签, name: tags, widget: list, min: 1, max: 6 }
+      - { label: 精选, name: featured, widget: boolean, default: false }
+      - { label: 封面, name: cover, widget: image, required: false }
+      - { label: 仓库地址, name: repositoryUrl, widget: string, required: false }
+      - { label: 演示地址, name: demoUrl, widget: string, required: false }
+      - { label: 正文, name: body, widget: markdown }
+
+  - name: settings
+    label: 站点设置
+    media_folder: mizuki-blog/src/assets/profile
+    public_folder: ../assets/profile
+    files:
+      - name: profile
+        label: 博主资料
+        file: mizuki-blog/src/data/profile.json
+        format: json
+        fields:
+          - { label: 昵称, name: name, widget: string }
+          - { label: 站点副标题, name: siteTitle, widget: string }
+          - { label: 网站描述, name: description, widget: text }
+          - { label: 个人简介, name: bio, widget: text }
+          - { label: 头像, name: avatar, widget: image, hint: 保存后博客会自动热更新 }

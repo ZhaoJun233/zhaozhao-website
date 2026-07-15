@@ -1,0 +1,501 @@
+---
+import { Image } from "astro:assets";
+import { ExternalLink } from "lucide-astro";
+import { artwork, type ArtworkPlacement } from "../data/artwork";
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+const artworkRecords = [artwork.homeHero, artwork.aboutSummerDream] as const;
+const placementLabels: Record<ArtworkPlacement, string> = {
+  "home-hero": "首页主视觉",
+  "home-intro": "首页个人介绍",
+  "about-hero": "关于页主视觉",
+};
+const libraries = [
+  { name: "Astro", role: "静态站点与内容集合", license: "MIT", url: "https://github.com/withastro/astro" },
+  { name: "Lucide", role: "界面图标", license: "ISC", url: "https://github.com/lucide-icons/lucide" },
+  { name: "Pagefind", role: "构建后静态搜索", license: "MIT", url: "https://github.com/CloudCannon/pagefind" },
+  { name: "Giscus", role: "基于 Discussions 的留言与评论", license: "MIT", url: "https://github.com/giscus/giscus" },
+] as const;
+const giscusVariables = [
+  'PUBLIC_GISCUS_REPO="owner/repository"',
+  'PUBLIC_GISCUS_REPO_ID="R_..."',
+  'PUBLIC_GISCUS_CATEGORY="Announcements"',
+  'PUBLIC_GISCUS_CATEGORY_ID="DIC_..."',
+].join("\n");
+---
+
+<BaseLayout
+  title="作品与鸣谢"
+  description="查看本站插画来源、开源依赖与 Giscus 讨论区配置说明。"
+  page="credits"
+  class="credits-page"
+>
+  <section class="credits-hero" aria-labelledby="credits-title">
+    <div class="site-container credits-hero__inner">
+      <div>
+        <p class="eyebrow">Credits · 来源与感谢</p>
+        <h1 id="credits-title">认真记录每一束<br />照进本站的光</h1>
+      </div>
+      <p>
+        插画、开源工具与社区服务共同构成这间网络小屋。这里保留可核对的来源、用途和配置入口，方便后来维护与替换。
+      </p>
+    </div>
+  </section>
+
+  <section class="credits-artwork" aria-labelledby="artwork-title">
+    <div class="site-container">
+      <header class="credits-heading">
+        <p class="eyebrow">Artwork · 画面来源</p>
+        <h2 id="artwork-title">本站使用的两条素材记录</h2>
+        <p>页面只使用下列两张已确认素材；展示位置与替代文字一并记录。</p>
+      </header>
+
+      <div class="artwork-list">
+        {artworkRecords.map((record, index) => (
+          <article class="artwork-record">
+            <figure>
+              <Image
+                src={record.image}
+                alt={record.alt}
+                widths={[640, 960, 1440]}
+                sizes="(max-width: 760px) 100vw, 46vw"
+                format="webp"
+                loading="lazy"
+              />
+            </figure>
+            <div class="artwork-record__content">
+              <span class="artwork-record__number" aria-hidden="true">
+                {String(index + 1).padStart(2, "0")}
+              </span>
+              <h3>{record.title}</h3>
+              <dl>
+                <div><dt>替代文字</dt><dd>{record.alt}</dd></div>
+                <div>
+                  <dt>展示位置</dt>
+                  <dd>{record.placements.map((placement) => placementLabels[placement]).join("、")}</dd>
+                </div>
+                {record.uploader ? (
+                  <div><dt>上传者</dt><dd>{record.uploader}</dd></div>
+                ) : (
+                  <div><dt>来源</dt><dd>站点作者提供的本地素材</dd></div>
+                )}
+                {record.bvid && <div><dt>BV 号</dt><dd><code>{record.bvid}</code></dd></div>}
+              </dl>
+              {record.sourceUrl && (
+                <a href={record.sourceUrl} target="_blank" rel="noreferrer noopener">
+                  在 Bilibili 原视频中查看来源
+                  <ExternalLink size={15} stroke-width={1.8} aria-hidden="true" />
+                </a>
+              )}
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="credits-libraries" aria-labelledby="libraries-title">
+    <div class="site-container credits-libraries__inner">
+      <header class="credits-heading">
+        <p class="eyebrow">Open source · 开源工具</p>
+        <h2 id="libraries-title">站点建立在这些项目之上</h2>
+      </header>
+
+      <ul class="library-list">
+        {libraries.map((library) => (
+          <li>
+            <div><strong>{library.name}</strong><span>{library.license}</span></div>
+            <p>{library.role}</p>
+            <a href={library.url} target="_blank" rel="noreferrer noopener">
+              项目主页 <ExternalLink size={14} stroke-width={1.8} aria-hidden="true" />
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <section class="giscus-setup" id="giscus-setup" aria-labelledby="giscus-title">
+    <div class="site-container giscus-setup__inner">
+      <header>
+        <p class="eyebrow">Setup · Giscus</p>
+        <h2 id="giscus-title">用四个环境变量打开讨论区</h2>
+        <p>
+          文章评论按路径映射，留言簿固定使用 <code>guestbook</code>。四项配置缺少任意一项时，页面会保留说明状态，不加载远程脚本。
+        </p>
+      </header>
+
+      <ol class="setup-steps">
+        <li>
+          <span>01</span>
+          <div><h3>准备 Discussions</h3><p>在 GitHub 仓库设置中启用 Discussions，并创建允许访客发言的分类。</p></div>
+        </li>
+        <li>
+          <span>02</span>
+          <div>
+            <h3>安装 Giscus App</h3>
+            <p>为目标仓库安装 Giscus App，随后在 <a href="https://giscus.app/zh-CN" target="_blank" rel="noreferrer noopener">giscus.app</a> 读取仓库与分类 ID。</p>
+          </div>
+        </li>
+        <li>
+          <span>03</span>
+          <div><h3>填写四项变量</h3><p>把生成的真实值写入本地 <code>.env</code> 或部署平台的环境变量。</p></div>
+        </li>
+        <li>
+          <span>04</span>
+          <div><h3>重新构建</h3><p>重新执行生产构建；配置齐全后，讨论区会在接近视口时按需加载。</p></div>
+        </li>
+      </ol>
+
+      <div class="setup-code">
+        <div><span>.env</span><span>4 variables</span></div>
+        <pre aria-label="Giscus 环境变量示例"><code>{giscusVariables}</code></pre>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .credits-page {
+    overflow: clip;
+  }
+
+  .credits-hero {
+    position: relative;
+    padding-block: clamp(4.5rem, 10vw, 8rem) clamp(4rem, 8vw, 6rem);
+    border-block-end: 1px solid var(--color-border);
+    background:
+      radial-gradient(circle at 88% 22%, color-mix(in srgb, var(--color-pink-soft) 72%, transparent), transparent 24rem),
+      linear-gradient(120deg, color-mix(in srgb, var(--color-accent-soft) 54%, transparent), transparent 48%);
+  }
+
+  .credits-hero__inner {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(17rem, 0.48fr);
+    align-items: end;
+    gap: clamp(2rem, 8vw, 8rem);
+  }
+
+  .credits-hero h1 {
+    max-inline-size: 14ch;
+    margin: 0;
+    font-size: clamp(2.65rem, 7vw, 5.8rem);
+    font-weight: 610;
+    letter-spacing: -0.052em;
+    line-height: 1.05;
+  }
+
+  .credits-hero__inner > p {
+    margin: 0 0 0.3rem;
+    color: var(--color-text-muted);
+    font-size: 0.88rem;
+    line-height: 1.9;
+  }
+
+  .credits-artwork,
+  .credits-libraries,
+  .giscus-setup {
+    padding-block: clamp(4.5rem, 10vw, 8rem);
+  }
+
+  .credits-heading {
+    max-inline-size: 48rem;
+    margin-block-end: clamp(2.5rem, 6vw, 4rem);
+  }
+
+  .credits-heading h2,
+  .giscus-setup header h2 {
+    margin: 0;
+    font-size: clamp(2rem, 5vw, 3.7rem);
+    font-weight: 600;
+    letter-spacing: -0.045em;
+    line-height: 1.12;
+  }
+
+  .credits-heading > p:last-child,
+  .giscus-setup header > p:last-child {
+    max-inline-size: 56ch;
+    margin: 0.9rem 0 0;
+    color: var(--color-text-muted);
+    font-size: 0.84rem;
+    line-height: 1.8;
+  }
+
+  .artwork-list {
+    display: grid;
+    gap: clamp(2rem, 6vw, 4.5rem);
+  }
+
+  .artwork-record {
+    display: grid;
+    grid-template-columns: minmax(0, 1.18fr) minmax(17rem, 0.82fr);
+    align-items: center;
+    gap: clamp(1.6rem, 6vw, 5rem);
+  }
+
+  .artwork-record:nth-child(even) figure {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .artwork-record figure {
+    margin: 0;
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    background: var(--color-bg-soft);
+    box-shadow: var(--shadow-card);
+  }
+
+  .artwork-record figure :global(img) {
+    inline-size: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+  }
+
+  .artwork-record:nth-child(2) figure :global(img) {
+    object-position: 43% center;
+  }
+
+  .artwork-record__number {
+    color: var(--color-pink);
+    font-family: var(--font-serif);
+    font-size: 0.78rem;
+    font-style: italic;
+  }
+
+  .artwork-record h3 {
+    margin: 0.8rem 0 0;
+    font-size: clamp(1.45rem, 3vw, 2.2rem);
+    letter-spacing: -0.035em;
+  }
+
+  .artwork-record dl {
+    margin: 1.4rem 0 1.25rem;
+    border-block-start: 1px solid var(--color-border);
+  }
+
+  .artwork-record dl div {
+    display: grid;
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+    gap: 1rem;
+    padding-block: 0.7rem;
+    border-block-end: 1px solid var(--color-border);
+  }
+
+  .artwork-record dt {
+    color: var(--color-text-muted);
+    font-size: 0.66rem;
+  }
+
+  .artwork-record dd {
+    margin: 0;
+    color: var(--color-text-soft);
+    font-size: 0.75rem;
+    line-height: 1.7;
+  }
+
+  .artwork-record code,
+  .giscus-setup code {
+    font-family: var(--font-mono);
+    font-size: 0.82em;
+  }
+
+  .artwork-record__content > a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    color: var(--color-accent-strong);
+    font-size: 0.72rem;
+    font-weight: 720;
+    text-decoration: none;
+  }
+
+  .artwork-record__content > a:hover {
+    text-decoration: underline;
+  }
+
+  .credits-libraries {
+    border-block: 1px solid var(--color-border);
+    background: color-mix(in srgb, var(--color-bg-soft) 80%, transparent);
+  }
+
+  .credits-libraries__inner {
+    display: grid;
+    grid-template-columns: minmax(17rem, 0.55fr) minmax(0, 1fr);
+    align-items: start;
+    gap: clamp(2rem, 8vw, 8rem);
+  }
+
+  .library-list {
+    margin: 0;
+    padding: 0;
+    border-block-start: 1px solid var(--color-border);
+    list-style: none;
+  }
+
+  .library-list li {
+    display: grid;
+    grid-template-columns: minmax(8rem, 0.6fr) minmax(12rem, 1fr) auto;
+    align-items: center;
+    gap: 1rem;
+    padding-block: 1rem;
+    border-block-end: 1px solid var(--color-border);
+  }
+
+  .library-list li > div {
+    display: flex;
+    align-items: baseline;
+    gap: 0.55rem;
+  }
+
+  .library-list strong {
+    font-family: var(--font-serif);
+    font-size: 0.92rem;
+  }
+
+  .library-list span {
+    color: var(--color-pink);
+    font-size: 0.58rem;
+    font-weight: 760;
+  }
+
+  .library-list p {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: 0.73rem;
+  }
+
+  .library-list a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: var(--color-accent-strong);
+    font-size: 0.66rem;
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  .giscus-setup {
+    scroll-margin-block-start: calc(var(--header-height) + 1rem);
+  }
+
+  .giscus-setup__inner {
+    display: grid;
+    grid-template-columns: minmax(17rem, 0.62fr) minmax(18rem, 0.75fr);
+    gap: clamp(2.5rem, 8vw, 7rem);
+  }
+
+  .giscus-setup header {
+    grid-column: 1 / -1;
+    max-inline-size: 52rem;
+  }
+
+  .setup-steps {
+    margin: 0;
+    padding: 0;
+    border-block-start: 1px solid var(--color-border);
+    list-style: none;
+  }
+
+  .setup-steps li {
+    display: grid;
+    grid-template-columns: 2.5rem minmax(0, 1fr);
+    gap: 0.8rem;
+    padding-block: 1rem;
+    border-block-end: 1px solid var(--color-border);
+  }
+
+  .setup-steps > li > span {
+    color: var(--color-pink);
+    font-family: var(--font-serif);
+    font-size: 0.72rem;
+    font-style: italic;
+  }
+
+  .setup-steps h3 {
+    margin: 0;
+    font-family: var(--font-sans);
+    font-size: 0.8rem;
+  }
+
+  .setup-steps p {
+    margin: 0.35rem 0 0;
+    color: var(--color-text-muted);
+    font-size: 0.73rem;
+    line-height: 1.75;
+  }
+
+  .setup-steps a {
+    color: var(--color-accent-strong);
+    font-weight: 700;
+  }
+
+  .setup-code {
+    align-self: start;
+    overflow: hidden;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-card);
+    background: #12191b;
+    box-shadow: var(--shadow-card);
+    color: #e7f1f1;
+  }
+
+  .setup-code > div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.65rem 0.9rem;
+    border-block-end: 1px solid rgb(255 255 255 / 12%);
+    color: rgb(231 241 241 / 62%);
+    font-size: 0.62rem;
+  }
+
+  .setup-code pre {
+    margin: 0;
+    padding: clamp(1rem, 4vw, 1.5rem);
+    overflow-x: auto;
+    background: transparent;
+    color: inherit;
+    font-size: clamp(0.66rem, 1.8vw, 0.78rem);
+    line-height: 1.85;
+  }
+
+  @media (max-width: 820px) {
+    .credits-hero__inner,
+    .credits-libraries__inner,
+    .giscus-setup__inner {
+      grid-template-columns: 1fr;
+      align-items: start;
+    }
+
+    .credits-hero__inner > p {
+      max-inline-size: 36rem;
+    }
+
+    .artwork-record,
+    .artwork-record:nth-child(even) {
+      grid-template-columns: 1fr;
+    }
+
+    .artwork-record:nth-child(even) figure {
+      grid-column: auto;
+      grid-row: auto;
+    }
+
+    .giscus-setup header {
+      grid-column: auto;
+    }
+  }
+
+  @media (max-width: 560px) {
+    .library-list li {
+      grid-template-columns: 1fr auto;
+    }
+
+    .library-list p {
+      grid-column: 1 / -1;
+      grid-row: 2;
+    }
+  }
+</style>

@@ -1,0 +1,164 @@
+---
+export type ProjectStatus = "active" | "completed" | "archived";
+
+interface Props {
+  total: number;
+  counts: Record<ProjectStatus, number>;
+}
+
+const { total, counts } = Astro.props;
+const filters = [
+  { value: "all", label: "全部", count: total },
+  { value: "active", label: "进行中", count: counts.active },
+  { value: "completed", label: "已完成", count: counts.completed },
+  { value: "archived", label: "已归档", count: counts.archived },
+] as const;
+---
+
+<div class="project-filters" data-project-filters>
+  <div class="project-filters__control" role="group" aria-label="按项目状态筛选">
+    {filters.map((filter, index) => (
+      <button
+        type="button"
+        data-project-filter={filter.value}
+        aria-controls="project-grid"
+        aria-pressed={index === 0 ? "true" : "false"}
+      >
+        <span>{filter.label}</span>
+        <small aria-label={`${filter.count} 个`}>{filter.count}</small>
+      </button>
+    ))}
+  </div>
+
+  <p
+    class="project-filters__result"
+    role="status"
+    aria-live="polite"
+    aria-atomic="true"
+    aria-label="项目筛选结果"
+    data-project-result-count
+  >
+    显示 <strong>{total}</strong> 个项目
+  </p>
+</div>
+
+<style>
+  .project-filters {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.25rem;
+    padding-block: 0 1.2rem;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .project-filters__control {
+    display: inline-flex;
+    max-inline-size: 100%;
+    gap: 0.25rem;
+    padding: 0.28rem;
+    overflow-x: auto;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: color-mix(in srgb, var(--color-bg-soft) 86%, transparent);
+    scrollbar-width: none;
+  }
+
+  .project-filters__control::-webkit-scrollbar {
+    display: none;
+  }
+
+  button {
+    display: inline-flex;
+    min-block-size: 2.45rem;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.55rem 0.78rem;
+    border: 0;
+    border-radius: calc(var(--radius-control) - 2px);
+    background: transparent;
+    color: var(--color-text-muted);
+    font-size: 0.76rem;
+    font-weight: 720;
+    cursor: pointer;
+    transition:
+      background-color var(--transition-fast),
+      color var(--transition-fast),
+      box-shadow var(--transition-fast);
+  }
+
+  button small {
+    display: grid;
+    min-inline-size: 1.45rem;
+    block-size: 1.45rem;
+    place-items: center;
+    border-radius: var(--radius-pill);
+    background: color-mix(in srgb, currentColor 9%, transparent);
+    font-size: 0.62rem;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+
+  button:hover {
+    color: var(--color-accent-strong);
+  }
+
+  button[aria-pressed="true"] {
+    background: var(--color-surface-raised);
+    color: var(--color-accent-strong);
+    box-shadow: 0 1px 3px color-mix(in srgb, var(--color-text) 11%, transparent);
+  }
+
+  button[aria-pressed="true"] small {
+    background: var(--color-accent-soft);
+  }
+
+  .project-filters__result {
+    flex: 0 0 auto;
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: 0.72rem;
+  }
+
+  .project-filters__result strong {
+    color: var(--color-text);
+    font-family: var(--font-serif);
+    font-size: 1rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  @media (max-width: 680px) {
+    .project-filters {
+      align-items: stretch;
+      flex-direction: column;
+      gap: 0.7rem;
+    }
+
+    .project-filters__control {
+      inline-size: 100%;
+    }
+
+    button {
+      gap: 0.25rem;
+      padding: 0.5rem 0.45rem;
+      font-size: 0.7rem;
+    }
+
+    button small {
+      min-inline-size: 1.25rem;
+      block-size: 1.25rem;
+      font-size: 0.58rem;
+    }
+
+    .project-filters__result {
+      align-self: flex-end;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    button {
+      transition: none;
+    }
+  }
+</style>

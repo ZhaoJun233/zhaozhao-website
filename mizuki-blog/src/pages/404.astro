@@ -1,0 +1,264 @@
+---
+import { getCollection } from "astro:content";
+import { Home, Search } from "lucide-astro";
+import { siteConfig } from "../config/site";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { sortPostEntries } from "../lib/content";
+
+const recentPosts = sortPostEntries(
+  await getCollection("posts", ({ data }) => !data.draft),
+).slice(0, 3);
+const dateFormatter = new Intl.DateTimeFormat(siteConfig.locale, {
+  timeZone: siteConfig.timeZone,
+  month: "2-digit",
+  day: "2-digit",
+});
+---
+
+<BaseLayout
+  title="404 · 页面没有找到"
+  description="请求的页面没有找到，可以返回首页、搜索文章或浏览最近更新。"
+  page="404"
+  class="not-found-page"
+>
+  <section class="not-found" aria-labelledby="not-found-title">
+    <div class="site-container not-found__inner">
+      <div class="not-found__code" aria-hidden="true">
+        <span>4</span><i></i><span>4</span>
+      </div>
+
+      <div class="not-found__copy">
+        <p class="eyebrow">Lost at sea · 航线偏移</p>
+        <h1 id="not-found-title"><span>404</span>这片海域暂时没有页面</h1>
+        <p>
+          链接可能已经移动，也可能只是多拐了一个弯。可以回到首页重新出发，或直接搜索想找的文章。
+        </p>
+        <div class="not-found__actions">
+          <a class="button button--primary" href="/">
+            <Home size={17} stroke-width={1.8} aria-hidden="true" />
+            返回首页
+          </a>
+          <a class="button" href="/search/">
+            <Search size={17} stroke-width={1.8} aria-hidden="true" />
+            搜索文章
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="not-found-recent" aria-labelledby="recent-title">
+    <div class="site-container not-found-recent__inner">
+      <header>
+        <p class="eyebrow">Recent notes</p>
+        <h2 id="recent-title">最近写下</h2>
+      </header>
+
+      <ol>
+        {recentPosts.map((post, index) => (
+          <li>
+            <a href={encodeURI(`/posts/${post.id}/`)}>
+              <span class="recent-number" aria-hidden="true">
+                {String(index + 1).padStart(2, "0")}
+              </span>
+              <div>
+                <h3>{post.data.title}</h3>
+                <p>{post.data.description}</p>
+              </div>
+              <time datetime={post.data.publishedAt.toISOString()}>
+                {dateFormatter.format(post.data.publishedAt).replace("/", ".")}
+              </time>
+            </a>
+          </li>
+        ))}
+      </ol>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .not-found-page {
+    overflow: clip;
+  }
+
+  .not-found {
+    position: relative;
+    padding-block: clamp(4.5rem, 11vw, 8.5rem) clamp(4rem, 9vw, 7rem);
+    border-block-end: 1px solid var(--color-border);
+    background:
+      radial-gradient(circle at 85% 18%, color-mix(in srgb, var(--color-pink-soft) 72%, transparent), transparent 23rem),
+      linear-gradient(118deg, color-mix(in srgb, var(--color-accent-soft) 56%, transparent), transparent 47%);
+  }
+
+  .not-found__inner {
+    display: grid;
+    grid-template-columns: minmax(14rem, 0.75fr) minmax(0, 1.25fr);
+    align-items: center;
+    gap: clamp(2rem, 8vw, 8rem);
+  }
+
+  .not-found__code {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: color-mix(in srgb, var(--color-accent) 82%, var(--color-text));
+    font-family: var(--font-serif);
+    font-size: clamp(6rem, 18vw, 13rem);
+    font-variant-numeric: lining-nums;
+    font-weight: 530;
+    letter-spacing: -0.14em;
+    line-height: 0.8;
+  }
+
+  .not-found__code i {
+    inline-size: clamp(3.2rem, 8vw, 5.5rem);
+    aspect-ratio: 1;
+    margin-inline: 0.12em 0.18em;
+    border: 2px solid color-mix(in srgb, var(--color-pink) 62%, transparent);
+    border-radius: 48% 52% 54% 46%;
+    background: radial-gradient(circle at 38% 32%, var(--color-pink-soft), var(--color-accent-soft));
+    transform: rotate(18deg);
+  }
+
+  .not-found__copy {
+    max-inline-size: 48rem;
+  }
+
+  .not-found__copy h1 {
+    margin: 0;
+    font-size: clamp(2.45rem, 6vw, 5rem);
+    font-weight: 610;
+    letter-spacing: -0.05em;
+    line-height: 1.06;
+  }
+
+  .not-found__copy h1 span {
+    display: block;
+    margin-block-end: 0.45rem;
+    color: var(--color-pink);
+    font-family: var(--font-sans);
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+  }
+
+  .not-found__copy > p:last-of-type {
+    max-inline-size: 42rem;
+    margin: 1.2rem 0 0;
+    color: var(--color-text-muted);
+    font-size: 0.88rem;
+    line-height: 1.9;
+  }
+
+  .not-found__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.7rem;
+    margin-block-start: 1.8rem;
+  }
+
+  .not-found-recent {
+    padding-block: clamp(4rem, 9vw, 7rem);
+  }
+
+  .not-found-recent__inner {
+    display: grid;
+    grid-template-columns: minmax(10rem, 0.38fr) minmax(0, 1fr);
+    align-items: start;
+    gap: clamp(2rem, 8vw, 7rem);
+  }
+
+  .not-found-recent h2 {
+    margin: 0;
+    font-size: clamp(1.75rem, 4vw, 2.7rem);
+    letter-spacing: -0.04em;
+  }
+
+  .not-found-recent ol {
+    margin: 0;
+    padding: 0;
+    border-block-start: 1px solid var(--color-border);
+    list-style: none;
+  }
+
+  .not-found-recent li {
+    border-block-end: 1px solid var(--color-border);
+  }
+
+  .not-found-recent li a {
+    display: grid;
+    grid-template-columns: 2.5rem minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 1rem;
+    padding-block: 1rem;
+    text-decoration: none;
+  }
+
+  .recent-number {
+    color: var(--color-pink);
+    font-family: var(--font-serif);
+    font-size: 0.7rem;
+    font-style: italic;
+  }
+
+  .not-found-recent h3 {
+    margin: 0;
+    font-size: clamp(0.95rem, 2vw, 1.15rem);
+    transition: color var(--transition-fast);
+  }
+
+  .not-found-recent li a:hover h3 {
+    color: var(--color-accent-strong);
+  }
+
+  .not-found-recent li p {
+    display: -webkit-box;
+    margin: 0.35rem 0 0;
+    overflow: hidden;
+    color: var(--color-text-muted);
+    font-size: 0.72rem;
+    line-height: 1.65;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+  }
+
+  .not-found-recent time {
+    color: var(--color-text-muted);
+    font-size: 0.66rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  @media (max-width: 760px) {
+    .not-found__inner,
+    .not-found-recent__inner {
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+    }
+
+    .not-found__code {
+      justify-content: flex-start;
+      font-size: clamp(5rem, 34vw, 8rem);
+    }
+
+    .not-found__code i {
+      inline-size: clamp(2.8rem, 17vw, 4rem);
+    }
+  }
+
+  @media (max-width: 460px) {
+    .not-found-recent li a {
+      grid-template-columns: 2rem minmax(0, 1fr);
+    }
+
+    .not-found-recent time {
+      grid-column: 2;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .not-found-recent h3 {
+      transition: none;
+    }
+  }
+</style>

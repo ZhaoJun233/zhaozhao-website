@@ -1,0 +1,147 @@
+---
+import type { CollectionEntry } from "astro:content";
+import { siteConfig } from "../../config/site";
+
+interface Props {
+  posts: CollectionEntry<"posts">[];
+}
+
+const { posts } = Astro.props;
+const dateFormatter = new Intl.DateTimeFormat(siteConfig.locale, {
+  timeZone: siteConfig.timeZone,
+  year: "numeric",
+  month: "short",
+  day: "numeric",
+});
+---
+
+{posts.length > 0 && (
+  <section class="related-posts" aria-labelledby="related-posts-title">
+    <header>
+      <p class="eyebrow">Keep reading · 延伸阅读</p>
+      <h2 id="related-posts-title">也许你还会喜欢</h2>
+    </header>
+    <div class="related-posts__grid">
+      {posts.map((post, index) => (
+        <article class="related-post">
+          <span class="related-post__number" aria-hidden="true">
+            {String(index + 1).padStart(2, "0")}
+          </span>
+          <div>
+            <p class="related-post__meta">
+              <span>{post.data.category}</span>
+              <time datetime={post.data.publishedAt.toISOString()}>
+                {dateFormatter.format(post.data.publishedAt)}
+              </time>
+            </p>
+            <h3><a href={encodeURI(`/posts/${post.id}/`)}>{post.data.title}</a></h3>
+            <p>{post.data.description}</p>
+          </div>
+        </article>
+      ))}
+    </div>
+  </section>
+)}
+
+<style>
+  .related-posts {
+    margin-block-start: clamp(4rem, 9vw, 7rem);
+    padding-block-start: clamp(2rem, 5vw, 3.5rem);
+    border-block-start: 1px solid var(--color-border);
+  }
+
+  .related-posts header {
+    margin-block-end: 1.6rem;
+  }
+
+  .related-posts header h2 {
+    margin: 0;
+    font-size: clamp(1.55rem, 4vw, 2.3rem);
+  }
+
+  .related-posts__grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+  }
+
+  .related-post {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.9rem;
+    padding: 1.2rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    background: var(--color-surface-raised);
+    box-shadow: var(--shadow-card);
+    transition: border-color var(--transition-fast), transform var(--transition-fast);
+  }
+
+  .related-post:has(a:hover) {
+    border-color: color-mix(in srgb, var(--color-accent) 45%, var(--color-border));
+    transform: translateY(-2px);
+  }
+
+  .related-post__number {
+    color: var(--color-pink);
+    font-family: var(--font-serif);
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .related-post__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.7rem;
+    margin: 0 0 0.55rem;
+    color: var(--color-text-muted);
+    font-size: 0.65rem;
+  }
+
+  .related-post__meta span {
+    color: var(--color-accent);
+    font-weight: 720;
+  }
+
+  .related-post h3 {
+    margin: 0;
+    font-size: clamp(1rem, 2vw, 1.16rem);
+    line-height: 1.45;
+  }
+
+  .related-post h3 a {
+    text-decoration-color: transparent;
+  }
+
+  .related-post h3 a:hover {
+    color: var(--color-accent-strong);
+    text-decoration-color: var(--color-pink);
+  }
+
+  .related-post h3 + p {
+    display: -webkit-box;
+    margin: 0.65rem 0 0;
+    overflow: hidden;
+    color: var(--color-text-muted);
+    font-size: 0.76rem;
+    line-height: 1.68;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  @media (max-width: 840px) {
+    .related-posts__grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .related-post {
+      transition: none;
+    }
+
+    .related-post:has(a:hover) {
+      transform: none;
+    }
+  }
+</style>

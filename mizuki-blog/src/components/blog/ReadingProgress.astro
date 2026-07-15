@@ -1,0 +1,41 @@
+<div
+  class="reading-progress"
+  data-reading-progress
+  role="progressbar"
+  aria-label="文章阅读进度"
+  aria-valuemin="0"
+  aria-valuemax="100"
+  aria-valuenow="0"
+>
+  <span></span>
+</div>
+
+<style>
+  .reading-progress {
+    position: fixed;
+    z-index: 180;
+    inset-block-start: 0;
+    inset-inline: 0;
+    block-size: 3px;
+    overflow: hidden;
+    background: transparent;
+    pointer-events: none;
+  }
+
+  .reading-progress span {
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+    background: linear-gradient(90deg, var(--color-accent), var(--color-pink));
+    box-shadow: 0 0 12px color-mix(in srgb, var(--color-accent) 58%, transparent);
+    transform: scaleX(var(--reading-progress, 0));
+    transform-origin: left center;
+    transition: transform 80ms linear;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .reading-progress span {
+      transition: none;
+    }
+  }
+</style>

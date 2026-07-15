@@ -1,0 +1,112 @@
+---
+import PagefindSearch from "../components/integrations/PagefindSearch.astro";
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout
+  title="搜索"
+  description="搜索 233昭 发布的文章正文，并按分类或多个标签筛选结果。"
+  page="search"
+  class="search-page"
+>
+  <section class="search-section" aria-labelledby="search-page-title">
+    <div class="site-container search-shell">
+      <header class="search-heading">
+        <div>
+          <p class="eyebrow">Search · 搜索</p>
+          <h1 id="search-page-title">从文字里，找回一条线索</h1>
+        </div>
+        <p>
+          搜索标题与正文，分类为精确匹配；同时勾选多个标签时，会显示符合其中任意一个标签的文章。
+        </p>
+      </header>
+
+      <div class="search-surface surface-card">
+        <PagefindSearch id="search-page" variant="page" />
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .search-section {
+    position: relative;
+    padding-block: clamp(4rem, 9vw, 7rem) clamp(5rem, 11vw, 8.5rem);
+    overflow: clip;
+  }
+
+  .search-section::before {
+    position: absolute;
+    z-index: -1;
+    inset-block-start: clamp(2rem, 7vw, 6rem);
+    inset-inline-end: clamp(-3rem, 2vw, 4rem);
+    inline-size: clamp(11rem, 25vw, 22rem);
+    aspect-ratio: 1;
+    border: 1px solid color-mix(in srgb, var(--color-accent) 20%, transparent);
+    border-radius: 50%;
+    box-shadow:
+      0 0 0 clamp(1.5rem, 4vw, 3.5rem) color-mix(in srgb, var(--color-pink-soft) 24%, transparent),
+      0 0 0 clamp(4rem, 9vw, 7rem) color-mix(in srgb, var(--color-accent-soft) 18%, transparent);
+    content: "";
+    pointer-events: none;
+  }
+
+  .search-shell {
+    max-inline-size: 64rem;
+  }
+
+  .search-heading {
+    display: grid;
+    align-items: end;
+    grid-template-columns: minmax(0, 1.25fr) minmax(16rem, 0.75fr);
+    gap: clamp(1.5rem, 6vw, 5rem);
+    margin-block-end: clamp(2.2rem, 6vw, 4.5rem);
+  }
+
+  .search-heading h1 {
+    max-inline-size: 12ch;
+    margin: 0;
+    font-size: clamp(2.65rem, 8vw, 6.1rem);
+    font-weight: 620;
+    letter-spacing: -0.055em;
+    line-height: 0.98;
+  }
+
+  .search-heading > p {
+    max-inline-size: 35rem;
+    margin: 0 0 0.35rem;
+    color: var(--color-text-soft);
+    font-size: 0.88rem;
+    line-height: 1.85;
+  }
+
+  .search-surface {
+    padding: clamp(1rem, 3.5vw, 2rem);
+    border-radius: calc(var(--radius-card) + 4px);
+    background:
+      linear-gradient(135deg, color-mix(in srgb, var(--color-accent-soft) 22%, transparent), transparent 32%),
+      var(--color-surface-raised);
+  }
+
+  @media (max-width: 760px) {
+    .search-heading {
+      align-items: start;
+      grid-template-columns: 1fr;
+      gap: 1.2rem;
+    }
+
+    .search-heading h1 {
+      max-inline-size: 11ch;
+    }
+
+    .search-heading > p {
+      max-inline-size: 42rem;
+    }
+  }
+
+  @media (max-width: 440px) {
+    .search-surface {
+      padding: 0.85rem;
+    }
+  }
+</style>

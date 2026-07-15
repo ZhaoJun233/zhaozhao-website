@@ -1,0 +1,314 @@
+---
+import { getCollection, render, type CollectionEntry } from "astro:content";
+import { ArrowLeft, CalendarDays, ExternalLink } from "lucide-astro";
+import { siteConfig } from "../../config/site";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+
+type Props = {
+  project: CollectionEntry<"projects">;
+};
+
+export async function getStaticPaths() {
+  const projects = await getCollection("projects");
+
+  return projects.map((project) => ({
+    params: { slug: project.id },
+    props: { project } satisfies Props,
+  }));
+}
+
+const { project } = Astro.props;
+const { Content } = await render(project);
+const statusLabels = {
+  active: "进行中",
+  completed: "已完成",
+  archived: "已归档",
+} as const;
+const dateLabel = new Intl.DateTimeFormat(siteConfig.locale, {
+  timeZone: siteConfig.timeZone,
+  year: "numeric",
+  month: "long",
+  day: "numeric",
+}).format(project.data.date);
+---
+
+<BaseLayout
+  title={project.data.title}
+  description={project.data.description}
+  image={project.data.cover}
+  page="project"
+  class="project-page"
+>
+  <article data-pagefind-body>
+    <header class="project-hero">
+      <div class="site-container project-hero__inner">
+        <a class="project-back" href="/projects/">
+          <ArrowLeft size={16} stroke-width={1.8} aria-hidden="true" />
+          返回项目索引
+        </a>
+
+        <div class="project-hero__statusline">
+          <span class:list={["project-status", `project-status--${project.data.status}`]}>
+            <i aria-hidden="true"></i>{statusLabels[project.data.status]}
+          </span>
+          <span>
+            <CalendarDays size={15} stroke-width={1.8} aria-hidden="true" />
+            <time datetime={project.data.date.toISOString()}>{dateLabel}</time>
+          </span>
+        </div>
+
+        <h1 data-pagefind-meta="title">{project.data.title}</h1>
+        <p class="project-hero__description" data-pagefind-meta="description">
+          {project.data.description}
+        </p>
+
+        <div class="project-hero__footer">
+          <ul aria-label="项目标签">
+            {project.data.tags.map((tag) => <li><span aria-hidden="true">#</span>{tag}</li>)}
+          </ul>
+
+          {(project.data.repositoryUrl || project.data.demoUrl) && (
+            <nav class="project-actions" aria-label="项目外部链接">
+              {project.data.repositoryUrl && (
+                <a href={project.data.repositoryUrl} target="_blank" rel="noreferrer noopener">
+                  查看仓库 <ExternalLink size={15} stroke-width={1.8} aria-hidden="true" />
+                </a>
+              )}
+              {project.data.demoUrl && (
+                <a href={project.data.demoUrl} target="_blank" rel="noreferrer noopener">
+                  在线演示 <ExternalLink size={15} stroke-width={1.8} aria-hidden="true" />
+                </a>
+              )}
+            </nav>
+          )}
+        </div>
+      </div>
+    </header>
+
+    <div class="project-content site-container">
+      <div class="project-content__marker" aria-hidden="true">
+        <span>Project note</span>
+        <strong>{String(project.data.date.getFullYear()).slice(-2)}</strong>
+      </div>
+      <div class="prose project-body">
+        <Content />
+      </div>
+    </div>
+  </article>
+</BaseLayout>
+
+<style>
+  .project-page {
+    overflow: clip;
+  }
+
+  .project-hero {
+    position: relative;
+    padding-block: clamp(3.25rem, 8vw, 6.5rem) clamp(3rem, 7vw, 5.25rem);
+    border-block-end: 1px solid var(--color-border);
+    background:
+      radial-gradient(circle at 88% 18%, color-mix(in srgb, var(--color-pink-soft) 72%, transparent), transparent 24rem),
+      linear-gradient(115deg, color-mix(in srgb, var(--color-accent-soft) 50%, transparent), transparent 48%);
+  }
+
+  .project-hero::after {
+    position: absolute;
+    inset-block-start: 2.25rem;
+    inset-inline-end: clamp(1rem, 7vw, 7rem);
+    inline-size: clamp(5rem, 11vw, 8rem);
+    block-size: clamp(5rem, 11vw, 8rem);
+    border: 1px solid color-mix(in srgb, var(--color-accent) 25%, transparent);
+    border-radius: 50%;
+    content: "";
+    pointer-events: none;
+  }
+
+  .project-hero__inner {
+    position: relative;
+    z-index: 1;
+    max-inline-size: 62rem;
+  }
+
+  .project-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-block-end: clamp(2.5rem, 6vw, 4.25rem);
+    color: var(--color-text-muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  .project-back:hover {
+    color: var(--color-accent-strong);
+  }
+
+  .project-hero__statusline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.65rem 1.25rem;
+    color: var(--color-text-muted);
+    font-size: 0.72rem;
+  }
+
+  .project-hero__statusline > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.42rem;
+  }
+
+  .project-hero__statusline :global(svg) {
+    color: var(--color-accent);
+  }
+
+  .project-status {
+    font-weight: 740;
+  }
+
+  .project-status i {
+    inline-size: 0.48rem;
+    block-size: 0.48rem;
+    border-radius: 50%;
+    background: var(--color-text-muted);
+  }
+
+  .project-status--active i {
+    background: var(--color-success);
+    box-shadow: 0 0 0 4px var(--color-success-soft);
+  }
+
+  .project-status--completed i {
+    background: var(--color-accent);
+  }
+
+  .project-status--archived i {
+    background: var(--color-warning);
+  }
+
+  h1 {
+    max-inline-size: 16ch;
+    margin: 1.15rem 0 0;
+    font-size: clamp(2.7rem, 7.5vw, 6.25rem);
+    font-weight: 620;
+    letter-spacing: -0.055em;
+    line-height: 1.02;
+  }
+
+  .project-hero__description {
+    max-inline-size: 47rem;
+    margin: 1.3rem 0 0;
+    color: var(--color-text-soft);
+    font-size: clamp(0.98rem, 2vw, 1.13rem);
+    line-height: 1.85;
+  }
+
+  .project-hero__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.25rem 2rem;
+    margin-block-start: clamp(2rem, 5vw, 3rem);
+    padding-block-start: 1.2rem;
+    border-block-start: 1px solid var(--color-border);
+  }
+
+  .project-hero__footer ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem 0.8rem;
+    margin: 0;
+    padding: 0;
+    color: var(--color-text-muted);
+    font-size: 0.7rem;
+    list-style: none;
+  }
+
+  .project-hero__footer li span {
+    color: var(--color-pink);
+  }
+
+  .project-actions {
+    display: flex;
+    gap: 0.6rem;
+  }
+
+  .project-actions a {
+    display: inline-flex;
+    min-block-size: 2.55rem;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.6rem 0.85rem;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
+    font-size: 0.72rem;
+    font-weight: 720;
+    text-decoration: none;
+  }
+
+  .project-actions a:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent-strong);
+  }
+
+  .project-content {
+    display: grid;
+    max-inline-size: calc(var(--prose-width) + 18rem);
+    grid-template-columns: 9rem minmax(0, var(--prose-width));
+    gap: clamp(2rem, 6vw, 5rem);
+    padding-block: clamp(4rem, 9vw, 7rem);
+  }
+
+  .project-content__marker {
+    position: sticky;
+    inset-block-start: calc(var(--header-height) + 2rem);
+    display: flex;
+    block-size: max-content;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-block: 0.8rem;
+    border-block: 1px solid var(--color-border);
+    color: var(--color-text-muted);
+  }
+
+  .project-content__marker span {
+    font-size: 0.6rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .project-content__marker strong {
+    color: var(--color-accent-strong);
+    font-family: var(--font-serif);
+    font-size: 1.4rem;
+    font-weight: 580;
+  }
+
+  .project-body {
+    margin: 0;
+  }
+
+  @media (max-width: 760px) {
+    .project-hero::after {
+      display: none;
+    }
+
+    .project-hero__footer {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .project-content {
+      display: block;
+      max-inline-size: calc(var(--prose-width) + 2 * var(--page-gutter));
+    }
+
+    .project-content__marker {
+      position: static;
+      margin-block-end: 2rem;
+    }
+  }
+</style>
