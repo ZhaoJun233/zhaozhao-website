@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "astro dev",
     "cms": "node scripts/start-cms.mjs",
-    "author": "concurrently -k -n BLOG,CMS -c cyan,magenta \"npm run dev -- --host 127.0.0.1 --port 4321\" \"npm run cms\"",
+    "author": "concurrently -k -n BLOG,CMS -c cyan,magenta \"npm run dev -- --host 127.0.0.1 --port 4322\" \"npm run cms\"",
     "validate:authoring": "vitest run tests/unit/authoring.test.ts",
     "check": "astro check && tsc --noEmit",
     "build": "astro build && pagefind --site dist",
@@ -14,24 +14,30 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "test:a11y": "playwright test tests/e2e/accessibility.spec.ts"
+    "test:a11y": "playwright test tests/e2e/accessibility.spec.ts",
+    "audit:lighthouse": "node scripts/audit-lighthouse.mjs"
   },
   "dependencies": {
     "@astrojs/rss": "4.0.19",
     "@astrojs/sitemap": "3.7.3",
     "astro": "7.0.9",
+    "decap-cms-app": "3.14.1",
     "lucide-astro": "0.556.0",
     "pagefind": "1.5.2"
   },
   "devDependencies": {
     "@astrojs/check": "0.9.9",
     "@axe-core/playwright": "4.12.1",
-    "@lhci/cli": "0.15.1",
     "@playwright/test": "1.61.1",
+    "chrome-launcher": "1.2.1",
     "concurrently": "10.0.3",
     "decap-server": "3.9.1",
+    "lighthouse": "12.6.1",
     "typescript": "6.0.3",
     "vitest": "4.1.10",
     "yaml": "2.9.0"
+  },
+  "overrides": {
+    "trim": "1.0.1"
   }
 }

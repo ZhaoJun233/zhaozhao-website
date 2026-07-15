@@ -12,7 +12,7 @@ const page = paginate(posts, 1, siteConfig.pageSize);
 
 <BaseLayout
   title="文章"
-  description="浏览 233昭 关于动画、开发、阅读与日常的全部文章。"
+  description={`浏览 ${siteConfig.name} 关于动画、开发、阅读与日常的全部文章。`}
   class="discovery-page"
 >
   <section class="posts-page section" aria-labelledby="posts-title">

@@ -1,5 +1,6 @@
 import aboutSummerDreamImage from "../assets/backgrounds/about-summer-dream.jpg";
 import homeHeroImage from "../assets/backgrounds/home-hero.png";
+import profile from "./profile.json";
 
 export type ArtworkPlacement = "home-hero" | "home-intro" | "about-hero";
 
@@ -26,7 +27,7 @@ export type ArtworkCatalog = {
 export const artwork: ArtworkCatalog = {
   homeHero: {
     image: homeHeroImage,
-    title: "233昭首页主视觉",
+    title: `${profile.name}首页主视觉`,
     alt: "粉蓝海浪间微笑的白发少女插画",
     placements: ["home-hero"],
   },

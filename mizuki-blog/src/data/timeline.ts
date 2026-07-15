@@ -8,7 +8,7 @@ export const timeline = [
   {
     date: "2026-03",
     title: "创建这间网络小屋",
-    description: "确定 233昭 的名字，把动画、代码与生活碎片放进同一份写作计划。",
+    description: `确定 ${profile.name} 的名字，把动画、代码与生活碎片放进同一份写作计划。`,
   },
   {
     date: "2026-04",
@@ -26,3 +26,4 @@ export const timeline = [
     description: "为来访者留下一处安静的交流入口，也提醒自己认真回应每次相遇。",
   },
 ] as const satisfies readonly TimelineEntry[];
+import profile from "./profile.json";

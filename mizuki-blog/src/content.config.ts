@@ -11,6 +11,7 @@ const contentDate = z.union([
   z.date(),
   z.string().trim().min(1).pipe(z.coerce.date()),
 ]);
+const httpUrl = z.url({ protocol: /^https?$/ });
 
 function normalizedUniqueTags(maximum: number) {
   return z
@@ -33,7 +34,7 @@ export const createPostSchema = ({ image }: SchemaContext) =>
       coverAlt: normalizedText.optional(),
       featured: z.boolean().default(false),
       series: normalizedText.optional(),
-      canonicalUrl: z.url().optional(),
+      canonicalUrl: httpUrl.optional(),
     })
     .superRefine((post, context) => {
       if (post.cover !== undefined && post.coverAlt === undefined) {
@@ -61,8 +62,8 @@ export const createProjectSchema = ({ image }: SchemaContext) =>
     status: z.enum(["active", "completed", "archived"]),
     tags: normalizedUniqueTags(6),
     cover: image().optional(),
-    repositoryUrl: z.url().optional(),
-    demoUrl: z.url().optional(),
+    repositoryUrl: httpUrl.optional(),
+    demoUrl: httpUrl.optional(),
     featured: z.boolean().default(false),
   });
 

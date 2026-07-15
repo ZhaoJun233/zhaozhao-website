@@ -9,18 +9,32 @@ npm ci
 npm run author
 ```
 
-- 博客与后台：<http://localhost:4321/>、<http://localhost:4321/admin/>
-- Decap 本地代理：<http://localhost:8081/api/v1>
+- 博客与后台：<http://127.0.0.1:4322/>、<http://127.0.0.1:4322/admin/>
+- Decap 本地代理：<http://127.0.0.1:8081/api/v1>
 
 进入后台后点击“登录”，Decap 会自动连接本地代理，不需要单独的账号。
 
 ## Docker Compose
 
+生产预览使用构建后的静态站点，包含 Pagefind 全文搜索，不暴露 Astro 开发端点：
+
 ```bash
-docker compose up --build
+docker compose up -d --build
 ```
 
-Compose 将仓库根目录绑定到容器的 `/workspace`，因此后台保存的内容会保留在宿主机工作区；博客容器启用了轮询监听，保存后会热更新。停止服务使用 `docker compose down`，保留的 `blog_node_modules` 卷可用 `docker compose down -v` 一并清理。
+- 生产预览：<http://127.0.0.1:4321/>
+- 只有静态产物进入运行镜像，服务仅绑定本机回环地址。
+
+需要在 Docker 中编辑内容时，启动写作 profile：
+
+```bash
+docker compose --profile authoring up -d --build
+```
+
+- 实时博客与后台：<http://127.0.0.1:4322/>、<http://127.0.0.1:4322/admin/>
+- Decap 本地代理：<http://127.0.0.1:8081/api/v1>
+
+实时博客只绑定 `src/` 和 `public/`；CMS 仅可写文章、项目、博主资料与上传目录。后台保存会保留在宿主机并触发 Astro 热更新。代理只绑定本机，并仅接受来自 `http://127.0.0.1:4322` 的浏览器请求。编辑完成后执行 `docker compose up -d --build site` 刷新生产预览；停止全部服务使用 `docker compose --profile authoring down`。
 
 ## 校验与发布构建
 
@@ -29,6 +43,8 @@ npm run validate:authoring
 npm test
 npm run check
 npm run build
+npm run test:a11y
+npm run audit:lighthouse
 docker compose config
 ```
 

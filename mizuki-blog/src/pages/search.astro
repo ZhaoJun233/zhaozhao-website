@@ -1,11 +1,12 @@
 ---
 import PagefindSearch from "../components/integrations/PagefindSearch.astro";
+import { siteConfig } from "../config/site";
 import BaseLayout from "../layouts/BaseLayout.astro";
 ---
 
 <BaseLayout
   title="搜索"
-  description="搜索 233昭 发布的文章正文，并按分类或多个标签筛选结果。"
+  description={`搜索 ${siteConfig.name} 发布的文章正文，并按分类或多个标签筛选结果。`}
   page="search"
   class="search-page"
 >

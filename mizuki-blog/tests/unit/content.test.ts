@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { SchemaContext } from "astro/content/config";
 import { z } from "astro/zod";
 import { createPostSchema, createProjectSchema } from "../../src/content.config";
+import { validatePostCoverPair } from "../../src/lib/authoring";
 import {
   buildTaxonomyIndex,
   estimateReadingMinutes,
@@ -84,6 +85,27 @@ describe("content domain", () => {
     for (const date of invalidDateInputs) {
       expect(projectSchema.safeParse({ ...validProject, date }).success).toBe(false);
     }
+  });
+
+  it("accepts HTTP links and rejects executable or non-web URL schemes", () => {
+    for (const url of ["https://example.com/path", "http://localhost:4321/"]) {
+      expect(postSchema.safeParse({ ...validPost, canonicalUrl: url }).success).toBe(true);
+      expect(projectSchema.safeParse({ ...validProject, repositoryUrl: url }).success).toBe(true);
+      expect(projectSchema.safeParse({ ...validProject, demoUrl: url }).success).toBe(true);
+    }
+
+    for (const url of ["javascript:alert(1)", "data:text/html,hello", "ftp://example.com/file"]) {
+      expect(postSchema.safeParse({ ...validPost, canonicalUrl: url }).success).toBe(false);
+      expect(projectSchema.safeParse({ ...validProject, repositoryUrl: url }).success).toBe(false);
+      expect(projectSchema.safeParse({ ...validProject, demoUrl: url }).success).toBe(false);
+    }
+  });
+
+  it("requires CMS-authored cover images and descriptions as a pair", () => {
+    expect(() => validatePostCoverPair(undefined, undefined)).not.toThrow();
+    expect(() => validatePostCoverPair("/cover.jpg", "封面说明")).not.toThrow();
+    expect(() => validatePostCoverPair("/cover.jpg", "")).toThrow(/同时填写/);
+    expect(() => validatePostCoverPair(undefined, "封面说明")).toThrow(/同时填写/);
   });
 
   it("uses mixed Chinese and Latin reading speed", () => {

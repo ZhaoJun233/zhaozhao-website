@@ -1,9 +1,10 @@
 import sitemap from "@astrojs/sitemap";
 import { defineConfig } from "astro/config";
+import { resolveSiteUrl } from "./src/config/build.ts";
 
 export default defineConfig({
   output: "static",
-  site: process.env.PUBLIC_SITE_URL ?? "http://localhost:4321",
+  site: resolveSiteUrl(process.env),
   base: "/",
   trailingSlash: "always",
   integrations: [sitemap()],

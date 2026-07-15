@@ -1,35 +1,79 @@
 services:
-  blog:
+  site:
     build:
       context: .
+      target: production
+      args:
+        PUBLIC_SITE_URL: http://127.0.0.1:4321
+        PUBLIC_GISCUS_REPO: ${PUBLIC_GISCUS_REPO:-}
+        PUBLIC_GISCUS_REPO_ID: ${PUBLIC_GISCUS_REPO_ID:-}
+        PUBLIC_GISCUS_CATEGORY: ${PUBLIC_GISCUS_CATEGORY:-}
+        PUBLIC_GISCUS_CATEGORY_ID: ${PUBLIC_GISCUS_CATEGORY_ID:-}
     init: true
-    working_dir: /workspace/mizuki-blog
+    ports:
+      - "127.0.0.1:4321:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/"]
+      interval: 10s
+      timeout: 3s
+      start_period: 5s
+      retries: 6
+
+  author:
+    profiles: ["authoring"]
+    build:
+      context: .
+      target: authoring
+    init: true
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    working_dir: /app
     command: npm run dev -- --host 0.0.0.0 --port 4321
     environment:
       CHOKIDAR_USEPOLLING: "true"
       CHOKIDAR_INTERVAL: "250"
+      PUBLIC_SITE_URL: http://127.0.0.1:4322
     ports:
-      - "4321:4321"
+      - "127.0.0.1:4322:4321"
     volumes:
-      - .:/workspace/mizuki-blog
-      - blog_node_modules:/workspace/mizuki-blog/node_modules
+      - ./src:/app/src
+      - ./public:/app/public
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4321/admin/"]
+      interval: 10s
+      timeout: 3s
+      start_period: 10s
+      retries: 6
 
   cms:
+    profiles: ["authoring"]
     build:
       context: .
+      target: authoring
     init: true
-    working_dir: /workspace/mizuki-blog
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    working_dir: /app
     command: npm run cms
     environment:
       BIND_HOST: 0.0.0.0
       GIT_REPO_DIRECTORY: /workspace
       MODE: fs
+      ORIGIN: http://127.0.0.1:4322
       PORT: "8081"
     ports:
-      - "8081:8081"
+      - "127.0.0.1:8081:8081"
     volumes:
-      - ..:/workspace
-      - blog_node_modules:/workspace/mizuki-blog/node_modules
-
-volumes:
-  blog_node_modules:
+      - ./src/content:/workspace/mizuki-blog/src/content
+      - ./src/data:/workspace/mizuki-blog/src/data
+      - ./src/assets/profile:/workspace/mizuki-blog/src/assets/profile
+      - ./src/assets/uploads:/workspace/mizuki-blog/src/assets/uploads
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          fetch('http://127.0.0.1:8081/api/v1',{method:'POST',headers:{'content-type':'application/json','origin':'http://127.0.0.1:4322'},body:JSON.stringify({action:'info'})}).then(response=>{if(!response.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 3s
+      start_period: 5s
+      retries: 6

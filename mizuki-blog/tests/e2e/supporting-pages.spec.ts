@@ -113,3 +113,16 @@ test("robots.txt advertises the configured sitemap URL", async ({ request }) => 
     "Sitemap: http://localhost:4321/sitemap-index.xml",
   );
 });
+
+test("web app manifest derives the editable author identity", async ({ request }) => {
+  const response = await request.get("/manifest.webmanifest");
+  expect(response.ok()).toBe(true);
+  expect(response.headers()["content-type"]).toContain("application/manifest+json");
+
+  const manifest = await response.json();
+  expect(manifest).toMatchObject({
+    name: "233昭 - 动画、代码与生活碎片",
+    short_name: "233昭",
+    description: "记录动画、开发与日常灵感的个人博客。",
+  });
+});

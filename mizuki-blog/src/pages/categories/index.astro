@@ -1,5 +1,6 @@
 ---
 import { getCollection } from "astro:content";
+import { siteConfig } from "../../config/site";
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import { buildTaxonomyIndex } from "../../lib/content";
 
@@ -9,7 +10,7 @@ const categories = buildTaxonomyIndex(posts.map(({ data }) => data.category));
 
 <BaseLayout
   title="文章分类"
-  description="从动画、开发、阅读与生活主题进入 233昭 的文章。"
+  description={`从动画、开发、阅读与生活主题进入 ${siteConfig.name} 的文章。`}
   class="discovery-page"
 >
   <section class="taxonomy-page section" aria-labelledby="categories-title">

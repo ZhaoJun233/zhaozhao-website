@@ -2,6 +2,7 @@
 import { getCollection } from "astro:content";
 import ProjectCard from "../../components/project/ProjectCard.astro";
 import ProjectFilters, { type ProjectStatus } from "../../components/project/ProjectFilters.astro";
+import { siteConfig } from "../../config/site";
 import BaseLayout from "../../layouts/BaseLayout.astro";
 
 const projects = [...await getCollection("projects")].sort(
@@ -21,7 +22,7 @@ const counts = projects.reduce<Record<ProjectStatus, number>>(
 
 <BaseLayout
   title="项目"
-  description="浏览 233昭 正在推进、已经完成与收进档案的项目记录。"
+  description={`浏览 ${siteConfig.name} 正在推进、已经完成与收进档案的项目记录。`}
   page="projects"
   class="projects-page"
 >

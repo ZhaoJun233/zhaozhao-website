@@ -28,7 +28,7 @@ const page = paginate(posts, currentPage, siteConfig.pageSize);
 
 <BaseLayout
   title={`文章 · 第 ${page.page} 页`}
-  description={`浏览 233昭 的文章索引第 ${page.page} 页，共 ${page.total} 篇公开文章。`}
+  description={`浏览 ${siteConfig.name} 的文章索引第 ${page.page} 页，共 ${page.total} 篇公开文章。`}
   class="discovery-page"
 >
   <section class="posts-page section" aria-labelledby="posts-title">

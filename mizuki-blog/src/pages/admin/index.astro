@@ -1,0 +1,30 @@
+---
+export const prerender = true;
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>博客内容后台</title>
+    <link href="/admin/config.yml" type="text/yaml" rel="cms-config-url" />
+  </head>
+  <body>
+    <script>
+      import CMS from "decap-cms-app";
+      import { validatePostCoverPair } from "../../lib/authoring";
+
+      CMS.registerEventListener({
+        name: "preSave",
+        handler: ({ entry }) => {
+          if (entry.get("collection") !== "posts") return;
+          const data = entry.get("data");
+          validatePostCoverPair(data.get("cover"), data.get("coverAlt"));
+        },
+      });
+      CMS.init();
+    </script>
+  </body>
+</html>
