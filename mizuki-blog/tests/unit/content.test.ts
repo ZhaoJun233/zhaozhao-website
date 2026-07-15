@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import type { SchemaContext } from "astro/content/config";
+import { z } from "astro/zod";
+import { createPostSchema, createProjectSchema } from "../../src/content.config";
 import {
   estimateReadingMinutes,
   getRelatedPosts,
@@ -7,7 +10,80 @@ import {
 } from "../../src/lib/content";
 import { groupPostsByMonth } from "../../src/lib/date";
 
+const schemaContext = {
+  image: () =>
+    z.object({
+      src: z.string(),
+      width: z.number(),
+      height: z.number(),
+      format: z.union([
+        z.literal("png"),
+        z.literal("jpg"),
+        z.literal("jpeg"),
+        z.literal("tiff"),
+        z.literal("webp"),
+        z.literal("gif"),
+        z.literal("svg"),
+        z.literal("avif"),
+      ]),
+    }),
+} satisfies SchemaContext;
+
+const postSchema = createPostSchema(schemaContext);
+const projectSchema = createProjectSchema(schemaContext);
+const validPost = {
+  title: "文章标题",
+  description: "文章摘要",
+  publishedAt: "2026-07-15",
+  tags: ["Astro"],
+  category: "开发",
+};
+const validProject = {
+  title: "项目标题",
+  description: "项目摘要",
+  date: "2026-07-15",
+  status: "active" as const,
+  tags: ["Astro"],
+};
+const invalidDateInputs = [null, true, false, "", " ", "not-a-date"] as const;
+
 describe("content domain", () => {
+  it("accepts date values and rejects invalid post publishedAt inputs", () => {
+    expect(postSchema.parse(validPost).publishedAt).toEqual(new Date("2026-07-15"));
+    expect(
+      postSchema.safeParse({ ...validPost, publishedAt: new Date("2026-07-15") }).success,
+    ).toBe(true);
+
+    for (const publishedAt of invalidDateInputs) {
+      expect(postSchema.safeParse({ ...validPost, publishedAt }).success).toBe(false);
+    }
+  });
+
+  it("accepts optional date values and rejects invalid post updatedAt inputs", () => {
+    expect(postSchema.safeParse(validPost).success).toBe(true);
+    expect(postSchema.parse({ ...validPost, updatedAt: "2026-07-16" }).updatedAt).toEqual(
+      new Date("2026-07-16"),
+    );
+    expect(
+      postSchema.safeParse({ ...validPost, updatedAt: new Date("2026-07-16") }).success,
+    ).toBe(true);
+
+    for (const updatedAt of invalidDateInputs) {
+      expect(postSchema.safeParse({ ...validPost, updatedAt }).success).toBe(false);
+    }
+  });
+
+  it("accepts date values and rejects invalid project date inputs", () => {
+    expect(projectSchema.parse(validProject).date).toEqual(new Date("2026-07-15"));
+    expect(
+      projectSchema.safeParse({ ...validProject, date: new Date("2026-07-15") }).success,
+    ).toBe(true);
+
+    for (const date of invalidDateInputs) {
+      expect(projectSchema.safeParse({ ...validProject, date }).success).toBe(false);
+    }
+  });
+
   it("uses mixed Chinese and Latin reading speed", () => {
     expect(estimateReadingMinutes("海".repeat(400) + " word ".repeat(200))).toBe(2);
   });
@@ -19,6 +95,12 @@ describe("content domain", () => {
       pageCount: 3,
       total: 5,
     });
+  });
+
+  it("throws RangeError for invalid pagination ranges", () => {
+    expect(() => paginate([1, 2, 3], 0, 2)).toThrow(RangeError);
+    expect(() => paginate([1, 2, 3], 1, 0)).toThrow(RangeError);
+    expect(() => paginate([1, 2, 3], 3, 2)).toThrow(RangeError);
   });
 
   it("scores category before one shared tag", () => {
@@ -48,6 +130,125 @@ describe("content domain", () => {
     );
 
     expect(related.map((item) => item.id)).toEqual(["b", "c"]);
+  });
+
+  it("adds a related-post point for the same series", () => {
+    const current = {
+      id: "current",
+      publishedAt: new Date("2026-07-15"),
+      category: "开发",
+      tags: [],
+      series: "Astro 入门",
+    };
+    const related = getRelatedPosts(
+      current,
+      [
+        {
+          id: "unrelated",
+          publishedAt: new Date("2026-07-14"),
+          category: "随笔",
+          tags: [],
+        },
+        {
+          id: "same-series",
+          publishedAt: new Date("2026-07-13"),
+          category: "随笔",
+          tags: [],
+          series: "Astro 入门",
+        },
+      ],
+      2,
+    );
+
+    expect(related.map((item) => item.id)).toEqual(["same-series", "unrelated"]);
+  });
+
+  it("scores two points for each shared tag", () => {
+    const current = {
+      id: "current",
+      publishedAt: new Date("2026-07-15"),
+      category: "开发",
+      tags: ["Astro", "TypeScript"],
+    };
+    const related = getRelatedPosts(
+      current,
+      [
+        {
+          id: "same-category",
+          publishedAt: new Date("2026-07-14"),
+          category: "开发",
+          tags: [],
+        },
+        {
+          id: "two-tags",
+          publishedAt: new Date("2026-07-13"),
+          category: "随笔",
+          tags: ["Astro", "TypeScript"],
+        },
+      ],
+      2,
+    );
+
+    expect(related.map((item) => item.id)).toEqual(["two-tags", "same-category"]);
+  });
+
+  it("excludes the current post from related results", () => {
+    const current = {
+      id: "current",
+      publishedAt: new Date("2026-07-15"),
+      category: "开发",
+      tags: ["Astro"],
+    };
+    const related = getRelatedPosts(
+      current,
+      [
+        current,
+        {
+          id: "other",
+          publishedAt: new Date("2026-07-14"),
+          category: "开发",
+          tags: ["Astro"],
+        },
+      ],
+      2,
+    );
+
+    expect(related.map((item) => item.id)).toEqual(["other"]);
+  });
+
+  it("breaks related-score ties by date descending then slug ascending", () => {
+    const current = {
+      id: "current",
+      publishedAt: new Date("2026-07-15"),
+      category: "开发",
+      tags: [],
+    };
+    const related = getRelatedPosts(
+      current,
+      [
+        {
+          id: "old",
+          publishedAt: new Date("2026-07-12"),
+          category: "开发",
+          tags: [],
+        },
+        {
+          id: "z-new",
+          publishedAt: new Date("2026-07-14"),
+          category: "开发",
+          tags: [],
+        },
+        {
+          id: "a-new",
+          publishedAt: new Date("2026-07-14"),
+          category: "开发",
+          tags: [],
+        },
+      ],
+      3,
+    );
+
+    expect(related.map((item) => item.id)).toEqual(["a-new", "z-new", "old"]);
   });
 
   it("sorts by publication date descending and slug ascending", () => {
