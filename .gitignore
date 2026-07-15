@@ -1,0 +1,22 @@
+# Dependencies and build output
+node_modules/
+dist/
+.astro/
+.pagefind/
+coverage/
+playwright-report/
+test-results/
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# IDE and OS files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Visual brainstorming workspace
+.superpowers/
