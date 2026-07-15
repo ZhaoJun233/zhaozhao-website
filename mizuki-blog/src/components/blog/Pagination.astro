@@ -1,0 +1,190 @@
+---
+interface Props {
+  currentPage: number;
+  pageCount: number;
+  basePath?: string;
+}
+
+type PageToken = number | "ellipsis-start" | "ellipsis-end";
+
+const { currentPage, pageCount, basePath = "/posts/" } = Astro.props;
+const normalizedBase = `/${basePath.replace(/^\/+|\/+$/g, "")}/`.replace(/^\/\/$/, "/");
+
+function pageHref(page: number): string {
+  return encodeURI(page === 1 ? normalizedBase : `${normalizedBase}page/${page}/`);
+}
+
+function getPageTokens(): PageToken[] {
+  if (pageCount <= 7) {
+    return Array.from({ length: pageCount }, (_, index) => index + 1);
+  }
+
+  const pages = new Set([1, pageCount]);
+  for (let page = Math.max(2, currentPage - 1); page <= Math.min(pageCount - 1, currentPage + 1); page += 1) {
+    pages.add(page);
+  }
+
+  const sortedPages = [...pages].sort((left, right) => left - right);
+  const tokens: PageToken[] = [];
+
+  sortedPages.forEach((page, index) => {
+    const previous = sortedPages[index - 1];
+    if (previous !== undefined && page - previous > 1) {
+      tokens.push(previous === 1 ? "ellipsis-start" : "ellipsis-end");
+    }
+    tokens.push(page);
+  });
+
+  return tokens;
+}
+
+const tokens = getPageTokens();
+---
+
+{pageCount > 1 && (
+  <nav class="pagination" aria-label="文章分页">
+    <a
+      class:list={["pagination__direction", { "pagination__direction--disabled": currentPage === 1 }]}
+      href={currentPage > 1 ? pageHref(currentPage - 1) : undefined}
+      aria-disabled={currentPage === 1 ? "true" : undefined}
+      tabindex={currentPage === 1 ? -1 : undefined}
+    >
+      <span aria-hidden="true">←</span>
+      <span>上一页</span>
+    </a>
+
+    <ol class="pagination__pages">
+      {tokens.map((token) => (
+        <li>
+          {typeof token === "number" ? (
+            <a
+              href={pageHref(token)}
+              aria-label={`第 ${token} 页`}
+              aria-current={token === currentPage ? "page" : undefined}
+            >
+              {token}
+            </a>
+          ) : (
+            <span class="pagination__ellipsis" aria-hidden="true">…</span>
+          )}
+        </li>
+      ))}
+    </ol>
+
+    <a
+      class:list={[
+        "pagination__direction",
+        { "pagination__direction--disabled": currentPage === pageCount },
+      ]}
+      href={currentPage < pageCount ? pageHref(currentPage + 1) : undefined}
+      aria-disabled={currentPage === pageCount ? "true" : undefined}
+      tabindex={currentPage === pageCount ? -1 : undefined}
+    >
+      <span>下一页</span>
+      <span aria-hidden="true">→</span>
+    </a>
+  </nav>
+)}
+
+<style>
+  .pagination {
+    display: grid;
+    grid-template-columns: minmax(6rem, 1fr) auto minmax(6rem, 1fr);
+    align-items: center;
+    gap: 1rem;
+    margin-top: clamp(2.4rem, 6vw, 4.5rem);
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--color-border, color-mix(in srgb, currentColor 16%, transparent));
+  }
+
+  .pagination a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .pagination__direction {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    width: fit-content;
+    min-height: 2.75rem;
+    padding: 0.6rem 0.85rem;
+    border-radius: var(--radius-card, 8px);
+    font-size: 0.84rem;
+    font-weight: 720;
+    transition: color 180ms ease, background-color 180ms ease;
+  }
+
+  .pagination__direction:last-child {
+    justify-self: end;
+  }
+
+  .pagination__direction:hover:not(.pagination__direction--disabled) {
+    color: var(--color-accent-cyan-strong, var(--color-accent-cyan, #087f8c));
+    background: color-mix(in srgb, var(--color-surface, Canvas) 88%, #1ca7b5 12%);
+  }
+
+  .pagination__direction--disabled {
+    color: var(--color-text-muted, color-mix(in srgb, currentColor 42%, transparent));
+    cursor: default;
+  }
+
+  .pagination__pages {
+    display: flex;
+    align-items: center;
+    gap: 0.34rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .pagination__pages a,
+  .pagination__ellipsis {
+    display: grid;
+    width: 2.45rem;
+    height: 2.45rem;
+    place-items: center;
+    border-radius: 50%;
+    font-size: 0.82rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+  }
+
+  .pagination__pages a:hover {
+    color: var(--color-accent-cyan-strong, var(--color-accent-cyan, #087f8c));
+    background: color-mix(in srgb, var(--color-surface, Canvas) 88%, #1ca7b5 12%);
+  }
+
+  .pagination__pages a[aria-current="page"] {
+    color: #fff;
+    background: var(--color-accent-cyan-strong, var(--color-accent-cyan, #087f8c));
+    box-shadow: 0 6px 20px rgb(0 137 151 / 20%);
+  }
+
+  .pagination a:focus-visible {
+    outline: var(--focus-ring, 3px solid #00a6b8);
+    outline-offset: 3px;
+  }
+
+  @media (max-width: 580px) {
+    .pagination {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .pagination__pages {
+      grid-column: 1 / -1;
+      grid-row: 1;
+      justify-content: center;
+    }
+
+    .pagination__direction {
+      grid-row: 2;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pagination__direction {
+      transition: none;
+    }
+  }
+</style>

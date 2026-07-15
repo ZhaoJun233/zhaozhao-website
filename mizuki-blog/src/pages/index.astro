@@ -1,0 +1,179 @@
+---
+import { getCollection, type CollectionEntry } from "astro:content";
+import FeaturedPosts from "../components/home/FeaturedPosts.astro";
+import FeaturedProjects from "../components/home/FeaturedProjects.astro";
+import HomeHero from "../components/home/HomeHero.astro";
+import HomeIntroduction from "../components/home/HomeIntroduction.astro";
+import TopicBand, { type HomeTopic } from "../components/home/TopicBand.astro";
+import { artwork } from "../data/artwork";
+import { siteConfig } from "../config/site";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { buildTaxonomyIndex, sortPostEntries } from "../lib/content";
+
+const publishedPosts = sortPostEntries(
+  await getCollection("posts", ({ data }) => !data.draft),
+);
+const featuredPosts = publishedPosts.filter(({ data }) => data.featured);
+const selectedPostIds = new Set(featuredPosts.slice(0, 3).map(({ id }) => id));
+const homePosts = [
+  ...featuredPosts.slice(0, 3),
+  ...publishedPosts.filter(({ id }) => !selectedPostIds.has(id)),
+].slice(0, 3);
+
+const projects = await getCollection("projects");
+const homeProjects = [...projects]
+  .sort(
+    (left, right) =>
+      Number(right.data.featured) - Number(left.data.featured) ||
+      right.data.date.getTime() - left.data.date.getTime() ||
+      left.id.localeCompare(right.id),
+  )
+  .slice(0, 3);
+
+const topics: HomeTopic[] = buildTaxonomyIndex(
+  publishedPosts.map(({ data }) => data.category),
+).map(({ label, slug, count }) => ({
+  label,
+  count,
+  href: encodeURI(`/categories/${slug}/`),
+}));
+
+const latestPost: CollectionEntry<"posts"> | undefined = publishedPosts[0];
+const latestDate = latestPost?.data.publishedAt;
+const latestDateLabel = latestDate
+  ? new Intl.DateTimeFormat(siteConfig.locale, {
+      timeZone: siteConfig.timeZone,
+      month: "2-digit",
+      day: "2-digit",
+    }).format(latestDate)
+  : "—";
+---
+
+<BaseLayout
+  title={siteConfig.title}
+  description={siteConfig.description}
+  image={artwork.homeHero.image}
+  page="home"
+  headerOverlay={true}
+>
+  <HomeHero />
+
+  <aside class="site-status" aria-label="站点近况">
+    <div class="status-inner">
+      <p class="status-live"><i aria-hidden="true"></i><span>站点状态</span><strong>安静运行中</strong></p>
+      <dl>
+        <div><dt>文章</dt><dd>{publishedPosts.length}</dd></div>
+        <div><dt>主题</dt><dd>{topics.length}</dd></div>
+        <div><dt>最近更新</dt><dd>{latestDateLabel}</dd></div>
+      </dl>
+      <p class="status-note">动画 · 开发 · 日常</p>
+    </div>
+  </aside>
+
+  <FeaturedPosts posts={homePosts} />
+  <TopicBand topics={topics} />
+  <FeaturedProjects projects={homeProjects} />
+  <HomeIntroduction />
+</BaseLayout>
+
+<style>
+  .site-status {
+    position: relative;
+    z-index: 5;
+    padding: 0 var(--page-gutter);
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-bg);
+    color: var(--color-text);
+  }
+
+  .status-inner {
+    display: grid;
+    width: min(100%, var(--content-width));
+    min-height: 4.7rem;
+    align-items: center;
+    margin: 0 auto;
+    grid-template-columns: minmax(11rem, 1fr) auto minmax(9rem, 1fr);
+    gap: clamp(1.25rem, 4vw, 3rem);
+  }
+
+  .status-live {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    margin: 0;
+    font-size: 0.7rem;
+  }
+
+  .status-live i {
+    width: 0.44rem;
+    height: 0.44rem;
+    border-radius: 50%;
+    background: var(--color-success, #2f8660);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-success, #2f8660) 12%, transparent);
+  }
+
+  .status-live span {
+    color: var(--color-text-muted);
+    letter-spacing: 0.06em;
+  }
+
+  .status-live strong {
+    font-weight: 720;
+  }
+
+  dl {
+    display: flex;
+    align-items: center;
+    gap: clamp(1rem, 3vw, 2.3rem);
+    margin: 0;
+  }
+
+  dl div {
+    display: flex;
+    align-items: baseline;
+    gap: 0.45rem;
+  }
+
+  dt {
+    color: var(--color-text-muted);
+    font-size: 0.66rem;
+  }
+
+  dd {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 1rem;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .status-note {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: 0.66rem;
+    letter-spacing: 0.12em;
+    text-align: right;
+    text-transform: uppercase;
+  }
+
+  @media (max-width: 700px) {
+    .status-inner {
+      min-height: 4.15rem;
+      grid-template-columns: 1fr auto;
+      gap: 1rem;
+    }
+
+    .status-live span,
+    .status-note {
+      display: none;
+    }
+
+    dl {
+      gap: 0.8rem;
+    }
+
+    dl div:not(:last-child) {
+      display: none;
+    }
+  }
+</style>

@@ -1,0 +1,60 @@
+---
+import { siteConfig } from "../../config/site";
+import {
+  buildCanonical,
+  type JsonLdNode,
+  type SeoImage,
+} from "../../lib/seo";
+
+interface Props {
+  title: string;
+  description: string;
+  canonical?: string | URL;
+  image?: SeoImage;
+  type?: "website" | "article" | "profile";
+  jsonLd?: JsonLdNode | JsonLdNode[];
+}
+
+const {
+  title,
+  description,
+  canonical = Astro.url.pathname,
+  image,
+  type = "website",
+  jsonLd,
+} = Astro.props;
+
+const pageTitle = title === siteConfig.title || title.includes(siteConfig.name)
+  ? title
+  : `${title} | ${siteConfig.name}`;
+const canonicalUrl = buildCanonical(canonical);
+const imageSource = image instanceof URL
+  ? image.href
+  : typeof image === "string"
+    ? image
+    : image?.src;
+const socialImage = imageSource ? new URL(imageSource, canonicalUrl).href : undefined;
+const schemas = jsonLd ? (Array.isArray(jsonLd) ? jsonLd : [jsonLd]) : [];
+---
+
+<title>{pageTitle}</title>
+<meta name="description" content={description} />
+<link rel="canonical" href={canonicalUrl} />
+
+<meta property="og:site_name" content={siteConfig.name} />
+<meta property="og:locale" content={siteConfig.locale.replace("-", "_")} />
+<meta property="og:type" content={type} />
+<meta property="og:title" content={pageTitle} />
+<meta property="og:description" content={description} />
+<meta property="og:url" content={canonicalUrl} />
+{socialImage && <meta property="og:image" content={socialImage} />}
+{socialImage && <meta property="og:image:alt" content={title} />}
+
+<meta name="twitter:card" content={socialImage ? "summary_large_image" : "summary"} />
+<meta name="twitter:title" content={pageTitle} />
+<meta name="twitter:description" content={description} />
+{socialImage && <meta name="twitter:image" content={socialImage} />}
+
+{schemas.map((schema) => (
+  <script is:inline type="application/ld+json" set:html={JSON.stringify(schema).replace(/</g, "\\u003c")} />
+))}

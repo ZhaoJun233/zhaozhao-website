@@ -1,7 +1,9 @@
-const CJK_CHARACTER = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/gu;
+import { taxonomySlug } from "./slug";
 
 export { groupPostsByMonth } from "./date";
 export type { PostMonthGroup } from "./date";
+
+const CJK_CHARACTER = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/gu;
 
 export function estimateReadingMinutes(text: string): number {
   const cjk = text.match(CJK_CHARACTER)?.length ?? 0;
@@ -25,12 +27,63 @@ export function sortPosts<T extends PublishedPost>(posts: readonly T[]): T[] {
   );
 }
 
+export type PostEntry = {
+  id: string;
+  data: {
+    publishedAt: Date;
+  };
+};
+
+export function sortPostEntries<T extends PostEntry>(posts: readonly T[]): T[] {
+  return sortPosts(
+    posts.map((entry) => ({
+      entry,
+      id: entry.id,
+      publishedAt: entry.data.publishedAt,
+    })),
+  ).map(({ entry }) => entry);
+}
+
 export type PaginationResult<T> = {
   items: T[];
   page: number;
   pageCount: number;
   total: number;
 };
+
+export type TaxonomyIndexItem = {
+  label: string;
+  slug: string;
+  count: number;
+};
+
+export function buildTaxonomyIndex(values: readonly string[]): TaxonomyIndexItem[] {
+  const terms = new Map<string, TaxonomyIndexItem>();
+
+  for (const label of values) {
+    const slug = taxonomySlug(label);
+
+    if (slug.length === 0) {
+      throw new Error(`Taxonomy value "${label}" produces an empty slug.`);
+    }
+
+    const existing = terms.get(slug);
+
+    if (existing === undefined) {
+      terms.set(slug, { label, slug, count: 1 });
+    } else if (existing.label === label) {
+      existing.count += 1;
+    } else {
+      throw new Error(
+        `Taxonomy slug collision: "${existing.label}" and "${label}" both normalize to "${slug}".`,
+      );
+    }
+  }
+
+  return [...terms.values()].sort(
+    (left, right) => right.count - left.count || left.label.localeCompare(right.label, "zh-CN"),
+  );
+}
 
 export function paginate<T>(
   items: readonly T[],

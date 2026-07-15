@@ -1,0 +1,227 @@
+---
+import { getCollection } from "astro:content";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { buildTaxonomyIndex } from "../../lib/content";
+
+const posts = await getCollection("posts", ({ data }) => !data.draft);
+const categories = buildTaxonomyIndex(posts.map(({ data }) => data.category));
+---
+
+<BaseLayout
+  title="文章分类"
+  description="从动画、开发、阅读与生活主题进入 Mizuki 的文章。"
+  class="discovery-page"
+>
+  <section class="taxonomy-page section" aria-labelledby="categories-title">
+    <div class="site-container taxonomy-shell">
+      <header class="taxonomy-heading">
+        <div>
+          <p class="eyebrow">Filed by subject · 分类</p>
+          <h1 id="categories-title">从一个主题<br />开始阅读</h1>
+        </div>
+        <p>
+          每篇文章只归入一个主要分类。像沿着书架上的隔板，先选择今天想靠近的方向。
+        </p>
+      </header>
+
+      {categories.length > 0 ? (
+        <ol class="taxonomy-ledger">
+          {categories.map((category, index) => (
+            <li>
+              <a href={encodeURI(`/categories/${category.slug}/`)}>
+                <span class="taxonomy-ledger__number" aria-hidden="true">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <span class="taxonomy-ledger__name">{category.label}</span>
+                <span class="taxonomy-ledger__count">{category.count} 篇文章</span>
+                <span class="taxonomy-ledger__arrow" aria-hidden="true">↗</span>
+              </a>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <section class="empty-state" aria-labelledby="categories-empty-title">
+          <p aria-hidden="true">○</p>
+          <h2 id="categories-empty-title">分类书架还是空的</h2>
+          <p>公开文章出现后，主题入口会自动整理在这里。</p>
+        </section>
+      )}
+
+      <p class="taxonomy-switch">
+        想交叉浏览多个关键词？<a href="/tags/">前往标签索引 <span aria-hidden="true">→</span></a>
+      </p>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .taxonomy-page {
+    padding-block: clamp(6.5rem, 12vw, 10rem) clamp(4.5rem, 9vw, 8rem);
+  }
+
+  .taxonomy-shell {
+    max-width: min(var(--content-width, 1180px), calc(100% - 2rem));
+  }
+
+  .taxonomy-heading {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(15rem, 0.75fr);
+    align-items: end;
+    gap: clamp(2rem, 8vw, 8rem);
+    margin-bottom: clamp(3.5rem, 8vw, 6rem);
+  }
+
+  .taxonomy-heading h1 {
+    margin: 0.3rem 0 0;
+    font-family: var(--font-display, ui-serif, "Noto Serif SC", serif);
+    font-size: clamp(2.7rem, 7.5vw, 6.2rem);
+    font-weight: 620;
+    letter-spacing: -0.045em;
+    line-height: 1.02;
+  }
+
+  .taxonomy-heading > p {
+    margin: 0 0 0.5rem;
+    color: var(--color-text-muted, color-mix(in srgb, currentColor 68%, transparent));
+    line-height: 1.9;
+  }
+
+  .taxonomy-ledger {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin: 0;
+    padding: 0;
+    border-top: 1px solid var(--color-border, color-mix(in srgb, currentColor 18%, transparent));
+    list-style: none;
+  }
+
+  .taxonomy-ledger li {
+    border-bottom: 1px solid var(--color-border, color-mix(in srgb, currentColor 18%, transparent));
+  }
+
+  .taxonomy-ledger li:nth-child(odd) {
+    border-right: 1px solid var(--color-border, color-mix(in srgb, currentColor 18%, transparent));
+  }
+
+  .taxonomy-ledger a {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    align-items: baseline;
+    gap: 1rem;
+    min-height: 8.5rem;
+    padding: 1.8rem clamp(1rem, 3vw, 2.2rem);
+    color: inherit;
+    text-decoration: none;
+    transition: color 180ms ease, background-color 180ms ease;
+  }
+
+  .taxonomy-ledger a:hover {
+    color: var(--color-accent-cyan-strong, var(--color-accent-cyan, #087f8c));
+    background:
+      linear-gradient(110deg, rgb(28 167 181 / 9%), transparent 52%, rgb(231 111 152 / 7%)),
+      var(--color-surface, transparent);
+  }
+
+  .taxonomy-ledger a:focus-visible {
+    outline: var(--focus-ring, 3px solid #00a6b8);
+    outline-offset: -4px;
+  }
+
+  .taxonomy-ledger__number {
+    color: var(--color-accent-pink, #d65782);
+    font-size: 0.68rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: 750;
+  }
+
+  .taxonomy-ledger__name {
+    font-family: var(--font-display, ui-serif, "Noto Serif SC", serif);
+    font-size: clamp(1.55rem, 3vw, 2.25rem);
+    font-weight: 620;
+  }
+
+  .taxonomy-ledger__count {
+    color: var(--color-text-muted, color-mix(in srgb, currentColor 62%, transparent));
+    font-size: 0.72rem;
+    white-space: nowrap;
+  }
+
+  .taxonomy-ledger__arrow {
+    font-size: 1rem;
+    transition: transform 180ms ease;
+  }
+
+  .taxonomy-ledger a:hover .taxonomy-ledger__arrow {
+    transform: translate(2px, -2px);
+  }
+
+  .taxonomy-switch {
+    margin: 2.2rem 0 0 auto;
+    color: var(--color-text-muted, color-mix(in srgb, currentColor 68%, transparent));
+    font-size: 0.82rem;
+    text-align: right;
+  }
+
+  .taxonomy-switch a {
+    color: var(--color-accent-cyan-strong, var(--color-accent-cyan, #087f8c));
+    font-weight: 720;
+    text-underline-offset: 0.25em;
+  }
+
+  .empty-state {
+    padding: clamp(2.5rem, 8vw, 5rem);
+    border-block: 1px solid var(--color-border, color-mix(in srgb, currentColor 18%, transparent));
+    text-align: center;
+  }
+
+  .empty-state > p:first-child {
+    color: var(--color-accent-pink, #d65782);
+    font-size: 1.6rem;
+  }
+
+  .empty-state h2 {
+    font-family: var(--font-display, ui-serif, serif);
+  }
+
+  @media (max-width: 760px) {
+    .taxonomy-heading,
+    .taxonomy-ledger {
+      grid-template-columns: 1fr;
+    }
+
+    .taxonomy-heading {
+      align-items: start;
+      gap: 1.5rem;
+    }
+
+    .taxonomy-ledger li:nth-child(odd) {
+      border-right: 0;
+    }
+
+    .taxonomy-ledger a {
+      min-height: 7rem;
+    }
+  }
+
+  @media (max-width: 430px) {
+    .taxonomy-ledger a {
+      grid-template-columns: auto minmax(0, 1fr) auto;
+    }
+
+    .taxonomy-ledger__count {
+      grid-column: 2;
+    }
+
+    .taxonomy-ledger__arrow {
+      grid-column: 3;
+      grid-row: 1;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .taxonomy-ledger a,
+    .taxonomy-ledger__arrow {
+      transition: none;
+    }
+  }
+</style>

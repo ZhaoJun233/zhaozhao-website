@@ -1,0 +1,176 @@
+---
+import type { GetStaticPaths } from "astro";
+import { getCollection } from "astro:content";
+import PostCard from "../../components/blog/PostCard.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { buildTaxonomyIndex, sortPostEntries } from "../../lib/content";
+
+export const getStaticPaths = (async () => {
+  const posts = await getCollection("posts", ({ data }) => !data.draft);
+  const tags = buildTaxonomyIndex(posts.flatMap(({ data }) => data.tags));
+
+  return tags.map((tag) => ({
+    params: { slug: tag.slug },
+    props: { tag },
+  }));
+}) satisfies GetStaticPaths;
+
+interface Props {
+  tag: ReturnType<typeof buildTaxonomyIndex>[number];
+}
+
+const { tag } = Astro.props;
+const posts = sortPostEntries(
+  (await getCollection("posts", ({ data }) => !data.draft)).filter(({ data }) =>
+    data.tags.includes(tag.label),
+  ),
+);
+---
+
+<BaseLayout
+  title={`标签：${tag.label}`}
+  description={`浏览 ${posts.length} 篇标记为「${tag.label}」的文章。`}
+  class="discovery-page"
+>
+  <section class="term-page section" aria-labelledby="tag-title">
+    <div class="site-container term-shell">
+      <nav class="breadcrumb" aria-label="面包屑">
+        <a href="/tags/">全部标签</a><span aria-hidden="true">/</span><span>{tag.label}</span>
+      </nav>
+
+      <header class="term-heading">
+        <div>
+          <p class="eyebrow">Tag · 标签</p>
+          <h1 id="tag-title"><span aria-hidden="true">#</span>{tag.label}</h1>
+        </div>
+        <p class="term-heading__count">
+          <strong>{String(posts.length).padStart(2, "0")}</strong>
+          <span>篇文章</span>
+        </p>
+      </header>
+
+      {posts.length > 0 ? (
+        <div class="post-list">
+          {posts.map((post) => <PostCard post={post} prominence="compact" />)}
+        </div>
+      ) : (
+        <section class="empty-state" aria-labelledby="tag-empty-title">
+          <p aria-hidden="true">#</p>
+          <h2 id="tag-empty-title">这个标签还没有公开文章</h2>
+          <p>内容发布后，这里会自动显示最新条目。</p>
+        </section>
+      )}
+
+      <a class="back-link" href="/tags/"><span aria-hidden="true">←</span> 返回标签索引</a>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .term-page {
+    padding-block: clamp(6.5rem, 12vw, 10rem) clamp(4.5rem, 9vw, 8rem);
+  }
+
+  .term-shell {
+    max-width: min(62rem, calc(100% - 2rem));
+  }
+
+  .breadcrumb {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+    color: var(--color-text-muted, color-mix(in srgb, currentColor 65%, transparent));
+    font-size: 0.75rem;
+  }
+
+  .breadcrumb a {
+    color: inherit;
+    text-underline-offset: 0.24em;
+  }
+
+  .breadcrumb a:hover {
+    color: var(--color-accent-cyan, #087f8c);
+  }
+
+  .term-heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 2rem;
+    margin: clamp(2.3rem, 6vw, 4.5rem) 0 clamp(2.8rem, 7vw, 5rem);
+    padding-bottom: clamp(1.8rem, 4vw, 2.8rem);
+    border-bottom: 1px solid var(--color-border, color-mix(in srgb, currentColor 18%, transparent));
+  }
+
+  .term-heading h1 {
+    max-width: 16ch;
+    margin: 0.25rem 0 0;
+    font-family: var(--font-display, ui-serif, "Noto Serif SC", serif);
+    font-size: clamp(2.7rem, 8vw, 6rem);
+    font-weight: 620;
+    letter-spacing: -0.04em;
+    line-height: 1;
+    overflow-wrap: anywhere;
+  }
+
+  .term-heading h1 span {
+    margin-right: 0.12em;
+    color: var(--color-accent-pink, #d65782);
+    font-size: 0.5em;
+    vertical-align: 0.45em;
+  }
+
+  .term-heading__count {
+    display: flex;
+    align-items: baseline;
+    gap: 0.55rem;
+    margin: 0 0 0.3rem;
+    white-space: nowrap;
+  }
+
+  .term-heading__count strong {
+    color: var(--color-accent-cyan, #087f8c);
+    font-family: var(--font-display, ui-serif, serif);
+    font-size: clamp(2rem, 4vw, 3rem);
+    font-variant-numeric: tabular-nums;
+    font-weight: 560;
+    line-height: 1;
+  }
+
+  .term-heading__count span {
+    color: var(--color-text-muted, color-mix(in srgb, currentColor 62%, transparent));
+    font-size: 0.75rem;
+  }
+
+  .post-list {
+    max-width: 58rem;
+    margin-inline: auto;
+  }
+
+  .back-link {
+    display: inline-flex;
+    gap: 0.55rem;
+    margin-top: clamp(2.5rem, 6vw, 4.5rem);
+    color: var(--color-accent-cyan-strong, var(--color-accent-cyan, #087f8c));
+    font-size: 0.8rem;
+    font-weight: 720;
+    text-underline-offset: 0.25em;
+  }
+
+  .empty-state {
+    padding: clamp(2.5rem, 8vw, 5rem);
+    border-block: 1px solid var(--color-border, color-mix(in srgb, currentColor 18%, transparent));
+    text-align: center;
+  }
+
+  .empty-state h2 {
+    font-family: var(--font-display, ui-serif, serif);
+  }
+
+  @media (max-width: 580px) {
+    .term-heading {
+      align-items: start;
+      flex-direction: column;
+    }
+  }
+</style>

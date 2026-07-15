@@ -1,0 +1,79 @@
+---
+import type { CollectionEntry } from "astro:content";
+import { siteConfig } from "../../config/site";
+import { estimateReadingMinutes } from "../../lib/content";
+import { taxonomySlug } from "../../lib/slug";
+
+interface Props {
+  post: CollectionEntry<"posts">;
+  showCategory?: boolean;
+}
+
+const { post, showCategory = true } = Astro.props;
+const readingMinutes = estimateReadingMinutes(post.body ?? "");
+const publishedLabel = new Intl.DateTimeFormat(siteConfig.locale, {
+  timeZone: siteConfig.timeZone,
+  year: "numeric",
+  month: "long",
+  day: "numeric",
+}).format(post.data.publishedAt);
+const categoryHref = encodeURI(`/categories/${taxonomySlug(post.data.category)}/`);
+---
+
+<ul class="post-meta" aria-label="文章信息">
+  {showCategory && (
+    <li>
+      <a class="post-meta__category" href={categoryHref}>{post.data.category}</a>
+    </li>
+  )}
+  <li>
+    <time datetime={post.data.publishedAt.toISOString()}>{publishedLabel}</time>
+  </li>
+  <li><span>{readingMinutes} 分钟阅读</span></li>
+</ul>
+
+<style>
+  .post-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.42rem 0.85rem;
+    margin: 0;
+    padding: 0;
+    color: var(--color-text-muted, color-mix(in srgb, currentColor 66%, transparent));
+    font-size: 0.78rem;
+    line-height: 1.5;
+    list-style: none;
+  }
+
+  .post-meta li {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.85rem;
+  }
+
+  .post-meta li + li::before {
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--color-border, currentColor);
+    content: "";
+  }
+
+  .post-meta__category {
+    color: var(--color-accent-cyan, var(--color-cyan, #087f8c));
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  .post-meta__category:hover {
+    text-decoration: underline;
+    text-underline-offset: 0.24em;
+  }
+
+  .post-meta__category:focus-visible {
+    border-radius: 2px;
+    outline: var(--focus-ring, 3px solid #00a6b8);
+    outline-offset: 3px;
+  }
+</style>

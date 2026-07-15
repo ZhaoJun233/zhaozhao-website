@@ -1,0 +1,209 @@
+.prose {
+  inline-size: min(100%, var(--prose-width));
+  margin-inline: auto;
+  color: var(--color-text-soft);
+  font-size: clamp(1rem, 0.96rem + 0.18vw, 1.08rem);
+  line-height: 1.9;
+  overflow-wrap: break-word;
+}
+
+.prose > :first-child {
+  margin-block-start: 0;
+}
+
+.prose > :last-child {
+  margin-block-end: 0;
+}
+
+.prose :where(p, ul, ol, blockquote, pre, table, figure, details) {
+  margin-block: 0 1.55em;
+}
+
+.prose :where(h2, h3, h4) {
+  scroll-margin-block-start: calc(var(--header-height) + 1.5rem);
+}
+
+.prose h2 {
+  margin-block: 2.15em 0.75em;
+  padding-block-end: 0.48em;
+  border-block-end: 1px solid var(--color-border);
+  font-size: clamp(1.55rem, 3vw, 2rem);
+  letter-spacing: -0.025em;
+}
+
+.prose h3 {
+  margin-block: 1.8em 0.65em;
+  font-size: clamp(1.25rem, 2.2vw, 1.55rem);
+}
+
+.prose h4 {
+  margin-block: 1.6em 0.55em;
+  font-size: 1.08rem;
+}
+
+.prose strong {
+  color: var(--color-text);
+  font-weight: 700;
+}
+
+.prose a {
+  color: var(--color-accent-strong);
+  font-weight: 600;
+  text-decoration-thickness: 0.08em;
+}
+
+.prose :where(ul, ol) {
+  padding-inline-start: 1.45em;
+}
+
+.prose li {
+  margin-block: 0.42em;
+  padding-inline-start: 0.28em;
+}
+
+.prose li::marker {
+  color: var(--color-accent);
+  font-weight: 700;
+}
+
+.prose blockquote {
+  position: relative;
+  padding: 1rem 1.25rem 1rem 1.45rem;
+  border-inline-start: 3px solid var(--color-pink);
+  border-radius: 0 var(--radius-card) var(--radius-card) 0;
+  background: color-mix(in srgb, var(--color-pink-soft) 52%, transparent);
+  color: var(--color-text-soft);
+}
+
+.prose blockquote > :last-child {
+  margin-block-end: 0;
+}
+
+.prose :not(pre) > code {
+  padding: 0.15em 0.38em;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-bg-soft);
+  color: var(--color-pink-strong);
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  font-weight: 550;
+}
+
+.prose pre {
+  position: relative;
+  padding: 1.15rem 1.25rem;
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  box-shadow: inset 0 1px rgb(255 255 255 / 4%);
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  line-height: 1.72;
+  tab-size: 2;
+}
+
+.prose pre code {
+  font: inherit;
+}
+
+:root[data-theme="dark"] .prose .astro-code,
+:root[data-theme="dark"] .prose .astro-code span {
+  background-color: var(--shiki-dark-bg) !important;
+  color: var(--shiki-dark) !important;
+  font-style: var(--shiki-dark-font-style) !important;
+  font-weight: var(--shiki-dark-font-weight) !important;
+  text-decoration: var(--shiki-dark-text-decoration) !important;
+}
+
+.prose hr {
+  inline-size: min(14rem, 40%);
+  block-size: 1px;
+  margin-block: 3.25rem;
+  border: 0;
+  background: linear-gradient(90deg, transparent, var(--color-border-strong), transparent);
+}
+
+.prose img {
+  inline-size: auto;
+  max-inline-size: 100%;
+  margin-inline: auto;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.prose figure {
+  inline-size: min(100%, 82rem);
+  margin-inline: 50%;
+  transform: translateX(-50%);
+}
+
+.prose figcaption {
+  margin-block-start: 0.65rem;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  line-height: 1.55;
+  text-align: center;
+}
+
+.prose table {
+  display: block;
+  inline-size: 100%;
+  overflow-x: auto;
+  border-spacing: 0;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+
+.prose :where(th, td) {
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--color-border);
+  text-align: start;
+}
+
+.prose th {
+  background: var(--color-bg-soft);
+  color: var(--color-text);
+  font-weight: 700;
+}
+
+.prose details {
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+}
+
+.prose summary {
+  color: var(--color-text);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.prose details[open] summary {
+  margin-block-end: 0.85rem;
+}
+
+.prose kbd {
+  padding: 0.12rem 0.38rem;
+  border: 1px solid var(--color-border-strong);
+  border-block-end-width: 2px;
+  border-radius: 4px;
+  background: var(--color-bg-elevated);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 0.78em;
+}
+
+@media (max-width: 639px) {
+  .prose {
+    line-height: 1.82;
+  }
+
+  .prose pre {
+    margin-inline: calc(-1 * var(--page-gutter));
+    padding-inline: var(--page-gutter);
+    border-inline: 0;
+    border-radius: 0;
+  }
+}

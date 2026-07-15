@@ -1,0 +1,171 @@
+---
+export type HomeTopic = {
+  label: string;
+  href: string;
+  count: number;
+};
+
+interface Props {
+  topics: HomeTopic[];
+}
+
+const { topics } = Astro.props;
+---
+
+<section class="topic-band" aria-labelledby="topic-band-title">
+  <div class="topic-inner">
+    <header class="topic-heading">
+      <p>Browse by feeling</p>
+      <h2 id="topic-band-title">从一个主题出发</h2>
+    </header>
+    <nav class="topic-list" aria-label="文章分类捷径">
+      {topics.map((topic, index) => (
+        <a href={topic.href} class="topic-link">
+          <span class="topic-index">{String(index + 1).padStart(2, "0")}</span>
+          <strong>{topic.label}</strong>
+          <span class="topic-count">{topic.count} 篇</span>
+          <span class="topic-arrow" aria-hidden="true">↗</span>
+        </a>
+      ))}
+    </nav>
+  </div>
+</section>
+
+<style>
+  .topic-band {
+    padding: clamp(3rem, 6vw, 5rem) var(--page-gutter, 1.25rem);
+    background:
+      linear-gradient(115deg, rgb(11 125 139 / 0.96), rgb(36 83 93 / 0.98)),
+      #1e5963;
+    color: #f7fbfa;
+  }
+
+  .topic-inner {
+    width: min(100%, var(--content-width, 1180px));
+    margin: 0 auto;
+  }
+
+  .topic-heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 2rem;
+    margin-bottom: clamp(2rem, 4vw, 3rem);
+  }
+
+  .topic-heading p {
+    margin: 0;
+    color: rgb(255 255 255 / 0.66);
+    font-size: 0.66rem;
+    font-weight: 720;
+    letter-spacing: 0.17em;
+    text-transform: uppercase;
+  }
+
+  .topic-heading h2 {
+    margin: 0;
+    font-family: var(--font-display, "Iowan Old Style", "Noto Serif SC", serif);
+    font-size: clamp(1.65rem, 3vw, 2.55rem);
+    font-weight: 580;
+    letter-spacing: -0.035em;
+  }
+
+  .topic-list {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    border-block: 1px solid rgb(255 255 255 / 0.24);
+  }
+
+  .topic-link {
+    position: relative;
+    display: grid;
+    min-height: 8.6rem;
+    align-content: center;
+    padding: 1.4rem clamp(1rem, 2.1vw, 1.8rem);
+    border-left: 1px solid rgb(255 255 255 / 0.2);
+    color: inherit;
+    text-decoration: none;
+    transition: background-color 180ms ease;
+  }
+
+  .topic-link:last-child {
+    border-right: 1px solid rgb(255 255 255 / 0.2);
+  }
+
+  .topic-link:hover {
+    background: rgb(255 255 255 / 0.09);
+  }
+
+  .topic-index {
+    margin-bottom: 0.55rem;
+    color: #f5a6bd;
+    font-size: 0.64rem;
+    font-weight: 750;
+    letter-spacing: 0.12em;
+  }
+
+  .topic-link strong {
+    font-family: var(--font-display, "Iowan Old Style", "Noto Serif SC", serif);
+    font-size: clamp(1.15rem, 2vw, 1.45rem);
+    font-weight: 580;
+  }
+
+  .topic-count {
+    margin-top: 0.35rem;
+    color: rgb(255 255 255 / 0.58);
+    font-size: 0.72rem;
+  }
+
+  .topic-arrow {
+    position: absolute;
+    top: 1.2rem;
+    right: 1.25rem;
+    color: rgb(255 255 255 / 0.58);
+    transition: color 180ms ease, transform 180ms ease;
+  }
+
+  .topic-link:hover .topic-arrow {
+    color: #fff;
+    transform: translate(2px, -2px);
+  }
+
+  @media (max-width: 760px) {
+    .topic-heading {
+      display: block;
+    }
+
+    .topic-heading p {
+      margin-bottom: 0.55rem;
+    }
+
+    .topic-list {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .topic-link:nth-child(2n) {
+      border-right: 1px solid rgb(255 255 255 / 0.2);
+    }
+
+    .topic-link:nth-child(n + 3) {
+      border-top: 1px solid rgb(255 255 255 / 0.2);
+    }
+  }
+
+  @media (max-width: 360px) {
+    .topic-link {
+      min-height: 7.4rem;
+      padding-inline: 0.9rem;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .topic-link,
+    .topic-arrow {
+      transition: none;
+    }
+
+    .topic-link:hover .topic-arrow {
+      transform: none;
+    }
+  }
+</style>

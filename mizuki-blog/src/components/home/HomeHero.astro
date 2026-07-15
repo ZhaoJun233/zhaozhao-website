@@ -1,0 +1,486 @@
+---
+import { Image } from "astro:assets";
+import { artwork } from "../../data/artwork";
+import { siteConfig } from "../../config/site";
+
+const typingLines = [
+  "七月动画里的海风",
+  "Astro 与温柔的界面",
+  "平凡日子里的微光",
+];
+---
+
+<section class="home-hero" aria-labelledby="home-hero-title">
+  <div class="hero-artwork">
+    <Image
+      class="hero-artwork-blur"
+      src={artwork.homeHero.image}
+      alt=""
+      widths={[960, 1440, 1920]}
+      sizes="100vw"
+      format="webp"
+      loading="eager"
+      decoding="async"
+    />
+    <Image
+      class="hero-artwork-image"
+      src={artwork.homeHero.image}
+      alt={artwork.homeHero.alt}
+      data-testid="home-hero-image"
+      widths={[640, 960, 1440, 1920, 2556]}
+      sizes="100vw"
+      format="webp"
+      loading="eager"
+      decoding="sync"
+      fetchpriority="high"
+    />
+  </div>
+
+  <div class="hero-wash" aria-hidden="true"></div>
+
+  <div class="hero-copy" data-testid="hero-copy">
+    <p class="hero-eyebrow"><span></span> Personal notes · 2026</p>
+    <h1 id="home-hero-title">Mizuki<span aria-hidden="true">.</span></h1>
+    <p class="hero-description">{siteConfig.description}</p>
+    <p class="hero-typing-line">
+      <span class="typing-label">此刻记录</span>
+      <span
+        class="typing-text"
+        data-hero-typing
+        data-phrases={JSON.stringify(typingLines)}
+      >{typingLines[0]}</span>
+      <span class="typing-caret" aria-hidden="true"></span>
+    </p>
+    <div class="hero-actions">
+      <a class="hero-action hero-action-primary" href="/posts/">
+        开始阅读 <span aria-hidden="true">↗</span>
+      </a>
+      <a class="hero-action hero-action-secondary" href="/about/">认识 Mizuki</a>
+    </div>
+  </div>
+
+  <div class="hero-petals" aria-hidden="true">
+    <span class="hero-petal hero-petal-one"></span>
+    <span class="hero-petal hero-petal-two"></span>
+    <span class="hero-petal hero-petal-three"></span>
+    <span class="hero-petal hero-petal-four"></span>
+    <span class="hero-petal hero-petal-five"></span>
+  </div>
+
+  <a class="hero-scroll" href="#featured-posts">
+    <span>向下阅读</span>
+    <i aria-hidden="true"></i>
+  </a>
+</section>
+
+<script>
+  import "../../scripts/hero-typing";
+</script>
+
+<style>
+  .home-hero {
+    --hero-ink: #172b34;
+    --hero-muted: #4c6670;
+    --hero-cyan: #087f8c;
+    --hero-pink: #d35f85;
+    position: relative;
+    isolation: isolate;
+    height: clamp(620px, 82svh, 800px);
+    min-height: 620px;
+    overflow: hidden;
+    background: #d9edf0;
+  }
+
+  .hero-artwork,
+  .hero-artwork-blur,
+  .hero-artwork-image,
+  .hero-wash {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .hero-artwork {
+    z-index: -3;
+    overflow: hidden;
+    background: linear-gradient(112deg, #f5e3e2, #d8eef1 70%, #bfe0e6);
+  }
+
+  .hero-artwork-blur {
+    object-fit: cover;
+    filter: blur(28px) saturate(0.76) brightness(1.07);
+    opacity: 0.74;
+    transform: scale(1.075);
+  }
+
+  .hero-artwork-image {
+    z-index: 1;
+    object-fit: contain;
+    object-position: center;
+    filter: drop-shadow(0 16px 38px rgb(44 95 104 / 0.1));
+  }
+
+  .hero-wash {
+    z-index: -1;
+    background:
+      linear-gradient(90deg, rgb(250 250 247 / 0.64) 0%, rgb(250 250 247 / 0.34) 31%, transparent 56%),
+      linear-gradient(180deg, rgb(255 255 255 / 0.13), transparent 50%, rgb(27 102 112 / 0.12));
+    animation: hero-color-breathe 10s ease-in-out infinite alternate;
+    pointer-events: none;
+  }
+
+  .hero-copy {
+    position: absolute;
+    z-index: 3;
+    top: 50%;
+    left: max(4rem, calc((100vw - var(--content-width, 1180px)) / 2));
+    width: min(34rem, 41vw);
+    transform: translateY(-47%);
+    color: var(--hero-ink);
+  }
+
+  .hero-eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    margin: 0 0 0.85rem;
+    color: var(--hero-cyan);
+    font-size: 0.71rem;
+    font-weight: 750;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .hero-eyebrow span {
+    width: 2.25rem;
+    height: 1px;
+    background: currentColor;
+  }
+
+  h1 {
+    margin: 0;
+    font-family: var(--font-display, "Iowan Old Style", "Noto Serif SC", serif);
+    font-size: clamp(4.7rem, 8vw, 8.35rem);
+    font-weight: 600;
+    letter-spacing: -0.065em;
+    line-height: 0.83;
+    text-shadow: 0 2px 28px rgb(255 255 255 / 0.42);
+  }
+
+  h1 span {
+    color: var(--hero-pink);
+  }
+
+  .hero-description {
+    max-width: 25rem;
+    margin: 1.35rem 0 0;
+    color: var(--hero-muted);
+    font-size: clamp(1rem, 1.4vw, 1.12rem);
+    line-height: 1.8;
+  }
+
+  .hero-typing-line {
+    display: flex;
+    align-items: center;
+    min-height: 1.7rem;
+    margin: 1.15rem 0 0;
+    color: var(--hero-ink);
+    font-size: 0.9rem;
+    font-weight: 650;
+  }
+
+  .typing-label {
+    margin-right: 0.65rem;
+    color: var(--hero-muted);
+    font-size: 0.76rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+  }
+
+  .typing-label::after {
+    content: " /";
+    color: var(--hero-pink);
+  }
+
+  .typing-caret {
+    width: 1px;
+    height: 1.05em;
+    margin-left: 0.24rem;
+    background: var(--hero-cyan);
+    animation: typing-caret 0.85s steps(1, end) infinite;
+  }
+
+  .hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 1.55rem;
+  }
+
+  .hero-action {
+    display: inline-flex;
+    min-height: 2.85rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    padding: 0.68rem 1.18rem;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    font-size: 0.82rem;
+    font-weight: 720;
+    letter-spacing: 0.045em;
+    text-decoration: none;
+    transition: color 180ms ease, background-color 180ms ease, border-color 180ms ease, transform 180ms ease;
+  }
+
+  .hero-action:hover {
+    transform: translateY(-2px);
+  }
+
+  .hero-action-primary {
+    background: var(--hero-ink);
+    color: #fff;
+    box-shadow: 0 11px 28px rgb(23 43 52 / 0.16);
+  }
+
+  .hero-action-primary:hover {
+    background: var(--hero-cyan);
+  }
+
+  .hero-action-secondary {
+    border-color: rgb(23 43 52 / 0.32);
+    background: rgb(255 255 255 / 0.22);
+    color: var(--hero-ink);
+    backdrop-filter: blur(6px);
+  }
+
+  .hero-action-secondary:hover {
+    border-color: var(--hero-pink);
+    color: #a64166;
+  }
+
+  .hero-petals {
+    position: absolute;
+    z-index: 4;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .hero-petal {
+    position: absolute;
+    top: -2rem;
+    width: 0.56rem;
+    height: 0.9rem;
+    border-radius: 78% 18% 70% 22%;
+    background: rgb(244 151 177 / 0.62);
+    box-shadow: 0 0 8px rgb(255 255 255 / 0.52);
+    animation: petal-drift var(--petal-duration, 15s) linear infinite;
+    animation-delay: var(--petal-delay, 0s);
+  }
+
+  .hero-petal-one { left: 10%; --petal-duration: 17s; --petal-delay: -8s; }
+  .hero-petal-two { left: 28%; --petal-duration: 19s; --petal-delay: -14s; opacity: 0.62; }
+  .hero-petal-three { left: 55%; --petal-duration: 16s; --petal-delay: -3s; }
+  .hero-petal-four { left: 76%; --petal-duration: 21s; --petal-delay: -12s; opacity: 0.52; }
+  .hero-petal-five { left: 92%; --petal-duration: 18s; --petal-delay: -6s; }
+
+  .hero-scroll {
+    position: absolute;
+    z-index: 4;
+    right: max(2rem, calc((100vw - var(--content-width, 1180px)) / 2));
+    bottom: 1.4rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: rgb(23 43 52 / 0.68);
+    font-size: 0.67rem;
+    font-weight: 680;
+    letter-spacing: 0.15em;
+    text-decoration: none;
+    writing-mode: vertical-rl;
+  }
+
+  .hero-scroll i {
+    position: relative;
+    width: 1px;
+    height: 2.75rem;
+    overflow: hidden;
+    background: rgb(23 43 52 / 0.22);
+  }
+
+  .hero-scroll i::after {
+    position: absolute;
+    inset: 0 0 auto;
+    height: 45%;
+    background: var(--hero-cyan);
+    animation: scroll-line 1.8s ease-in-out infinite;
+    content: "";
+  }
+
+  :global(html[data-motion-paused="true"]) .hero-petal,
+  :global(html[data-motion-paused="true"]) .hero-wash,
+  :global(html[data-motion-paused="true"]) .typing-caret,
+  :global(html[data-motion-paused="true"]) .hero-scroll i::after {
+    animation-play-state: paused;
+  }
+
+  @keyframes hero-color-breathe {
+    from { opacity: 0.82; }
+    to { opacity: 1; }
+  }
+
+  @keyframes typing-caret {
+    0%, 48% { opacity: 1; }
+    49%, 100% { opacity: 0; }
+  }
+
+  @keyframes petal-drift {
+    0% { transform: translate3d(0, -4vh, 0) rotate(0deg); }
+    35% { transform: translate3d(2.2rem, 34vh, 0) rotate(145deg); }
+    70% { transform: translate3d(-1.4rem, 72vh, 0) rotate(285deg); }
+    100% { transform: translate3d(1rem, 108vh, 0) rotate(420deg); }
+  }
+
+  @keyframes scroll-line {
+    0% { transform: translateY(-110%); }
+    55%, 100% { transform: translateY(235%); }
+  }
+
+  @media (max-width: 899px) {
+    .home-hero {
+      height: auto;
+      min-height: 0;
+      overflow: visible;
+      background: var(--color-bg, #fbfaf7);
+    }
+
+    .hero-artwork {
+      position: relative;
+      inset: auto;
+      width: 100%;
+      height: auto;
+      aspect-ratio: 16 / 9;
+      background: #d9edf0;
+    }
+
+    .hero-artwork-blur,
+    .hero-artwork-image {
+      inset: 0;
+    }
+
+    .hero-artwork-blur {
+      display: none;
+    }
+
+    .hero-artwork-image {
+      object-fit: contain;
+      filter: none;
+    }
+
+    .hero-wash {
+      display: none;
+    }
+
+    .hero-copy {
+      position: relative;
+      inset: auto;
+      width: min(100%, var(--content-width, 1180px));
+      margin: 0 auto;
+      padding: 1.5rem var(--page-gutter, 1.25rem) 1.7rem;
+      transform: none;
+      background:
+        radial-gradient(circle at 88% 6%, rgb(116 198 205 / 0.11), transparent 28%),
+        var(--color-bg, #fbfaf7);
+    }
+
+    .hero-eyebrow {
+      margin-bottom: 0.42rem;
+      font-size: 0.65rem;
+    }
+
+    .hero-eyebrow span {
+      width: 1.45rem;
+    }
+
+    h1 {
+      font-size: clamp(3.35rem, 15vw, 5.7rem);
+      line-height: 0.92;
+    }
+
+    .hero-description {
+      margin-top: 0.65rem;
+      font-size: 0.94rem;
+      line-height: 1.62;
+    }
+
+    .hero-typing-line {
+      margin-top: 0.68rem;
+      font-size: 0.82rem;
+    }
+
+    .hero-actions {
+      margin-top: 1rem;
+    }
+
+    .hero-action {
+      min-height: 2.62rem;
+      padding: 0.58rem 0.92rem;
+      font-size: 0.76rem;
+    }
+
+    .hero-scroll,
+    .hero-petals {
+      display: none;
+    }
+
+    :global(html[data-theme="dark"]) .home-hero {
+      --hero-ink: var(--color-text, #edf1f0);
+      --hero-muted: var(--color-text-muted, #98a3a3);
+      --hero-cyan: var(--color-accent, #72cbd1);
+      --hero-pink: var(--color-pink, #ef9bb2);
+    }
+
+    :global(html[data-theme="dark"]) .hero-action-primary {
+      color: var(--color-text-inverse, #101415);
+    }
+  }
+
+  @media (max-width: 360px) {
+    .hero-copy {
+      padding-top: 1.15rem;
+      padding-bottom: 1.35rem;
+    }
+
+    .hero-description {
+      max-width: 18rem;
+    }
+
+    .typing-label {
+      margin-right: 0.42rem;
+      font-size: 0.7rem;
+    }
+
+    .hero-actions {
+      gap: 0.55rem;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hero-wash,
+    .typing-caret,
+    .hero-petal,
+    .hero-scroll i::after {
+      animation-name: none;
+    }
+
+    .hero-action {
+      transition: none;
+    }
+
+    .hero-action:hover {
+      transform: none;
+    }
+  }
+</style>

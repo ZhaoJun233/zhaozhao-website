@@ -1,0 +1,373 @@
+---
+import { getCollection } from "astro:content";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { siteConfig } from "../config/site";
+import { estimateReadingMinutes, groupPostsByMonth } from "../lib/content";
+import { taxonomySlug } from "../lib/slug";
+
+const posts = await getCollection("posts", ({ data }) => !data.draft);
+const groups = groupPostsByMonth(
+  posts.map((post) => ({
+    post,
+    id: post.id,
+    publishedAt: post.data.publishedAt,
+  })),
+);
+const years = [...new Set(groups.map(({ year }) => year))];
+const dayFormatter = new Intl.DateTimeFormat(siteConfig.locale, {
+  timeZone: siteConfig.timeZone,
+  month: "2-digit",
+  day: "2-digit",
+});
+---
+
+<BaseLayout
+  title="文章归档"
+  description="按年份与月份浏览 Mizuki 的全部公开文章。"
+  class="discovery-page"
+>
+  <section class="archive-page section" aria-labelledby="archive-title">
+    <div class="site-container archive-shell">
+      <header class="archive-heading">
+        <div>
+          <p class="eyebrow">Chronicle · 时间归档</p>
+          <h1 id="archive-title">写下的日子，<br />沿时间展开</h1>
+        </div>
+        <div class="archive-heading__aside">
+          <p><strong>{posts.length}</strong> 篇文章</p>
+          <p><strong>{years.length}</strong> 个年份</p>
+          <a href="/posts/">返回文章索引 <span aria-hidden="true">→</span></a>
+        </div>
+      </header>
+
+      {groups.length > 0 ? (
+        <div class="archive" aria-label="文章时间线">
+          {years.map((year) => (
+            <section class="archive-year" aria-labelledby={`archive-year-${year}`}>
+              <header class="archive-year__heading">
+                <h2 id={`archive-year-${year}`}>{year}</h2>
+                <span aria-hidden="true">年</span>
+              </header>
+
+              <div class="archive-year__months">
+                {groups.filter((group) => group.year === year).map((group) => (
+                  <section class="archive-month" aria-labelledby={`archive-month-${group.key}`}>
+                    <header class="archive-month__heading">
+                      <h3 id={`archive-month-${group.key}`}>{String(group.month).padStart(2, "0")}</h3>
+                      <span>月 · {group.posts.length} 篇</span>
+                    </header>
+
+                    <ol>
+                      {group.posts.map(({ post }) => (
+                        <li>
+                          <time datetime={post.data.publishedAt.toISOString()}>
+                            {dayFormatter.format(post.data.publishedAt).replace("/", ".")}
+                          </time>
+                          <a class="archive-row__title" href={encodeURI(`/posts/${post.id}/`)}>
+                            {post.data.title}
+                          </a>
+                          <a
+                            class="archive-row__category"
+                            href={encodeURI(`/categories/${taxonomySlug(post.data.category)}/`)}
+                          >
+                            {post.data.category}
+                          </a>
+                          <span class="archive-row__reading">
+                            {estimateReadingMinutes(post.body ?? "")} 分钟
+                          </span>
+                        </li>
+                      ))}
+                    </ol>
+                  </section>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      ) : (
+        <section class="empty-state" aria-labelledby="archive-empty-title">
+          <p aria-hidden="true">—</p>
+          <h2 id="archive-empty-title">时间线上还没有文章</h2>
+          <p>第一篇公开文章发布后，会自动出现在对应月份。</p>
+        </section>
+      )}
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .archive-page {
+    padding-block: clamp(6.5rem, 12vw, 10rem) clamp(4.5rem, 9vw, 8rem);
+  }
+
+  .archive-shell {
+    max-width: min(var(--content-width, 1180px), calc(100% - 2rem));
+  }
+
+  .archive-heading {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(12rem, 0.45fr);
+    align-items: end;
+    gap: clamp(2rem, 8vw, 8rem);
+    margin-bottom: clamp(4rem, 10vw, 8rem);
+  }
+
+  .archive-heading h1 {
+    margin: 0.3rem 0 0;
+    font-family: var(--font-display, ui-serif, "Noto Serif SC", serif);
+    font-size: clamp(2.7rem, 7.5vw, 6.2rem);
+    font-weight: 620;
+    letter-spacing: -0.045em;
+    line-height: 1.02;
+  }
+
+  .archive-heading__aside {
+    display: grid;
+    grid-template-columns: repeat(2, auto);
+    gap: 0.7rem 1.5rem;
+    align-items: baseline;
+    margin-bottom: 0.5rem;
+  }
+
+  .archive-heading__aside p {
+    display: flex;
+    align-items: baseline;
+    gap: 0.35rem;
+    margin: 0;
+    color: var(--color-text-muted, color-mix(in srgb, currentColor 62%, transparent));
+    font-size: 0.72rem;
+  }
+
+  .archive-heading__aside strong {
+    color: var(--color-accent-cyan, #087f8c);
+    font-family: var(--font-display, ui-serif, serif);
+    font-size: 1.65rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: 580;
+  }
+
+  .archive-heading__aside a {
+    grid-column: 1 / -1;
+    color: inherit;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-underline-offset: 0.25em;
+  }
+
+  .archive {
+    position: relative;
+  }
+
+  .archive::before {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: clamp(4.9rem, 11vw, 8.7rem);
+    width: 1px;
+    background: linear-gradient(
+      var(--color-accent-cyan, #1ca7b5),
+      var(--color-border, color-mix(in srgb, currentColor 18%, transparent)) 12rem,
+      var(--color-border, color-mix(in srgb, currentColor 18%, transparent))
+    );
+    content: "";
+  }
+
+  .archive-year {
+    display: grid;
+    grid-template-columns: clamp(4.9rem, 11vw, 8.7rem) minmax(0, 1fr);
+    gap: clamp(1.6rem, 5vw, 4.2rem);
+    padding-bottom: clamp(4rem, 9vw, 7rem);
+  }
+
+  .archive-year__heading {
+    position: sticky;
+    top: 6.5rem;
+    align-self: start;
+    padding-right: clamp(1rem, 3vw, 2rem);
+    text-align: right;
+  }
+
+  .archive-year__heading::after {
+    position: absolute;
+    top: 0.88rem;
+    right: -0.39rem;
+    width: 0.7rem;
+    height: 0.7rem;
+    border: 2px solid var(--color-surface, Canvas);
+    border-radius: 50%;
+    background: var(--color-accent-pink, #d65782);
+    box-shadow: 0 0 0 1px var(--color-accent-pink, #d65782);
+    content: "";
+  }
+
+  .archive-year__heading h2 {
+    margin: 0;
+    font-family: var(--font-display, ui-serif, serif);
+    font-size: clamp(1.65rem, 3.3vw, 2.5rem);
+    font-variant-numeric: tabular-nums;
+    font-weight: 570;
+    letter-spacing: -0.04em;
+    line-height: 1;
+  }
+
+  .archive-year__heading span {
+    color: var(--color-text-muted, color-mix(in srgb, currentColor 58%, transparent));
+    font-size: 0.66rem;
+  }
+
+  .archive-year__months {
+    min-width: 0;
+  }
+
+  .archive-month + .archive-month {
+    margin-top: clamp(3rem, 7vw, 5.2rem);
+  }
+
+  .archive-month__heading {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    margin-bottom: 1rem;
+  }
+
+  .archive-month__heading h3 {
+    margin: 0;
+    color: var(--color-accent-cyan, #087f8c);
+    font-family: var(--font-display, ui-serif, serif);
+    font-size: 1.55rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: 580;
+  }
+
+  .archive-month__heading span {
+    color: var(--color-text-muted, color-mix(in srgb, currentColor 58%, transparent));
+    font-size: 0.67rem;
+  }
+
+  .archive-month ol {
+    margin: 0;
+    padding: 0;
+    border-top: 1px solid var(--color-border, color-mix(in srgb, currentColor 18%, transparent));
+    list-style: none;
+  }
+
+  .archive-month li {
+    display: grid;
+    grid-template-columns: 4rem minmax(12rem, 1fr) minmax(4rem, auto) 4.5rem;
+    align-items: baseline;
+    gap: clamp(0.7rem, 2.5vw, 2rem);
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--color-border, color-mix(in srgb, currentColor 18%, transparent));
+  }
+
+  .archive-month time,
+  .archive-row__reading {
+    color: var(--color-text-muted, color-mix(in srgb, currentColor 58%, transparent));
+    font-size: 0.68rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .archive-row__title {
+    color: inherit;
+    font-family: var(--font-display, ui-serif, "Noto Serif SC", serif);
+    font-size: clamp(0.98rem, 2vw, 1.18rem);
+    font-weight: 620;
+    line-height: 1.5;
+    text-decoration-color: transparent;
+    text-underline-offset: 0.2em;
+  }
+
+  .archive-row__title:hover {
+    color: var(--color-accent-cyan-strong, var(--color-accent-cyan, #087f8c));
+    text-decoration-color: var(--color-accent-pink, #d65782);
+  }
+
+  .archive-row__category {
+    color: var(--color-accent-cyan, #087f8c);
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .archive-row__category:hover {
+    text-decoration: underline;
+    text-underline-offset: 0.22em;
+  }
+
+  .archive-row__title:focus-visible,
+  .archive-row__category:focus-visible,
+  .archive-heading__aside a:focus-visible {
+    border-radius: 2px;
+    outline: var(--focus-ring, 3px solid #00a6b8);
+    outline-offset: 3px;
+  }
+
+  .empty-state {
+    padding: clamp(2.5rem, 8vw, 5rem);
+    border-block: 1px solid var(--color-border, color-mix(in srgb, currentColor 18%, transparent));
+    text-align: center;
+  }
+
+  .empty-state h2 {
+    font-family: var(--font-display, ui-serif, serif);
+  }
+
+  @media (max-width: 760px) {
+    .archive-heading {
+      grid-template-columns: 1fr;
+      align-items: start;
+      gap: 1.5rem;
+    }
+
+    .archive::before {
+      left: 0.35rem;
+    }
+
+    .archive-year {
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+      padding-left: 1.8rem;
+    }
+
+    .archive-year__heading {
+      position: relative;
+      top: auto;
+      padding-right: 0;
+      text-align: left;
+    }
+
+    .archive-year__heading::after {
+      top: 0.75rem;
+      right: auto;
+      left: -1.79rem;
+    }
+
+    .archive-month li {
+      grid-template-columns: 3.3rem minmax(0, 1fr) auto;
+      gap: 0.55rem 0.8rem;
+    }
+
+    .archive-row__category {
+      grid-column: 2;
+      grid-row: 2;
+    }
+
+    .archive-row__reading {
+      grid-column: 3;
+      grid-row: 1;
+    }
+  }
+
+  @media (max-width: 430px) {
+    .archive-month li {
+      grid-template-columns: 3.1rem minmax(0, 1fr);
+    }
+
+    .archive-row__reading {
+      grid-column: 2;
+      grid-row: 3;
+    }
+  }
+</style>

@@ -1,0 +1,74 @@
+---
+import Footer from "../components/layout/Footer.astro";
+import Header from "../components/layout/Header.astro";
+import SeoHead from "../components/seo/SeoHead.astro";
+import { buildWebsiteJsonLd, type JsonLdNode, type SeoImage } from "../lib/seo";
+import "../styles/tokens.css";
+import "../styles/global.css";
+import "../styles/prose.css";
+
+interface Props {
+  title: string;
+  description: string;
+  image?: SeoImage;
+  type?: "website" | "article" | "profile";
+  jsonLd?: JsonLdNode | JsonLdNode[];
+  canonical?: string | URL;
+  page?: string;
+  headerOverlay?: boolean;
+  class?: string;
+  mainClass?: string;
+}
+
+const {
+  title,
+  description,
+  image,
+  type = "website",
+  jsonLd,
+  canonical = Astro.url.pathname,
+  page,
+  headerOverlay = page === "home",
+  mainClass,
+} = Astro.props;
+const mainClasses = Astro.props.class ?? mainClass;
+const structuredData = jsonLd ?? (type === "website" ? buildWebsiteJsonLd() : undefined);
+const themeBootstrap = `(() => { try { const saved = localStorage.getItem("mizuki-theme"); const preference = saved === "light" || saved === "dark" || saved === "system" ? saved : "system"; const theme = preference === "system" ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light") : preference; document.documentElement.dataset.theme = theme; document.documentElement.style.colorScheme = theme; } catch { document.documentElement.dataset.theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"; } })();`;
+---
+
+<!doctype html>
+<html lang="zh-CN" data-page={page}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#fbfaf8" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#101415" media="(prefers-color-scheme: dark)" />
+    <meta name="generator" content={Astro.generator} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="alternate" type="application/rss+xml" title="Mizuki. RSS" href="/rss.xml" />
+    <script is:inline set:html={themeBootstrap}></script>
+    <SeoHead
+      title={title}
+      description={description}
+      canonical={canonical}
+      image={image}
+      type={type}
+      jsonLd={structuredData}
+    />
+    <slot name="head" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">跳到主要内容</a>
+    <Header currentPath={Astro.url.pathname} overlay={headerOverlay} />
+    <main id="main-content" class={mainClasses} tabindex="-1">
+      <slot />
+    </main>
+    <Footer />
+    <script>
+      import "../scripts/navigation";
+      import "../scripts/theme";
+    </script>
+    <slot name="scripts" />
+  </body>
+</html>

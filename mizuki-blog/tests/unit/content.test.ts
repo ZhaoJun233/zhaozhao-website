@@ -3,9 +3,11 @@ import type { SchemaContext } from "astro/content/config";
 import { z } from "astro/zod";
 import { createPostSchema, createProjectSchema } from "../../src/content.config";
 import {
+  buildTaxonomyIndex,
   estimateReadingMinutes,
   getRelatedPosts,
   paginate,
+  sortPostEntries,
   sortPosts,
 } from "../../src/lib/content";
 import { groupPostsByMonth } from "../../src/lib/date";
@@ -94,6 +96,15 @@ describe("content domain", () => {
       page: 2,
       pageCount: 3,
       total: 5,
+    });
+  });
+
+  it("returns items 9 through 16 on the second eight-item page", () => {
+    expect(paginate(Array.from({ length: 17 }, (_, index) => index + 1), 2, 8)).toEqual({
+      items: [9, 10, 11, 12, 13, 14, 15, 16],
+      page: 2,
+      pageCount: 3,
+      total: 17,
     });
   });
 
@@ -266,6 +277,16 @@ describe("content domain", () => {
     expect(posts.map((post) => post.id)).toEqual(["z-post", "b-post", "a-post"]);
   });
 
+  it("sorts collection-style post entries without mutating them", () => {
+    const posts = [
+      { id: "older", data: { publishedAt: new Date("2026-07-14") } },
+      { id: "newer", data: { publishedAt: new Date("2026-07-15") } },
+    ];
+
+    expect(sortPostEntries(posts).map((post) => post.id)).toEqual(["newer", "older"]);
+    expect(posts.map((post) => post.id)).toEqual(["older", "newer"]);
+  });
+
   it("groups sorted posts into stable Chinese month buckets", () => {
     const groups = groupPostsByMonth([
       { id: "december", publishedAt: new Date("2025-12-20T00:00:00Z") },
@@ -288,5 +309,23 @@ describe("content domain", () => {
         posts: [{ id: "december", publishedAt: new Date("2025-12-20T00:00:00Z") }],
       },
     ]);
+  });
+
+  it("keeps December 2025 and January 2026 in separate Chinese month groups", () => {
+    const groups = groupPostsByMonth([
+      { id: "december", publishedAt: new Date("2025-12-31T15:59:59Z") },
+      { id: "january", publishedAt: new Date("2025-12-31T16:00:00Z") },
+    ]);
+
+    expect(groups.map(({ key, label }) => ({ key, label }))).toEqual([
+      { key: "2026-01", label: "2026年1月" },
+      { key: "2025-12", label: "2025年12月" },
+    ]);
+  });
+
+  it("names both original values when taxonomy slugs collide", () => {
+    expect(() => buildTaxonomyIndex(["Astro CSS", "Astro / CSS"])).toThrow(
+      /Astro CSS.*Astro \/ CSS/,
+    );
   });
 });

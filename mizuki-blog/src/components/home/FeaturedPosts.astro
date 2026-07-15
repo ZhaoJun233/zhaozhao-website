@@ -1,0 +1,190 @@
+---
+import type { CollectionEntry } from "astro:content";
+import PostCard from "../blog/PostCard.astro";
+
+interface Props {
+  posts: CollectionEntry<"posts">[];
+}
+
+const { posts } = Astro.props;
+const [leadPost, ...supportingPosts] = posts;
+---
+
+<section
+  class="featured-posts section-band"
+  id="featured-posts"
+  data-testid="featured-posts"
+  aria-labelledby="featured-posts-title"
+>
+  <div class="section-inner">
+    <header class="section-heading">
+      <div>
+        <p class="section-kicker">Featured stories <span>01</span></p>
+        <h2 id="featured-posts-title">最近，写下这些</h2>
+      </div>
+      <a class="section-link" href="/posts/">浏览全部文章 <span aria-hidden="true">→</span></a>
+    </header>
+
+    {leadPost ? (
+      <div class="posts-layout">
+        <div class="lead-post">
+          <PostCard post={leadPost} prominence="featured" />
+        </div>
+        {supportingPosts.length > 0 && (
+          <div class="supporting-posts">
+            {supportingPosts.map((post) => (
+              <PostCard post={post} prominence="standard" />
+            ))}
+          </div>
+        )}
+      </div>
+    ) : (
+      <p class="empty-state">第一篇故事正在路上。</p>
+    )}
+  </div>
+</section>
+
+<style>
+  .featured-posts {
+    padding: clamp(4.5rem, 8vw, 7.5rem) var(--page-gutter, 1.25rem);
+    background:
+      radial-gradient(circle at 8% 12%, rgb(87 185 195 / 0.08), transparent 23rem),
+      var(--color-bg, #fbfaf7);
+    color: var(--color-text, #172b34);
+  }
+
+  .section-inner {
+    width: min(100%, var(--content-width, 1180px));
+    margin: 0 auto;
+  }
+
+  .section-heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 2rem;
+    margin-bottom: clamp(2rem, 4vw, 3.35rem);
+  }
+
+  .section-kicker {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 0 0 0.6rem;
+    color: var(--color-accent, #087f8c);
+    font-size: 0.68rem;
+    font-weight: 750;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .section-kicker::before {
+    width: 1.9rem;
+    height: 1px;
+    background: currentColor;
+    content: "";
+  }
+
+  .section-kicker span {
+    color: var(--color-text-muted, #718087);
+    font-variant-numeric: tabular-nums;
+  }
+
+  h2 {
+    max-width: 13ch;
+    margin: 0;
+    font-family: var(--font-display, "Iowan Old Style", "Noto Serif SC", serif);
+    font-size: clamp(2rem, 4.2vw, 3.45rem);
+    font-weight: 600;
+    letter-spacing: -0.04em;
+    line-height: 1.14;
+  }
+
+  .section-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding-bottom: 0.25rem;
+    border-bottom: 1px solid var(--color-border, #c9d4d7);
+    color: var(--color-text, #172b34);
+    font-size: 0.78rem;
+    font-weight: 680;
+    letter-spacing: 0.035em;
+    text-decoration: none;
+    transition: border-color 180ms ease, color 180ms ease;
+  }
+
+  .section-link:hover {
+    border-color: var(--color-accent, #087f8c);
+    color: var(--color-accent, #087f8c);
+  }
+
+  .posts-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.42fr) minmax(17.5rem, 0.78fr);
+    gap: clamp(1rem, 2.2vw, 1.7rem);
+    align-items: stretch;
+  }
+
+  .lead-post,
+  .supporting-posts {
+    min-width: 0;
+  }
+
+  .lead-post :global(article) {
+    height: 100%;
+  }
+
+  .supporting-posts {
+    display: grid;
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    gap: clamp(1rem, 2.2vw, 1.7rem);
+  }
+
+  .supporting-posts :global(article) {
+    height: 100%;
+  }
+
+  .empty-state {
+    margin: 0;
+    padding: 3rem 0;
+    border-block: 1px solid var(--color-border, #d5dcde);
+    color: var(--color-text-muted, #68777d);
+  }
+
+  @media (max-width: 860px) {
+    .posts-layout {
+      grid-template-columns: 1fr;
+    }
+
+    .supporting-posts {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-rows: none;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .featured-posts {
+      padding-top: 3.8rem;
+      padding-bottom: 4.4rem;
+    }
+
+    .section-heading {
+      align-items: start;
+      margin-bottom: 1.75rem;
+    }
+
+    .section-link {
+      margin-top: 1.7rem;
+      font-size: 0;
+    }
+
+    .section-link span {
+      font-size: 1rem;
+    }
+
+    .supporting-posts {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

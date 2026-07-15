@@ -1,0 +1,204 @@
+---
+import { ExternalLink, X } from "lucide-astro";
+import { siteConfig } from "../../config/site";
+
+interface Props {
+  currentPath: string;
+}
+
+const { currentPath } = Astro.props;
+
+function normalizePath(path: string): string {
+  return path === "/" ? path : `${path.replace(/\/+$/, "")}/`;
+}
+
+function isCurrent(href: string): boolean {
+  const normalizedCurrent = normalizePath(currentPath);
+  return href === "/"
+    ? normalizedCurrent === "/"
+    : normalizedCurrent.startsWith(normalizePath(href));
+}
+---
+
+<div class="mobile-nav" data-mobile-nav hidden>
+  <button class="mobile-nav__backdrop" type="button" aria-label="关闭导航" data-nav-close></button>
+  <aside
+    class="mobile-nav__panel"
+    id="mobile-navigation"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="mobile-navigation-title"
+    tabindex="-1"
+    data-nav-panel
+  >
+    <div class="mobile-nav__head">
+      <div>
+        <span class="mobile-nav__kicker">Navigation</span>
+        <h2 id="mobile-navigation-title">去往哪里？</h2>
+      </div>
+      <button class="icon-button" type="button" aria-label="关闭导航" data-nav-close>
+        <X size={20} stroke-width={1.8} aria-hidden="true" />
+      </button>
+    </div>
+
+    <nav aria-label="移动端主导航">
+      <ul>
+        {siteConfig.navigation.map((item, index) => (
+          <li>
+            <a href={item.href} aria-current={isCurrent(item.href) ? "page" : undefined} data-nav-link>
+              <span aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
+              <strong>{item.label}</strong>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+
+    <a class="mobile-nav__search" href="/search/" data-nav-link>
+      <span>搜索站内内容</span>
+      <ExternalLink size={16} stroke-width={1.8} aria-hidden="true" />
+    </a>
+
+    <p class="mobile-nav__note">动画、代码与生活碎片，在海风里慢慢更新。</p>
+  </aside>
+</div>
+
+<style>
+  .mobile-nav {
+    position: fixed;
+    z-index: 90;
+    inset: 0;
+  }
+
+  .mobile-nav__backdrop {
+    position: absolute;
+    inset: 0;
+    padding: 0;
+    border: 0;
+    background: var(--overlay-scrim);
+    cursor: default;
+    backdrop-filter: blur(4px);
+    animation: nav-fade-in 180ms ease-out both;
+  }
+
+  .mobile-nav__panel {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-end: 0;
+    display: flex;
+    inline-size: min(89vw, 25rem);
+    flex-direction: column;
+    padding: clamp(1.1rem, 5vw, 1.6rem);
+    border-inline-start: 1px solid var(--color-border);
+    background:
+      radial-gradient(circle at 100% 0, var(--color-pink-soft), transparent 19rem),
+      var(--color-bg-elevated);
+    box-shadow: var(--shadow-float);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    animation: nav-slide-in 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .mobile-nav__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-block-end: clamp(1.5rem, 7vh, 3.4rem);
+  }
+
+  .mobile-nav__kicker {
+    display: block;
+    margin-block-end: 0.25rem;
+    color: var(--color-pink);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+
+  .mobile-nav h2 {
+    margin: 0;
+    font-size: clamp(1.5rem, 7vw, 2rem);
+  }
+
+  .mobile-nav nav ul {
+    display: grid;
+    padding: 0;
+    margin: 0;
+    list-style: none;
+  }
+
+  .mobile-nav nav a {
+    display: grid;
+    grid-template-columns: 2rem 1fr;
+    align-items: center;
+    gap: 0.25rem;
+    padding-block: 0.7rem;
+    border-block-end: 1px solid var(--color-border);
+    color: var(--color-text-soft);
+    text-decoration: none;
+  }
+
+  .mobile-nav nav a > span {
+    color: var(--color-text-muted);
+    font-family: var(--font-serif);
+    font-size: 0.7rem;
+  }
+
+  .mobile-nav nav a strong {
+    font-family: var(--font-serif);
+    font-size: clamp(1.25rem, 6vw, 1.65rem);
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+
+  .mobile-nav nav a:hover,
+  .mobile-nav nav a[aria-current="page"] {
+    color: var(--color-accent-strong);
+  }
+
+  .mobile-nav nav a[aria-current="page"] > span {
+    color: var(--color-pink);
+  }
+
+  .mobile-nav__search {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-block-start: 1.25rem;
+    padding: 0.8rem 0.9rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-bg-soft);
+    color: var(--color-text-soft);
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  .mobile-nav__note {
+    max-inline-size: 24ch;
+    margin-block: auto 0;
+    padding-block-start: 2.5rem;
+    color: var(--color-text-muted);
+    font-family: var(--font-serif);
+    font-size: 0.82rem;
+    line-height: 1.75;
+  }
+
+  @keyframes nav-fade-in {
+    from { opacity: 0; }
+  }
+
+  @keyframes nav-slide-in {
+    from { transform: translateX(100%); }
+  }
+
+  @media (min-width: 900px) {
+    .mobile-nav {
+      display: none !important;
+    }
+  }
+</style>

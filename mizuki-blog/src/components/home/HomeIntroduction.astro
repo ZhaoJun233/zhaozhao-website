@@ -1,0 +1,261 @@
+---
+import { Image } from "astro:assets";
+import { artwork } from "../../data/artwork";
+import { siteConfig } from "../../config/site";
+---
+
+<section
+  class="home-introduction"
+  data-testid="home-introduction"
+  aria-labelledby="home-introduction-title"
+>
+  <div class="introduction-inner">
+    <figure class="introduction-artwork">
+      <Image
+        src={artwork.aboutSummerDream.image}
+        alt={artwork.aboutSummerDream.alt}
+        widths={[640, 960, 1440]}
+        sizes="(max-width: 760px) 100vw, 58vw"
+        format="webp"
+        loading="lazy"
+        decoding="async"
+      />
+      <div class="artwork-overlay" aria-hidden="true"></div>
+      <figcaption>
+        <span>Summer dream</span>
+        <a href={artwork.aboutSummerDream.sourceUrl} target="_blank" rel="noreferrer">
+          画面：{artwork.aboutSummerDream.uploader} <i aria-hidden="true">↗</i>
+        </a>
+      </figcaption>
+    </figure>
+
+    <div class="introduction-copy">
+      <p class="introduction-kicker">A little about me <span>03</span></p>
+      <h2 id="home-introduction-title">在喜欢的事物之间，慢慢生活。</h2>
+      <p class="introduction-lead">{siteConfig.author.bio}</p>
+      <p>
+        这里收集动画留下的回声、开发过程中的小发现，也收藏光线、海风和寻常周末。不是急着给生活下结论，只想把值得回看的瞬间认真放好。
+      </p>
+      <div class="introduction-actions">
+        <a class="introduction-primary" href="/about/">更多关于我 <span aria-hidden="true">→</span></a>
+        <a href="/guestbook/">来留言</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .home-introduction {
+    padding: clamp(5rem, 10vw, 9rem) var(--page-gutter, 1.25rem);
+    overflow: hidden;
+    background: var(--color-bg, #fbfaf7);
+    color: var(--color-text, #172b34);
+  }
+
+  .introduction-inner {
+    display: grid;
+    width: min(100%, var(--content-width, 1180px));
+    margin: 0 auto;
+    grid-template-columns: minmax(0, 1.25fr) minmax(19rem, 0.75fr);
+    align-items: center;
+    gap: clamp(2.4rem, 6vw, 6.3rem);
+  }
+
+  .introduction-artwork {
+    position: relative;
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    border-radius: var(--radius-card, 8px);
+    box-shadow: 0 22px 58px rgb(27 56 74 / 0.15);
+  }
+
+  .introduction-artwork::before {
+    position: absolute;
+    z-index: 2;
+    inset: 0.7rem;
+    border: 1px solid rgb(255 255 255 / 0.34);
+    border-radius: 4px;
+    content: "";
+    pointer-events: none;
+  }
+
+  .introduction-artwork :global(img) {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    object-fit: cover;
+    object-position: 43% center;
+  }
+
+  .artwork-overlay {
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(180deg, transparent 58%, rgb(23 29 51 / 0.58)),
+      linear-gradient(90deg, rgb(20 82 99 / 0.08), rgb(210 99 145 / 0.07));
+    pointer-events: none;
+  }
+
+  figcaption {
+    position: absolute;
+    z-index: 3;
+    right: 1.6rem;
+    bottom: 1.35rem;
+    left: 1.6rem;
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 1rem;
+    color: #fff;
+  }
+
+  figcaption > span {
+    font-family: var(--font-display, "Iowan Old Style", serif);
+    font-size: 1.05rem;
+    font-style: italic;
+    letter-spacing: 0.04em;
+  }
+
+  figcaption a {
+    color: rgb(255 255 255 / 0.84);
+    font-size: 0.65rem;
+    text-decoration: none;
+  }
+
+  figcaption a:hover {
+    color: #fff;
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+  }
+
+  figcaption i {
+    font-style: normal;
+  }
+
+  .introduction-copy {
+    position: relative;
+  }
+
+  .introduction-copy::before {
+    position: absolute;
+    z-index: -1;
+    top: -3rem;
+    right: -5rem;
+    width: 10rem;
+    height: 10rem;
+    border: 1px solid rgb(13 132 145 / 0.12);
+    border-radius: 50%;
+    content: "";
+  }
+
+  .introduction-kicker {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    margin: 0 0 0.8rem;
+    color: var(--color-accent, #087f8c);
+    font-size: 0.67rem;
+    font-weight: 760;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .introduction-kicker::before {
+    width: 1.8rem;
+    height: 1px;
+    background: currentColor;
+    content: "";
+  }
+
+  .introduction-kicker span {
+    color: var(--color-text-muted, #718087);
+  }
+
+  h2 {
+    margin: 0;
+    font-family: var(--font-display, "Iowan Old Style", "Noto Serif SC", serif);
+    font-size: clamp(2rem, 3.8vw, 3.25rem);
+    font-weight: 590;
+    letter-spacing: -0.045em;
+    line-height: 1.22;
+  }
+
+  .introduction-lead {
+    margin-top: 1.6rem !important;
+    color: var(--color-text, #172b34) !important;
+    font-size: 1rem !important;
+    font-weight: 650;
+  }
+
+  .introduction-copy > p:not(.introduction-kicker) {
+    margin: 0.85rem 0 0;
+    color: var(--color-text-muted, #65767c);
+    font-size: 0.9rem;
+    line-height: 1.9;
+  }
+
+  .introduction-actions {
+    display: flex;
+    align-items: center;
+    gap: 1.3rem;
+    margin-top: 1.8rem;
+  }
+
+  .introduction-actions a {
+    color: var(--color-text, #172b34);
+    font-size: 0.75rem;
+    font-weight: 720;
+    text-decoration: none;
+  }
+
+  .introduction-actions a:hover {
+    color: var(--color-accent, #087f8c);
+  }
+
+  .introduction-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.78rem 1rem;
+    border: 1px solid var(--color-border, #ccd7d9);
+    border-radius: 4px;
+  }
+
+  :global(html[data-theme="dark"]) .introduction-artwork {
+    box-shadow: 0 22px 58px rgb(0 0 0 / 0.34);
+  }
+
+  @media (max-width: 820px) {
+    .introduction-inner {
+      grid-template-columns: 1fr;
+      gap: 2.5rem;
+    }
+
+    .introduction-artwork :global(img) {
+      aspect-ratio: 16 / 9;
+      object-fit: contain;
+      background: #26284c;
+    }
+
+    .introduction-copy {
+      max-width: 38rem;
+    }
+  }
+
+  @media (max-width: 460px) {
+    figcaption {
+      right: 1.1rem;
+      bottom: 0.9rem;
+      left: 1.1rem;
+    }
+
+    figcaption > span {
+      display: none;
+    }
+
+    figcaption a {
+      margin-left: auto;
+    }
+  }
+</style>

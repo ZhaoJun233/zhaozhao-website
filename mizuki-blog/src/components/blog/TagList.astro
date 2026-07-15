@@ -1,0 +1,78 @@
+---
+import { taxonomySlug } from "../../lib/slug";
+
+interface Props {
+  tags: readonly string[];
+  compact?: boolean;
+}
+
+const { tags, compact = false } = Astro.props;
+---
+
+<ul class:list={["tag-list", { "tag-list--compact": compact }]} aria-label="文章标签">
+  {tags.map((tag) => (
+    <li>
+      <a href={encodeURI(`/tags/${taxonomySlug(tag)}/`)}>
+        <span aria-hidden="true">#</span>{tag}
+      </a>
+    </li>
+  ))}
+</ul>
+
+<style>
+  .tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.42rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .tag-list a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.75rem;
+    padding: 0.24rem 0.58rem;
+    border: 1px solid var(--color-border, color-mix(in srgb, currentColor 18%, transparent));
+    border-radius: 999px;
+    color: var(--color-text-muted, color-mix(in srgb, currentColor 68%, transparent));
+    background: color-mix(
+      in srgb,
+      var(--color-surface, Canvas) 92%,
+      var(--color-accent-cyan, #20a8b4) 8%
+    );
+    font-size: 0.72rem;
+    font-weight: 650;
+    line-height: 1;
+    text-decoration: none;
+    transition: border-color 180ms ease, color 180ms ease, background-color 180ms ease;
+  }
+
+  .tag-list a:hover {
+    border-color: var(--color-accent-cyan, #168b98);
+    color: var(--color-accent-cyan-strong, var(--color-accent-cyan, #087f8c));
+    background: color-mix(
+      in srgb,
+      var(--color-surface, Canvas) 84%,
+      var(--color-accent-cyan, #20a8b4) 16%
+    );
+  }
+
+  .tag-list a:focus-visible {
+    outline: var(--focus-ring, 3px solid #00a6b8);
+    outline-offset: 2px;
+  }
+
+  .tag-list--compact a {
+    min-height: 1.55rem;
+    padding: 0.18rem 0.48rem;
+    font-size: 0.68rem;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tag-list a {
+      transition: none;
+    }
+  }
+</style>

@@ -1,0 +1,239 @@
+---
+import { getCollection } from "astro:content";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { buildTaxonomyIndex } from "../../lib/content";
+
+const posts = await getCollection("posts", ({ data }) => !data.draft);
+const tags = buildTaxonomyIndex(posts.flatMap(({ data }) => data.tags));
+const largestCount = Math.max(...tags.map(({ count }) => count), 1);
+---
+
+<BaseLayout
+  title="文章标签"
+  description="用标签交叉浏览 Mizuki 的动画、开发、阅读与日常文章。"
+  class="discovery-page"
+>
+  <section class="tags-page section" aria-labelledby="tags-title">
+    <div class="site-container tags-shell">
+      <header class="tags-heading">
+        <div>
+          <p class="eyebrow">Small constellations · 标签</p>
+          <h1 id="tags-title">沿着关键词<br />遇见文章</h1>
+        </div>
+        <div class="tags-heading__note">
+          <p>标签像文章之间细小的连线。字号只表示出现频率，不代表重要程度。</p>
+          <p><strong>{tags.length}</strong> 个标签 · {posts.length} 篇文章</p>
+        </div>
+      </header>
+
+      {tags.length > 0 ? (
+        <ul class="tag-cloud" aria-label="全部文章标签">
+          {tags.map((tag, index) => (
+            <li style={`--tag-weight: ${tag.count / largestCount}; --tag-delay: ${index * 16}ms`}>
+              <a href={encodeURI(`/tags/${tag.slug}/`)}>
+                <span class="tag-cloud__hash" aria-hidden="true">#</span>
+                <span>{tag.label}</span>
+                <small>{tag.count}</small>
+              </a>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <section class="empty-state" aria-labelledby="tags-empty-title">
+          <p aria-hidden="true">#</p>
+          <h2 id="tags-empty-title">还没有可以展开的标签</h2>
+          <p>公开文章出现后，关键词会自动汇集在这里。</p>
+        </section>
+      )}
+
+      <p class="taxonomy-switch">
+        想按主要主题浏览？<a href="/categories/">前往分类索引 <span aria-hidden="true">→</span></a>
+      </p>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .tags-page {
+    padding-block: clamp(6.5rem, 12vw, 10rem) clamp(4.5rem, 9vw, 8rem);
+  }
+
+  .tags-shell {
+    max-width: min(var(--content-width, 1180px), calc(100% - 2rem));
+  }
+
+  .tags-heading {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(15rem, 0.75fr);
+    align-items: end;
+    gap: clamp(2rem, 8vw, 8rem);
+    margin-bottom: clamp(3.5rem, 8vw, 6rem);
+  }
+
+  .tags-heading h1 {
+    margin: 0.3rem 0 0;
+    font-family: var(--font-display, ui-serif, "Noto Serif SC", serif);
+    font-size: clamp(2.7rem, 7.5vw, 6.2rem);
+    font-weight: 620;
+    letter-spacing: -0.045em;
+    line-height: 1.02;
+  }
+
+  .tags-heading__note {
+    margin-bottom: 0.5rem;
+    color: var(--color-text-muted, color-mix(in srgb, currentColor 68%, transparent));
+    line-height: 1.9;
+  }
+
+  .tags-heading__note p {
+    margin: 0;
+  }
+
+  .tags-heading__note p + p {
+    margin-top: 1rem;
+    font-size: 0.75rem;
+  }
+
+  .tags-heading__note strong {
+    color: var(--color-accent-cyan, #087f8c);
+    font-family: var(--font-display, ui-serif, serif);
+    font-size: 1.5rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .tag-cloud {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(0.6rem, 1.5vw, 1rem);
+    min-height: 18rem;
+    margin: 0;
+    padding: clamp(2rem, 7vw, 5.5rem);
+    border-block: 1px solid var(--color-border, color-mix(in srgb, currentColor 18%, transparent));
+    background:
+      radial-gradient(circle at 18% 28%, rgb(28 167 181 / 8%), transparent 26%),
+      radial-gradient(circle at 84% 74%, rgb(231 111 152 / 8%), transparent 24%);
+    list-style: none;
+  }
+
+  .tag-cloud li {
+    animation: tag-arrive 450ms both;
+    animation-delay: var(--tag-delay);
+  }
+
+  .tag-cloud a {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.25rem;
+    padding: clamp(0.58rem, 1.5vw, 0.9rem) clamp(0.8rem, 2vw, 1.25rem);
+    border: 1px solid color-mix(
+      in srgb,
+      var(--color-accent-cyan, #1ca7b5) calc(12% + var(--tag-weight) * 24%),
+      var(--color-border, transparent)
+    );
+    border-radius: 999px;
+    color: inherit;
+    background: color-mix(
+      in srgb,
+      var(--color-surface, Canvas) calc(97% - var(--tag-weight) * 7%),
+      var(--color-accent-cyan, #1ca7b5) calc(3% + var(--tag-weight) * 7%)
+    );
+    font-family: var(--font-display, ui-serif, "Noto Serif SC", serif);
+    font-size: clamp(0.92rem, calc(0.92rem + var(--tag-weight) * 0.7rem), 1.7rem);
+    font-weight: calc(520 + var(--tag-weight) * 160);
+    line-height: 1;
+    text-decoration: none;
+    transition: border-color 180ms ease, color 180ms ease, transform 180ms ease;
+  }
+
+  .tag-cloud a:hover {
+    border-color: var(--color-accent-pink, #d65782);
+    color: var(--color-accent-cyan-strong, var(--color-accent-cyan, #087f8c));
+    transform: translateY(-3px);
+  }
+
+  .tag-cloud a:focus-visible {
+    outline: var(--focus-ring, 3px solid #00a6b8);
+    outline-offset: 3px;
+  }
+
+  .tag-cloud__hash {
+    color: var(--color-accent-pink, #d65782);
+    font-family: var(--font-body, sans-serif);
+    font-size: 0.66em;
+    font-weight: 800;
+  }
+
+  .tag-cloud small {
+    color: var(--color-text-muted, color-mix(in srgb, currentColor 58%, transparent));
+    font-family: var(--font-body, sans-serif);
+    font-size: 0.46em;
+    font-variant-numeric: tabular-nums;
+    font-weight: 750;
+  }
+
+  .taxonomy-switch {
+    margin: 2.2rem 0 0 auto;
+    color: var(--color-text-muted, color-mix(in srgb, currentColor 68%, transparent));
+    font-size: 0.82rem;
+    text-align: right;
+  }
+
+  .taxonomy-switch a {
+    color: var(--color-accent-cyan-strong, var(--color-accent-cyan, #087f8c));
+    font-weight: 720;
+    text-underline-offset: 0.25em;
+  }
+
+  .empty-state {
+    padding: clamp(2.5rem, 8vw, 5rem);
+    border-block: 1px solid var(--color-border, color-mix(in srgb, currentColor 18%, transparent));
+    text-align: center;
+  }
+
+  .empty-state > p:first-child {
+    color: var(--color-accent-pink, #d65782);
+    font-size: 1.6rem;
+  }
+
+  .empty-state h2 {
+    font-family: var(--font-display, ui-serif, serif);
+  }
+
+  @keyframes tag-arrive {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+
+  @media (max-width: 760px) {
+    .tags-heading {
+      grid-template-columns: 1fr;
+      align-items: start;
+      gap: 1.5rem;
+    }
+
+    .tag-cloud {
+      justify-content: flex-start;
+      min-height: 12rem;
+      padding-inline: 0;
+      background: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tag-cloud li {
+      animation: none;
+    }
+
+    .tag-cloud a {
+      transition: none;
+    }
+
+    .tag-cloud a:hover {
+      transform: none;
+    }
+  }
+</style>
