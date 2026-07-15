@@ -6,7 +6,7 @@
 
 **Architecture:** Astro 7 statically renders every content and feature route from typed Content Collections. Focused server-side helpers own sorting, taxonomy, pagination, related content, dates, and SEO; small framework-free browser controllers add theme, navigation, search, reading progress, code copy, filters, and lazy Giscus loading. Pagefind indexes the completed `dist` directory after the Astro build.
 
-**Tech Stack:** Astro 7.0.9, TypeScript 7.0.2, native CSS, `lucide-astro` 0.556.0, `@astrojs/sitemap` 3.7.3, `@astrojs/rss` 4.0.19, Pagefind 1.5.2, Vitest 4.1.10, Playwright 1.61.1, `@axe-core/playwright` 4.12.1, and Lighthouse CI 0.15.1.
+**Tech Stack:** Astro 7.0.9, TypeScript 6.0.3, native CSS, `lucide-astro` 0.556.0, `@astrojs/sitemap` 3.7.3, `@astrojs/rss` 4.0.19, Pagefind 1.5.2, Vitest 4.1.10, Playwright 1.61.1, `@axe-core/playwright` 4.12.1, and Lighthouse CI 0.15.1.
 
 ## Global Constraints
 
@@ -113,7 +113,7 @@ mizuki-blog/
     "@axe-core/playwright": "4.12.1",
     "@lhci/cli": "0.15.1",
     "@playwright/test": "1.61.1",
-    "typescript": "7.0.2",
+    "typescript": "6.0.3",
     "vitest": "4.1.10"
   }
 }
