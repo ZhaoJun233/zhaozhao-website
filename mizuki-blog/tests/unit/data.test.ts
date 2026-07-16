@@ -38,12 +38,18 @@ describe("site data", () => {
     }
   });
 
-  it("covers the four specified blog milestones", () => {
+  it("records the real development milestones beginning on 2026-07-15", () => {
+    expect(aboutContent.timeline.entries.map((entry) => entry.date)).toEqual([
+      "2026-07-15",
+      "2026-07-15",
+      "2026-07-16",
+      "2026-07-16",
+    ]);
     expect(aboutContent.timeline.entries.map((entry) => entry.title)).toEqual([
-      "创建这间网络小屋",
-      "开始记录动画随记",
-      "发布第一篇开发笔记",
-      "打开留言簿",
+      "开始搭建个人博客",
+      "确定二次元视觉方向",
+      "接入 SQLite 内容后台",
+      "开放友链与数据库留言",
     ]);
   });
 

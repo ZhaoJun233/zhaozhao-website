@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import profile from "../../src/data/profile.json";
+import profile from "../../src/data/profile.json" with { type: "json" };
 
 test("project filters expose one active status and a live result count", async ({ page }) => {
   await page.goto("/projects/");
@@ -58,19 +58,18 @@ test("about page prominently presents the author and approved artwork source", a
   await expect(page.getByRole("img", { name: "粉紫色海边的白发少女插画" })).toBeVisible();
   await expect(page.getByRole("link", { name: /查看《【动态壁纸】夏日白色绮梦》来源/ }))
     .toHaveAttribute("href", "https://www.bilibili.com/video/BV1NCjx6oEhj/");
+  await expect(page.getByText("2026.07.15", { exact: true })).toHaveCount(2);
+  await expect(page.getByRole("heading", { level: 3, name: "开始搭建个人博客" }))
+    .toBeVisible();
 });
 
-test("guestbook renders the shared missing-Giscus state", async ({ page }) => {
-  const giscusRequests: string[] = [];
-  page.on("request", (request) => {
-    if (request.url().includes("giscus.app/client.js")) giscusRequests.push(request.url());
-  });
-
+test("guestbook renders the native database message form", async ({ page }) => {
   await page.goto("/guestbook/");
 
   await expect(page.getByRole("heading", { level: 1, name: "留言簿" })).toBeVisible();
-  await expect(page.getByText("评论功能尚未配置", { exact: true })).toBeVisible();
-  expect(giscusRequests).toEqual([]);
+  await expect(page.getByLabel("昵称 *")).toBeVisible();
+  await expect(page.getByLabel("留言 *")).toBeVisible();
+  await expect(page.getByRole("button", { name: /提交留言/ })).toBeVisible();
 });
 
 test("credits records the exact approved Bilibili artwork metadata", async ({ page }) => {
@@ -104,6 +103,15 @@ test("RSS contains all six published posts", async ({ request }) => {
   const xml = await response.text();
   expect(xml.match(/<item>/g)).toHaveLength(6);
   expect(xml).toContain("七月动画随记：把喜欢的片段留住");
+  expect(xml).toContain('<?xml-stylesheet href="/rss-feed.xsl" type="text/xsl"?>');
+  expect((await request.get("/rss-feed.xsl")).ok()).toBe(true);
+});
+
+test("RSS opens as a readable article index in a browser", async ({ page }) => {
+  await page.goto("/rss.xml");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("233昭");
+  await expect(page.getByText("最近更新", { exact: true })).toBeVisible();
+  await expect(page.getByRole("listitem")).toHaveCount(6);
 });
 
 test("robots.txt advertises the configured sitemap URL", async ({ request }) => {
@@ -111,7 +119,7 @@ test("robots.txt advertises the configured sitemap URL", async ({ request }) => 
   expect(response.ok()).toBe(true);
 
   await expect(response.text()).resolves.toContain(
-    "Sitemap: http://localhost:4321/sitemap.xml",
+    "/sitemap.xml",
   );
 });
 

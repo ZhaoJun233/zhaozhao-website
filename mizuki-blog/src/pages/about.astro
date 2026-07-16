@@ -115,7 +115,9 @@ const { hero, interests, workbench, timeline } = aboutContent;
       <ol class="timeline-list">
         {timeline.entries.map((entry) => (
           <li>
-            <time datetime={`${entry.date}-01`}>{entry.date.replace("-", ".")}</time>
+            <time datetime={entry.date.length === 7 ? `${entry.date}-01` : entry.date}>
+              {entry.date.replaceAll("-", ".")}
+            </time>
             <div>
               <h3>{entry.title}</h3>
               <p>{entry.description}</p>
@@ -421,7 +423,7 @@ const { hero, interests, workbench, timeline } = aboutContent;
   .timeline-list::before {
     position: absolute;
     inset-block: 0;
-    inset-inline-start: 6.25rem;
+    inset-inline-start: 8.25rem;
     inline-size: 1px;
     background: var(--color-border-strong);
     content: "";
@@ -430,7 +432,7 @@ const { hero, interests, workbench, timeline } = aboutContent;
   .timeline-list li {
     position: relative;
     display: grid;
-    grid-template-columns: 5rem minmax(0, 1fr);
+    grid-template-columns: 7rem minmax(0, 1fr);
     gap: clamp(2rem, 5vw, 4rem);
     padding-block: 1.4rem;
   }
@@ -438,7 +440,7 @@ const { hero, interests, workbench, timeline } = aboutContent;
   .timeline-list li::before {
     position: absolute;
     inset-block-start: 2rem;
-    inset-inline-start: 5.93rem;
+    inset-inline-start: 7.93rem;
     inline-size: 0.68rem;
     block-size: 0.68rem;
     border: 2px solid var(--color-bg-soft);

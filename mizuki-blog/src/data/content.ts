@@ -90,7 +90,10 @@ export const aboutSchema = z.object({
     title: text,
     description: text,
     entries: z.array(z.object({
-      date: text.regex(/^\d{4}-(?:0[1-9]|1[0-2])$/, "时间必须使用 YYYY-MM 格式。"),
+      date: text.regex(
+        /^\d{4}-(?:0[1-9]|1[0-2])(?:-(?:0[1-9]|[12]\d|3[01]))?$/,
+        "时间必须使用 YYYY-MM 或 YYYY-MM-DD 格式。",
+      ),
       title: text,
       description: text,
     })).max(30),

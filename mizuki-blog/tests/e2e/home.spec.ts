@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
-import profile from "../../src/data/profile.json";
-import taxonomy from "../../src/data/taxonomy.json";
+import profile from "../../src/data/profile.json" with { type: "json" };
+import taxonomy from "../../src/data/taxonomy.json" with { type: "json" };
 
 test("desktop hero keeps the complete source image visible", async ({ page }) => {
   await page.goto("/");
