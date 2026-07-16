@@ -1,0 +1,68 @@
+---
+import { ArrowDown, ArrowUp, Pencil, Plus, Save, Trash2, X } from "lucide-astro";
+import AdminShell from "../../components/admin/AdminShell.astro";
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import { listFriends } from "../../lib/database/admin-repository";
+import { getContentDatabase } from "../../lib/database/content-repository";
+
+const friends = listFriends(getContentDatabase());
+const config = {
+  endpoint: "/api/admin/friends",
+  confirmName: "友链",
+  order: true,
+  fields: [
+    { name: "name", type: "text" }, { name: "url", type: "text" },
+    { name: "description", type: "textarea" }, { name: "interests", type: "tags" },
+    { name: "enabled", type: "checkbox" },
+  ],
+};
+---
+
+<AdminLayout title="友链管理">
+  <AdminShell active="friends" title="友链管理" description="独立维护友链内容、展示状态与排列顺序。">
+    <button slot="actions" class="admin-button admin-button--primary" type="button" data-create-record><Plus size={16} />新增友链</button>
+    <div class="admin-split" data-record-page>
+      <section class="admin-panel" style="margin:0">
+        <div class="admin-panel__header"><div><h2>友链列表</h2><p>共 {friends.length} 个站点，箭头可调整前台顺序。</p></div></div>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead><tr><th>站点</th><th>状态</th><th>顺序</th><th><span class="sr-only">操作</span></th></tr></thead>
+            <tbody>
+              {friends.map((friend, index) => (
+                <tr data-record-id={friend.id}>
+                  <td><div class="admin-table__title"><strong>{friend.name}</strong><span>{friend.url}</span></div></td>
+                  <td><span class:list={["admin-badge", { "admin-badge--muted": !friend.enabled }]}>{friend.enabled ? "展示中" : "已停用"}</span></td>
+                  <td>{String(index + 1).padStart(2, "0")}</td>
+                  <td><div class="admin-actions">
+                    <button class="admin-button admin-button--small" type="button" data-move-record={friend.id} data-direction="up" aria-label={`上移 ${friend.name}`}><ArrowUp size={14} /></button>
+                    <button class="admin-button admin-button--small" type="button" data-move-record={friend.id} data-direction="down" aria-label={`下移 ${friend.name}`}><ArrowDown size={14} /></button>
+                    <button class="admin-button admin-button--small" type="button" data-edit-record={friend.id}><Pencil size={14} />编辑</button>
+                    <button class="admin-button admin-button--small admin-button--danger" type="button" data-delete-record={friend.id}><Trash2 size={14} />删除</button>
+                  </div></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {friends.length === 0 && <div class="admin-empty">还没有友链。</div>}
+        </div>
+      </section>
+      <aside class="admin-editor">
+        <h2 data-editor-title>新增内容</h2><p>保存后刷新前台友链页即可看到变化。</p>
+        <form class="admin-form" data-record-form>
+          <input type="hidden" name="id" />
+          <div class="admin-field"><label for="friend-name">站点名称</label><input id="friend-name" name="name" required /></div>
+          <div class="admin-field"><label for="friend-url">网址</label><input id="friend-url" name="url" type="url" placeholder="https://" required /></div>
+          <div class="admin-field"><label for="friend-description">介绍</label><textarea id="friend-description" name="description" required></textarea></div>
+          <div class="admin-field"><label for="friend-interests">兴趣标签</label><input id="friend-interests" name="interests" placeholder="动画, 开发" required /></div>
+          <label class="admin-field--check"><input name="enabled" type="checkbox" checked />在前台展示</label>
+          <p class="admin-status" data-record-status aria-live="polite"></p>
+          <div class="admin-form__actions">
+            <button class="admin-button admin-button--primary" type="submit"><Save size={15} />保存友链</button>
+            <button class="admin-button" type="button" data-cancel-edit><X size={15} />清空</button>
+          </div>
+        </form>
+      </aside>
+      <script is:inline type="application/json" data-record-config set:html={JSON.stringify(config)}></script>
+    </div>
+  </AdminShell>
+</AdminLayout>

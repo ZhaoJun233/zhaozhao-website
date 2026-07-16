@@ -1,0 +1,32 @@
+---
+import { Check, Clock3, ShieldX, Trash2 } from "lucide-astro";
+import AdminShell from "../../components/admin/AdminShell.astro";
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import { getContentDatabase } from "../../lib/database/content-repository";
+import { listAdminMessages } from "../../lib/database/message-repository";
+
+const messages = listAdminMessages(getContentDatabase());
+const statusLabel = { pending: "待审核", approved: "已公开", spam: "已隐藏" };
+---
+
+<AdminLayout title="留言管理">
+  <AdminShell active="messages" title="留言管理" description="审核访客留言，邮箱只在后台显示。">
+    <section class="admin-panel" style="margin:0" data-message-page>
+      <div class="admin-panel__header"><div><h2>访客留言</h2><p>共 {messages.length} 条，待审核 {messages.filter(({ status }) => status === "pending").length} 条。</p></div></div>
+      <div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>访客</th><th>留言</th><th>状态</th><th>时间</th><th></th></tr></thead><tbody>
+        {messages.map((message) => <tr>
+          <td><div class="admin-table__title"><strong>{message.name}</strong><span>{message.email ?? "未留邮箱"}{message.website ? ` · ${message.website}` : ""}</span></div></td>
+          <td><div class="admin-table__title"><strong>{message.content.slice(0, 48)}{message.content.length > 48 ? "…" : ""}</strong><span>{message.content}</span></div></td>
+          <td><span class:list={["admin-badge", { "admin-badge--muted": message.status !== "approved" }]}>{statusLabel[message.status]}</span></td>
+          <td>{new Date(message.createdAt).toLocaleString("zh-CN")}</td>
+          <td><div class="admin-actions">
+            {message.status !== "approved" && <button class="admin-button admin-button--small" type="button" data-message-action="approved" data-message-id={message.id}><Check size={14} />公开</button>}
+            {message.status !== "pending" && <button class="admin-button admin-button--small" type="button" data-message-action="pending" data-message-id={message.id}><Clock3 size={14} />待审</button>}
+            {message.status !== "spam" && <button class="admin-button admin-button--small" type="button" data-message-action="spam" data-message-id={message.id}><ShieldX size={14} />隐藏</button>}
+            <button class="admin-button admin-button--small admin-button--danger" type="button" data-message-action="delete" data-message-id={message.id}><Trash2 size={14} />删除</button>
+          </div></td>
+        </tr>)}
+      </tbody></table>{messages.length === 0 && <div class="admin-empty">还没有访客留言。</div>}</div>
+    </section>
+  </AdminShell>
+</AdminLayout>

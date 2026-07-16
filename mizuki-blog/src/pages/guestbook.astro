@@ -1,11 +1,13 @@
 ---
-import Giscus from "../components/integrations/Giscus.astro";
+import { getContentDatabase } from "../lib/database/content-repository";
+import { listApprovedMessages } from "../lib/database/message-repository";
 import { loadRuntimeEditorial, loadRuntimeProfile } from "../lib/runtime-content";
 import BaseLayout from "../layouts/BaseLayout.astro";
 
 const [profile, editorial] = await Promise.all([loadRuntimeProfile(), loadRuntimeEditorial()]);
 const guestbookContent = editorial.guestbook;
 const { hero, guidelines, discussion } = guestbookContent;
+const messages = listApprovedMessages(getContentDatabase());
 ---
 
 <BaseLayout
@@ -37,7 +39,7 @@ const { hero, guidelines, discussion } = guestbookContent;
             <li><span>{String(index + 1).padStart(2, "0")}</span><p>{item}</p></li>
           ))}
         </ol>
-        <a href="/credits/#giscus-setup">{guidelines.setupLabel} <span aria-hidden="true">→</span></a>
+        <a href="#guestbook-form">{guidelines.setupLabel} <span aria-hidden="true">→</span></a>
       </aside>
 
       <div class="guestbook-discussion" data-guestbook-term="guestbook">
@@ -46,7 +48,29 @@ const { hero, guidelines, discussion } = guestbookContent;
           <h2 id="guestbook-discussion-title">{discussion.title}</h2>
           <p>{discussion.description}</p>
         </header>
-        <Giscus term="guestbook" />
+        <form id="guestbook-form" class="guestbook-form" data-guestbook-form>
+          <div class="guestbook-form__grid">
+            <label><span>昵称 *</span><input name="name" maxlength="40" autocomplete="nickname" required /></label>
+            <label><span>邮箱</span><input name="email" type="email" autocomplete="email" placeholder="仅博主可见" /></label>
+          </div>
+          <label><span>个人网站</span><input name="website" type="url" autocomplete="url" placeholder="https://" /></label>
+          <label><span>留言 *</span><textarea name="content" minlength="2" maxlength="2000" required></textarea></label>
+          <label class="guestbook-honeypot" aria-hidden="true"><span>公司</span><input name="company" tabindex="-1" autocomplete="off" /></label>
+          <div class="guestbook-form__footer">
+            <p data-guestbook-status aria-live="polite">留言将在审核后公开。</p>
+            <button type="submit">提交留言 <span aria-hidden="true">→</span></button>
+          </div>
+        </form>
+
+        <section class="guestbook-messages" aria-labelledby="guestbook-messages-title">
+          <header><p class="eyebrow">Published notes</p><h3 id="guestbook-messages-title">已经留下的回声</h3><span>{messages.length} 条公开留言</span></header>
+          {messages.length > 0 ? <ol>
+            {messages.map((message, index) => <li>
+              <div><span>{String(index + 1).padStart(2, "0")}</span>{message.website ? <a href={message.website} rel="nofollow noreferrer noopener" target="_blank">{message.name}</a> : <strong>{message.name}</strong>}<time datetime={message.createdAt}>{new Date(message.createdAt).toLocaleDateString("zh-CN")}</time></div>
+              <p>{message.content}</p>
+            </li>)}
+          </ol> : <div class="guestbook-empty">第一条公开留言正在等待出现。</div>}
+        </section>
       </div>
     </div>
   </section>
@@ -196,6 +220,97 @@ const { hero, guidelines, discussion } = guestbookContent;
     line-height: 1.8;
   }
 
+  .guestbook-form {
+    display: grid;
+    gap: 1rem;
+    padding: clamp(1.2rem, 4vw, 2rem);
+    border: 1px solid var(--color-border);
+    background: color-mix(in srgb, var(--color-surface-raised) 92%, transparent);
+  }
+
+  .guestbook-form__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  .guestbook-form label:not(.guestbook-honeypot) {
+    display: grid;
+    gap: 0.4rem;
+  }
+
+  .guestbook-form label span {
+    color: var(--color-text-soft);
+    font-size: 0.7rem;
+    font-weight: 720;
+  }
+
+  .guestbook-form input,
+  .guestbook-form textarea {
+    inline-size: 100%;
+    padding: 0.75rem 0.8rem;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-control);
+    background: var(--color-bg-elevated);
+    color: var(--color-text);
+    font: inherit;
+    font-size: 0.82rem;
+  }
+
+  .guestbook-form textarea {
+    min-block-size: 9rem;
+    resize: vertical;
+  }
+
+  .guestbook-honeypot {
+    position: absolute;
+    inset-inline-start: -10000px;
+  }
+
+  .guestbook-form__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .guestbook-form__footer p {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: 0.72rem;
+  }
+
+  .guestbook-form__footer p[data-error] { color: var(--color-pink-strong); }
+
+  .guestbook-form button {
+    display: inline-flex;
+    min-block-size: 2.65rem;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.65rem 1rem;
+    border: 1px solid var(--color-accent-strong);
+    border-radius: var(--radius-control);
+    background: var(--color-accent-strong);
+    color: var(--color-text-inverse);
+    font-size: 0.75rem;
+    font-weight: 730;
+    cursor: pointer;
+  }
+
+  .guestbook-messages { margin-block-start: 3rem; }
+  .guestbook-messages > header { display: grid; grid-template-columns: 1fr auto; align-items: end; padding-block-end: 1rem; border-block-end: 1px solid var(--color-border); }
+  .guestbook-messages > header .eyebrow { grid-column: 1 / -1; }
+  .guestbook-messages h3 { margin: 0; font-size: clamp(1.4rem, 3vw, 2rem); }
+  .guestbook-messages > header > span { color: var(--color-text-muted); font-size: 0.7rem; }
+  .guestbook-messages ol { margin: 0; padding: 0; list-style: none; }
+  .guestbook-messages li { padding-block: 1.4rem; border-block-end: 1px solid var(--color-border); }
+  .guestbook-messages li > div { display: flex; align-items: baseline; gap: 0.75rem; }
+  .guestbook-messages li > div > span { color: var(--color-pink); font-family: var(--font-serif); font-size: 0.65rem; }
+  .guestbook-messages li strong, .guestbook-messages li a { font-size: 0.82rem; }
+  .guestbook-messages time { margin-inline-start: auto; color: var(--color-text-muted); font-size: 0.65rem; }
+  .guestbook-messages li p { margin: 0.75rem 0 0 2rem; color: var(--color-text-soft); font-size: 0.82rem; line-height: 1.8; white-space: pre-wrap; }
+  .guestbook-empty { padding: 2rem 0; color: var(--color-text-muted); font-size: 0.78rem; }
+
   @media (max-width: 760px) {
     .guestbook-hero__inner {
       grid-template-columns: 1fr;
@@ -213,5 +328,8 @@ const { hero, guidelines, discussion } = guestbookContent;
     .guestbook-notes {
       position: static;
     }
+
+    .guestbook-form__grid { grid-template-columns: 1fr; }
+    .guestbook-form__footer { align-items: stretch; flex-direction: column; }
   }
 </style>

@@ -1,0 +1,54 @@
+---
+import { Pencil, Plus, Save, Trash2, X } from "lucide-astro";
+import AdminShell from "../../components/admin/AdminShell.astro";
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import { listProjects } from "../../lib/database/admin-repository";
+import { getContentDatabase } from "../../lib/database/content-repository";
+
+const projects = listProjects(getContentDatabase());
+const config = { endpoint: "/api/admin/projects", confirmName: "项目", fields: [
+  { name: "slug", type: "text" }, { name: "title", type: "text" },
+  { name: "description", type: "textarea" }, { name: "body", type: "textarea" },
+  { name: "date", type: "date" }, { name: "status", type: "text" },
+  { name: "tags", type: "tags" }, { name: "cover", type: "text", optional: true },
+  { name: "repositoryUrl", type: "text", optional: true }, { name: "demoUrl", type: "text", optional: true },
+  { name: "featured", type: "checkbox" },
+] };
+const statusLabel = { active: "进行中", completed: "已完成", archived: "已归档" };
+---
+
+<AdminLayout title="项目管理">
+  <AdminShell active="projects" title="项目管理" description="维护项目正文、状态、链接和首页精选。">
+    <button slot="actions" class="admin-button admin-button--primary" type="button" data-create-record><Plus size={16} />新建项目</button>
+    <div class="admin-split" data-record-page>
+      <section class="admin-panel" style="margin:0">
+        <div class="admin-panel__header"><div><h2>项目列表</h2><p>共 {projects.length} 个项目记录。</p></div></div>
+        <div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>项目</th><th>状态</th><th>日期</th><th></th></tr></thead><tbody>
+          {projects.map((project) => <tr data-record-id={project.id}>
+            <td><div class="admin-table__title"><strong>{project.title}</strong><span>/{project.slug}/ · {project.description}</span></div></td>
+            <td><span class="admin-badge">{statusLabel[project.status]}</span></td><td>{project.date.slice(0, 10)}</td>
+            <td><div class="admin-actions"><button class="admin-button admin-button--small" type="button" data-edit-record={project.id}><Pencil size={14} />编辑</button><button class="admin-button admin-button--small admin-button--danger" type="button" data-delete-record={project.id}><Trash2 size={14} />删除</button></div></td>
+          </tr>)}
+        </tbody></table></div>
+      </section>
+      <aside class="admin-editor"><h2 data-editor-title>新增内容</h2><p>外部链接留空时不会在前台展示。</p>
+        <form class="admin-form" data-record-form><input type="hidden" name="id" />
+          <div class="admin-field"><label for="project-title">标题</label><input id="project-title" name="title" required /></div>
+          <div class="admin-field"><label for="project-slug">Slug</label><input id="project-slug" name="slug" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" required /></div>
+          <div class="admin-field"><label for="project-description">摘要</label><textarea id="project-description" name="description" required></textarea></div>
+          <div class="admin-field"><label for="project-date">日期</label><input id="project-date" name="date" type="date" required /></div>
+          <div class="admin-field"><label for="project-status">状态</label><select id="project-status" name="status" required><option value="active">进行中</option><option value="completed">已完成</option><option value="archived">已归档</option></select></div>
+          <div class="admin-field"><label for="project-tags">标签</label><input id="project-tags" name="tags" required /></div>
+          <div class="admin-field"><label for="project-body">Markdown 正文</label><textarea id="project-body" name="body" data-body required></textarea></div>
+          <div class="admin-field"><label for="project-cover">封面路径</label><input id="project-cover" name="cover" /></div>
+          <div class="admin-field"><label for="project-repository">仓库链接</label><input id="project-repository" name="repositoryUrl" type="url" /></div>
+          <div class="admin-field"><label for="project-demo">演示链接</label><input id="project-demo" name="demoUrl" type="url" /></div>
+          <label class="admin-field--check"><input name="featured" type="checkbox" />首页精选</label>
+          <p class="admin-status" data-record-status aria-live="polite"></p>
+          <div class="admin-form__actions"><button class="admin-button admin-button--primary" type="submit"><Save size={15} />保存项目</button><button class="admin-button" type="button" data-cancel-edit><X size={15} />清空</button></div>
+        </form>
+      </aside>
+      <script is:inline type="application/json" data-record-config set:html={JSON.stringify(config)}></script>
+    </div>
+  </AdminShell>
+</AdminLayout>

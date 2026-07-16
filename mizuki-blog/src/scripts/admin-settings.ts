@@ -1,0 +1,129 @@
+type JsonObject = Record<string, unknown>;
+
+const editor = document.querySelector<HTMLElement>("[data-setting-editor]");
+const form = document.querySelector<HTMLFormElement>("[data-setting-form]");
+const status = document.querySelector<HTMLElement>("[data-setting-status]");
+const tabs = [...document.querySelectorAll<HTMLButtonElement>("[data-setting-key]")];
+let activeKey = tabs[0]?.dataset.settingKey ?? "profile";
+let activeValue: unknown;
+
+function titleFor(key: string) {
+  return key.replaceAll("_", " ");
+}
+
+function createControl(value: unknown, path: Array<string | number>): HTMLElement {
+  const wrapper = document.createElement("div");
+  wrapper.className = "admin-field";
+  const pathValue = JSON.stringify(path);
+  if (typeof value === "boolean") {
+    const label = document.createElement("label");
+    label.className = "admin-field--check";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.checked = value;
+    input.dataset.settingPath = pathValue;
+    input.dataset.valueKind = "boolean";
+    label.append(input, document.createTextNode(titleFor(String(path.at(-1)))));
+    wrapper.append(label);
+    return wrapper;
+  }
+
+  const label = document.createElement("label");
+  label.textContent = titleFor(String(path.at(-1)));
+  const complexArray = Array.isArray(value) && value.some((item) => typeof item === "object");
+  const longText = typeof value === "string" && (value.length > 80 || value.includes("\n"));
+  const array = Array.isArray(value);
+  const control = complexArray || longText || array
+    ? document.createElement("textarea")
+    : document.createElement("input");
+  control.dataset.settingPath = pathValue;
+  control.dataset.valueKind = complexArray ? "json" : array ? "lines" : typeof value;
+  control.value = complexArray
+    ? JSON.stringify(value, null, 2)
+    : array ? value.join("\n") : String(value ?? "");
+  if (complexArray) control.style.minBlockSize = "12rem";
+  wrapper.append(label, control);
+  return wrapper;
+}
+
+function renderObject(value: JsonObject, path: Array<string | number> = []): DocumentFragment {
+  const fragment = document.createDocumentFragment();
+  for (const [key, item] of Object.entries(value)) {
+    const nextPath = [...path, key];
+    if (item && typeof item === "object" && !Array.isArray(item)) {
+      const fieldset = document.createElement("fieldset");
+      fieldset.className = "admin-setting-group";
+      const legend = document.createElement("legend");
+      legend.textContent = titleFor(key);
+      fieldset.append(legend, renderObject(item as JsonObject, nextPath));
+      fragment.append(fieldset);
+    } else {
+      fragment.append(createControl(item, nextPath));
+    }
+  }
+  return fragment;
+}
+
+function setAtPath(target: unknown, path: Array<string | number>, value: unknown) {
+  let cursor = target as Record<string | number, unknown>;
+  for (const segment of path.slice(0, -1)) cursor = cursor[segment] as Record<string | number, unknown>;
+  cursor[path.at(-1)!] = value;
+}
+
+async function loadSetting(key: string) {
+  if (!editor || !status) return;
+  status.textContent = "正在读取…";
+  status.removeAttribute("data-error");
+  const response = await fetch(`/api/admin/settings/${key}/`);
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error ?? "读取设置失败。");
+  activeKey = key;
+  activeValue = result.data;
+  editor.replaceChildren(renderObject(result.data));
+  tabs.forEach((tab) => tab.setAttribute("aria-pressed", String(tab.dataset.settingKey === key)));
+  status.textContent = "";
+}
+
+tabs.forEach((tab) => tab.addEventListener("click", () => {
+  loadSetting(tab.dataset.settingKey!).catch((error) => {
+    if (status) { status.textContent = error instanceof Error ? error.message : "读取失败。"; status.setAttribute("data-error", ""); }
+  });
+}));
+
+form?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!editor || !status) return;
+  const next = structuredClone(activeValue);
+  try {
+    for (const control of editor.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("[data-setting-path]")) {
+      const path = JSON.parse(control.dataset.settingPath!) as Array<string | number>;
+      const kind = control.dataset.valueKind;
+      let value: unknown = control.value;
+      if (kind === "boolean" && control instanceof HTMLInputElement) value = control.checked;
+      if (kind === "number") value = Number(control.value);
+      if (kind === "lines") value = control.value.split("\n").map((line) => line.trim()).filter(Boolean);
+      if (kind === "json") value = JSON.parse(control.value);
+      setAtPath(next, path, value);
+    }
+    status.textContent = "正在保存…";
+    status.removeAttribute("data-error");
+    const response = await fetch(`/api/admin/settings/${activeKey}/`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(next),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error ?? "保存失败。");
+    activeValue = result.data;
+    status.textContent = "已保存，前台刷新后立即生效。";
+  } catch (error) {
+    status.textContent = error instanceof Error ? error.message : "保存失败。";
+    status.setAttribute("data-error", "");
+  }
+});
+
+loadSetting(activeKey).catch((error) => {
+  if (status) { status.textContent = error instanceof Error ? error.message : "读取失败。"; status.setAttribute("data-error", ""); }
+});
+
+export {};

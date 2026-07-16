@@ -71,6 +71,17 @@ const schema = `
     value_json TEXT NOT NULL CHECK (json_valid(value_json)),
     updated_at TEXT NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS guestbook_messages (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT,
+    website TEXT,
+    content TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'spam')),
+    ip_hash TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
 `;
 
 export function initializeBlogDatabase(database: DatabaseSync, contentRoot: string): void {
@@ -79,6 +90,11 @@ export function initializeBlogDatabase(database: DatabaseSync, contentRoot: stri
     database.prepare(
       "INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)",
     ).run("schema-v1", new Date().toISOString());
+  }
+  if (!database.prepare("SELECT 1 FROM schema_migrations WHERE version = ?").get("schema-v2-messages")) {
+    database.prepare(
+      "INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)",
+    ).run("schema-v2-messages", new Date().toISOString());
   }
   seedFromContentFiles(database, contentRoot);
 }

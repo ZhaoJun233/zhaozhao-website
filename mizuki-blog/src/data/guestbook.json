@@ -4,7 +4,7 @@
     "badge": "留言簿",
     "eyebrow": "Guestbook · 留下回声",
     "title": "留言簿",
-    "description": "如果一篇文章让你想起了什么，或只是想说一声“来过”，都可以把话留在这里。讨论会固定映射到这一本留言簿，不随页面路径变化。"
+    "description": "如果一篇文章让你想起了什么，或只是想说一声“来过”，都可以把话留在这里。留言保存到本站数据库，审核后会公开显示。"
   },
   "guidelines": {
     "eyebrow": "Before writing",
@@ -12,13 +12,13 @@
     "items": [
       "尊重彼此，不发布私人信息、广告或攻击性内容。",
       "谈论文章时可以直接贴链接，方便后来者理解上下文。",
-      "这里使用 GitHub Discussions；发布留言需要登录 GitHub。"
+      "留言提交后进入审核队列，邮箱仅用于博主联系，不会公开显示。"
     ],
-    "setupLabel": "了解讨论区配置"
+    "setupLabel": "开始写留言"
   },
   "discussion": {
-    "eyebrow": "Open page",
+    "eyebrow": "Leave a note",
     "title": "把想说的话留在这里",
-    "description": "配置完成后，讨论区会在靠近视口时加载；当前缺少配置时会显示清楚的设置说明。"
+    "description": "无需第三方账号。提交后的留言会进入后台审核，通过后展示在下方。"
   }
 }

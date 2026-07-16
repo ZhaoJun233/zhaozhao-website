@@ -14,6 +14,7 @@ import {
 } from "../admin/schemas";
 import { taxonomySlug } from "../slug";
 import type { CategoryRow, FriendRow, PostRow, ProjectRow } from "./types";
+import { listAdminMessages, type AdminMessage } from "./message-repository";
 
 export class AdminConflictError extends Error {
   constructor(message: string, public readonly details?: Record<string, unknown>) {
@@ -395,6 +396,7 @@ export interface BlogBackup {
   projects: AdminProject[];
   friends: AdminFriend[];
   friendPage: unknown;
+  messages: AdminMessage[];
 }
 
 export function exportBlogData(database: DatabaseSync): BlogBackup {
@@ -412,6 +414,7 @@ export function exportBlogData(database: DatabaseSync): BlogBackup {
     projects: listProjects(database),
     friends: listFriends(database),
     friendPage: getSetting(database, "friend_page"),
+    messages: listAdminMessages(database),
   };
 }
 
@@ -426,10 +429,11 @@ export function importBlogData(database: DatabaseSync, backup: BlogBackup): void
   const friends = backup.friends.map((value) => ({ ...value, ...friendInputSchema.parse(value) }));
   const posts = backup.posts.map((value) => ({ ...value, ...postInputSchema.parse(value) }));
   const projects = backup.projects.map((value) => ({ ...value, ...projectInputSchema.parse(value) }));
+  const messages = backup.messages ?? [];
 
   database.exec("BEGIN IMMEDIATE");
   try {
-    database.exec("DELETE FROM posts; DELETE FROM projects; DELETE FROM friends; DELETE FROM categories; DELETE FROM site_settings;");
+    database.exec("DELETE FROM guestbook_messages; DELETE FROM posts; DELETE FROM projects; DELETE FROM friends; DELETE FROM categories; DELETE FROM site_settings;");
     const timestamp = new Date().toISOString();
     const insertSetting = database.prepare(
       "INSERT INTO site_settings (key, value_json, updated_at) VALUES (?, ?, ?)",
@@ -467,6 +471,13 @@ export function importBlogData(database: DatabaseSync, backup: BlogBackup): void
       value.description, value.body, value.date, value.status, JSON.stringify(value.tags),
       value.cover ?? null, value.repositoryUrl ?? null, value.demoUrl ?? null,
       value.featured ? 1 : 0, value.sortOrder));
+    const insertMessage = database.prepare(
+      `INSERT INTO guestbook_messages
+       (id, name, email, website, content, status, ip_hash, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
+    );
+    messages.forEach((value) => insertMessage.run(value.id, value.name, value.email ?? null,
+      value.website ?? null, value.content, value.status, value.createdAt, value.updatedAt));
     database.exec("COMMIT");
   } catch (error) {
     database.exec("ROLLBACK");
@@ -481,5 +492,7 @@ export function getAdminOverview(database: DatabaseSync) {
     projects: Number((database.prepare("SELECT COUNT(*) AS count FROM projects").get() as { count: number }).count),
     categories: Number((database.prepare("SELECT COUNT(*) AS count FROM categories").get() as { count: number }).count),
     friends: Number((database.prepare("SELECT COUNT(*) AS count FROM friends").get() as { count: number }).count),
+    messages: Number((database.prepare("SELECT COUNT(*) AS count FROM guestbook_messages").get() as { count: number }).count),
+    pendingMessages: Number((database.prepare("SELECT COUNT(*) AS count FROM guestbook_messages WHERE status = 'pending'").get() as { count: number }).count),
   };
 }

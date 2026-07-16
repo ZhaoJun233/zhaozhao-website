@@ -1,30 +1,30 @@
 ---
-export const prerender = true;
+import AdminShell from "../../components/admin/AdminShell.astro";
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import { getAdminOverview } from "../../lib/database/admin-repository";
+import { getContentDatabase } from "../../lib/database/content-repository";
+
+const overview = getAdminOverview(getContentDatabase());
+const stats = [
+  ["文章", overview.posts], ["草稿", overview.drafts], ["项目", overview.projects],
+  ["分类", overview.categories], ["友链", overview.friends],
+  ["待审留言", overview.pendingMessages],
+];
 ---
 
-<!doctype html>
-<html lang="zh-CN">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="robots" content="noindex" />
-    <title>博客内容后台</title>
-    <link href="/admin/config.yml" type="text/yaml" rel="cms-config-url" />
-  </head>
-  <body>
-    <script>
-      import CMS from "decap-cms-app";
-      import { validatePostCoverPair } from "../../lib/authoring";
-
-      CMS.registerEventListener({
-        name: "preSave",
-        handler: ({ entry }) => {
-          if (entry.get("collection") !== "posts") return;
-          const data = entry.get("data");
-          validatePostCoverPair(data.get("cover"), data.get("coverAlt"));
-        },
-      });
-      CMS.init();
-    </script>
-  </body>
-</html>
+<AdminLayout title="后台概览">
+  <AdminShell active="overview" title="后台概览" description="所有内容都由 SQLite 统一管理。">
+    <section class="admin-grid" aria-label="内容统计">
+      {stats.map(([label, value]) => <article class="admin-stat"><span>{label}</span><strong>{value}</strong></article>)}
+    </section>
+    <section class="admin-panel">
+      <div class="admin-panel__header"><div><h2>快速开始</h2><p>进入最常用的内容维护区域。</p></div></div>
+      <div class="admin-quicklinks">
+        <a href="/admin/posts/"><strong>继续写文章</strong><span>管理草稿、正文、分类与发布时间。</span></a>
+        <a href="/admin/friends/"><strong>维护友链</strong><span>新增、编辑、启停、删除与调整顺序。</span></a>
+        <a href="/admin/messages/"><strong>审核留言</strong><span>通过、隐藏或删除访客提交的留言。</span></a>
+        <a href="/admin/content/"><strong>修改页面</strong><span>维护首页、个人资料、导航和其他页面文案。</span></a>
+      </div>
+    </section>
+  </AdminShell>
+</AdminLayout>

@@ -1,0 +1,19 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+---
+
+<AdminLayout title="登录" login>
+  <main class="admin-login">
+    <div class="admin-login__mark" aria-hidden="true">昭</div>
+    <h1>回到内容工作台</h1>
+    <p>输入 Docker 环境中配置的管理员密码。</p>
+    <form class="admin-form" data-admin-login>
+      <div class="admin-field">
+        <label for="admin-password">管理员密码</label>
+        <input id="admin-password" name="password" type="password" autocomplete="current-password" required autofocus />
+      </div>
+      <p class="admin-status" data-admin-status aria-live="polite"></p>
+      <button class="admin-button admin-button--primary" type="submit">进入后台</button>
+    </form>
+  </main>
+</AdminLayout>

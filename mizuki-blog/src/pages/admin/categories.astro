@@ -1,0 +1,42 @@
+---
+import { Pencil, Plus, Save, Trash2, X } from "lucide-astro";
+import AdminShell from "../../components/admin/AdminShell.astro";
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import { listCategories } from "../../lib/database/admin-repository";
+import { getContentDatabase } from "../../lib/database/content-repository";
+
+const categories = listCategories(getContentDatabase());
+const config = { endpoint: "/api/admin/categories", confirmName: "分类", fields: [
+  { name: "name", type: "text" }, { name: "description", type: "textarea", optional: true },
+  { name: "enabled", type: "checkbox" },
+] };
+---
+
+<AdminLayout title="分类管理">
+  <AdminShell active="categories" title="分类管理" description="分类改名会同步更新引用它的文章。">
+    <button slot="actions" class="admin-button admin-button--primary" type="button" data-create-record><Plus size={16} />新增分类</button>
+    <div class="admin-split" data-record-page>
+      <section class="admin-panel" style="margin:0">
+        <div class="admin-panel__header"><div><h2>分类列表</h2><p>被文章使用的分类需要先迁移文章后才能删除。</p></div></div>
+        <div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>分类</th><th>Slug</th><th>状态</th><th></th></tr></thead><tbody>
+          {categories.map((category) => <tr data-record-id={category.id}>
+            <td><div class="admin-table__title"><strong>{category.name}</strong><span>{category.description}</span></div></td>
+            <td><code>{category.slug}</code></td>
+            <td><span class:list={["admin-badge", { "admin-badge--muted": !category.enabled }]}>{category.enabled ? "启用" : "停用"}</span></td>
+            <td><div class="admin-actions"><button class="admin-button admin-button--small" type="button" data-edit-record={category.id}><Pencil size={14} />编辑</button><button class="admin-button admin-button--small admin-button--danger" type="button" data-delete-record={category.id}><Trash2 size={14} />删除</button></div></td>
+          </tr>)}
+        </tbody></table></div>
+      </section>
+      <aside class="admin-editor"><h2 data-editor-title>新增内容</h2><p>分类名称会自动生成稳定的访问 Slug。</p>
+        <form class="admin-form" data-record-form><input type="hidden" name="id" />
+          <div class="admin-field"><label for="category-name">分类名称</label><input id="category-name" name="name" required /></div>
+          <div class="admin-field"><label for="category-description">说明</label><textarea id="category-description" name="description"></textarea></div>
+          <label class="admin-field--check"><input name="enabled" type="checkbox" checked />在前台启用</label>
+          <p class="admin-status" data-record-status aria-live="polite"></p>
+          <div class="admin-form__actions"><button class="admin-button admin-button--primary" type="submit"><Save size={15} />保存分类</button><button class="admin-button" type="button" data-cancel-edit><X size={15} />清空</button></div>
+        </form>
+      </aside>
+      <script is:inline type="application/json" data-record-config set:html={JSON.stringify(config)}></script>
+    </div>
+  </AdminShell>
+</AdminLayout>

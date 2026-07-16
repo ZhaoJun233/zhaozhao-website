@@ -1,0 +1,33 @@
+---
+import "../styles/tokens.css";
+import "../styles/admin.css";
+
+interface Props {
+  title: string;
+  description?: string;
+  login?: boolean;
+}
+
+const { title, description = "233昭博客内容管理后台", login = false } = Astro.props;
+---
+
+<!doctype html>
+<html lang="zh-CN" data-admin>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="description" content={description} />
+    <title>{title} · 233昭后台</title>
+  </head>
+  <body class:list={["admin-body", { "admin-body--login": login }]}>
+    <slot />
+    <script>
+      import "../scripts/admin-session";
+      import "../scripts/admin-records";
+      import "../scripts/admin-settings";
+      import "../scripts/admin-data";
+      import "../scripts/admin-messages";
+    </script>
+  </body>
+</html>
