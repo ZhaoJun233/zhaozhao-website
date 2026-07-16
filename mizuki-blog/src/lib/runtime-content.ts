@@ -1,6 +1,4 @@
-import { readFile, readdir } from "node:fs/promises";
-import { basename, extname, join, resolve } from "node:path";
-import matter from "gray-matter";
+import { basename, join, resolve } from "node:path";
 import { Marked, type Token } from "marked";
 import { z } from "astro/zod";
 import type { MarkdownHeading } from "astro";
@@ -13,15 +11,20 @@ import {
   navigationSchema,
   pageCopySchema,
 } from "../data/content";
+import {
+  readCategories,
+  readFriendPage,
+  readFriends,
+  readPosts,
+  readProjects,
+  readSetting,
+} from "./database/content-repository";
 import { taxonomySlug } from "./slug";
 
 const requiredText = z.string().trim().min(1);
 const optionalText = z.string().trim().min(1).optional();
 const httpUrl = z.url({ protocol: /^https?$/ });
 const contentRoot = resolve(process.env.CONTENT_ROOT ?? join(process.cwd(), "src"));
-const dataRoot = join(contentRoot, "data");
-const postRoot = join(contentRoot, "content", "posts");
-const projectRoot = join(contentRoot, "content", "projects");
 
 const profileSchema = z.object({
   name: requiredText,
@@ -99,11 +102,6 @@ function mediaUrl(value: string | undefined): string | undefined {
   return `/media/uploads/${basename(normalized)}/`;
 }
 
-async function readJson<T>(filename: string, schema: z.ZodType<T>): Promise<T> {
-  const raw = JSON.parse(await readFile(join(dataRoot, filename), "utf8"));
-  return schema.parse(raw);
-}
-
 function createMarkdownRenderer() {
   const headings: MarkdownHeading[] = [];
   const used = new Map<string, number>();
@@ -125,43 +123,39 @@ function createMarkdownRenderer() {
   return { marked, headings };
 }
 
-async function readMarkdownDirectory<T>(
-  directory: string,
-  schema: z.ZodType<T>,
-): Promise<Array<{ id: string; body: string; html: string; headings: MarkdownHeading[]; data: T }>> {
-  const filenames = (await readdir(directory)).filter((file) => extname(file).toLowerCase() === ".md");
-  return Promise.all(filenames.map(async (filename) => {
-    const parsed = matter(await readFile(join(directory, filename), "utf8"));
-    const data = schema.parse(parsed.data);
-    const { marked, headings } = createMarkdownRenderer();
-    return {
-      id: basename(filename, extname(filename)),
-      body: parsed.content,
-      html: await marked.parse(parsed.content),
-      headings,
-      data,
-    };
-  }));
+async function renderMarkdown(body: string) {
+  const { marked, headings } = createMarkdownRenderer();
+  return { html: await marked.parse(body), headings };
 }
 
 export async function loadRuntimeProfile(): Promise<RuntimeProfile> {
-  const profile = await readJson("profile.json", profileSchema);
+  const profile = profileSchema.parse(readSetting("profile"));
   return { ...profile, avatarUrl: mediaUrl(profile.avatar)! };
 }
 
 export async function loadRuntimeEditorial() {
-  const [navigation, homepage, about, friends, guestbook, credits, pageCopy, taxonomy, artwork] =
-    await Promise.all([
-      readJson("navigation.json", navigationSchema),
-      readJson("homepage.json", homepageSchema),
-      readJson("about.json", aboutSchema),
-      readJson("friends.json", friendsSchema),
-      readJson("guestbook.json", guestbookSchema),
-      readJson("credits.json", creditsSchema),
-      readJson("page-copy.json", pageCopySchema),
-      readJson("taxonomy.json", taxonomySchema),
-      readJson("artwork.json", artworkSchema),
-    ]);
+  const navigation = navigationSchema.parse(readSetting("navigation"));
+  const homepage = homepageSchema.parse(readSetting("homepage"));
+  const about = aboutSchema.parse(readSetting("about"));
+  const guestbook = guestbookSchema.parse(readSetting("guestbook"));
+  const credits = creditsSchema.parse(readSetting("credits"));
+  const pageCopy = pageCopySchema.parse(readSetting("page_copy"));
+  const taxonomy = taxonomySchema.parse({
+    categories: readCategories().map(({ name, description }) => ({
+      name,
+      ...(description ? { description } : {}),
+    })),
+  });
+  const friends = friendsSchema.parse({
+    ...readFriendPage<Record<string, unknown>>(),
+    links: readFriends().map((friend) => ({
+      name: friend.name,
+      url: friend.url,
+      description: friend.description,
+      interests: JSON.parse(friend.interests_json),
+    })),
+  });
+  const artwork = artworkSchema.parse(readSetting("artwork"));
   return {
     navigation,
     homepage,
@@ -182,18 +176,53 @@ export async function loadRuntimeEditorial() {
 }
 
 export async function loadRuntimePosts(): Promise<RuntimePost[]> {
-  const posts = await readMarkdownDirectory(postRoot, postDataSchema);
-  return posts.map((post) => ({
-    ...post,
-    data: { ...post.data, coverUrl: mediaUrl(post.data.cover) },
+  return Promise.all(readPosts().map(async (row) => {
+    const body = row.body;
+    const rendered = await renderMarkdown(body);
+    const data = postDataSchema.parse({
+      title: row.title,
+      description: row.description,
+      publishedAt: new Date(row.published_at),
+      ...(row.updated_at ? { updatedAt: new Date(row.updated_at) } : {}),
+      draft: Boolean(row.draft),
+      category: row.category,
+      tags: JSON.parse(row.tags_json),
+      ...(row.cover ? { cover: row.cover } : {}),
+      ...(row.cover_alt ? { coverAlt: row.cover_alt } : {}),
+      featured: Boolean(row.featured),
+      ...(row.series ? { series: row.series } : {}),
+      ...(row.canonical_url ? { canonicalUrl: row.canonical_url } : {}),
+    });
+    return {
+      id: row.slug,
+      body,
+      ...rendered,
+      data: { ...data, coverUrl: mediaUrl(data.cover) },
+    };
   }));
 }
 
 export async function loadRuntimeProjects(): Promise<RuntimeProject[]> {
-  const projects = await readMarkdownDirectory(projectRoot, projectDataSchema);
-  return projects.map((project) => ({
-    ...project,
-    data: { ...project.data, coverUrl: mediaUrl(project.data.cover) },
+  return Promise.all(readProjects().map(async (row) => {
+    const body = row.body;
+    const rendered = await renderMarkdown(body);
+    const data = projectDataSchema.parse({
+      title: row.title,
+      description: row.description,
+      date: new Date(row.project_date),
+      status: row.status,
+      tags: JSON.parse(row.tags_json),
+      ...(row.cover ? { cover: row.cover } : {}),
+      ...(row.repository_url ? { repositoryUrl: row.repository_url } : {}),
+      ...(row.demo_url ? { demoUrl: row.demo_url } : {}),
+      featured: Boolean(row.featured),
+    });
+    return {
+      id: row.slug,
+      body,
+      ...rendered,
+      data: { ...data, coverUrl: mediaUrl(data.cover) },
+    };
   }));
 }
 
