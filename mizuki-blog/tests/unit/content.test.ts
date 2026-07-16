@@ -361,12 +361,24 @@ describe("content domain", () => {
           { name: "新分类", description: "待发布" },
         ],
         ["开发", "开发", "动画", "旧分类"],
+        { includeUnmanaged: true },
       ),
     ).toEqual([
       { label: "动画", slug: "动画", count: 1, description: "观看记录" },
       { label: "开发", slug: "开发", count: 2, description: "代码实践" },
       { label: "新分类", slug: "新分类", count: 0, description: "待发布" },
       { label: "旧分类", slug: "旧分类", count: 1 },
+    ]);
+  });
+
+  it("treats the managed category list as authoritative for discovery", () => {
+    expect(
+      buildCategoryIndex(
+        [{ name: "开发", description: "代码实践" }],
+        ["开发", "已删除分类"],
+      ),
+    ).toEqual([
+      { label: "开发", slug: "开发", count: 1, description: "代码实践" },
     ]);
   });
 });

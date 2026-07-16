@@ -4,6 +4,7 @@ import { resolveSiteUrl } from "./src/config/build.ts";
 
 export default defineConfig({
   output: "static",
+  outDir: process.env.BUILD_OUTPUT_DIR ?? "./dist",
   site: resolveSiteUrl(process.env),
   base: "/",
   trailingSlash: "always",

@@ -12,6 +12,7 @@ export const getStaticPaths = (async () => {
   const categories = buildCategoryIndex(
     taxonomy.categories,
     posts.map(({ data }) => data.category),
+    { includeUnmanaged: true },
   );
 
   return categories.map((category) => ({

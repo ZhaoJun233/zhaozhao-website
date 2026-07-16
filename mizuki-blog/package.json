@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "astro dev",
     "cms": "node scripts/start-cms.mjs",
-    "author": "concurrently -k -n BLOG,CMS -c cyan,magenta \"npm run dev -- --host 127.0.0.1 --port 4322\" \"npm run cms\"",
+    "author": "concurrently -k -n BLOG,CMS -c cyan,magenta \"npm run dev -- --host 127.0.0.1 --port 4321\" \"npm run cms\"",
+    "publish:once": "node scripts/watch-site.mjs --once",
     "validate:authoring": "vitest run tests/unit/authoring.test.ts",
     "check": "astro check && tsc --noEmit",
     "build": "astro build && pagefind --site dist",

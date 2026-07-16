@@ -28,6 +28,8 @@ type CmsCollection = {
 type CmsConfig = {
   backend: { branch: string; name: string };
   local_backend: boolean | { url: string };
+  site_url: string;
+  display_url: string;
   media_folder: string;
   public_folder: string;
   collections: CmsCollection[];
@@ -35,6 +37,7 @@ type CmsConfig = {
 type ComposeService = {
   build: { args?: Record<string, string>; context: string; target?: string };
   command?: string;
+  depends_on?: Record<string, { condition: string }>;
   environment?: Record<string, string>;
   healthcheck?: { test: string[] };
   ports?: string[];
@@ -44,10 +47,11 @@ type ComposeService = {
 };
 type ComposeConfig = {
   services: {
-    author: ComposeService;
+    builder: ComposeService;
     cms: ComposeService;
     site: ComposeService;
   };
+  volumes?: Record<string, unknown>;
 };
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -93,6 +97,8 @@ describe("local authoring", () => {
     expect(cmsConfig.local_backend).toEqual({
       url: "http://127.0.0.1:8081/api/v1",
     });
+    expect(cmsConfig.site_url).toBe("http://127.0.0.1:4321");
+    expect(cmsConfig.display_url).toBe(cmsConfig.site_url);
     expect(cmsConfig.media_folder).toBe("mizuki-blog/src/assets/uploads");
     expect(cmsConfig.public_folder).toBe("../../assets/uploads");
 
@@ -188,26 +194,30 @@ describe("local authoring", () => {
     expect(existsSync(resolve(appRoot, "public/uploads/avatar.jpg"))).toBe(false);
   });
 
-  it("separates production preview from loopback-only authoring", () => {
-    const { author, cms, site } = composeConfig.services;
+  it("atomically republishes CMS changes through the loopback-only site", () => {
+    const { builder, cms, site } = composeConfig.services;
 
-    expect(site.build).toMatchObject({ context: ".", target: "production" });
+    expect(site.build).toMatchObject({ context: ".", target: "dynamic" });
     expect(site.ports).toEqual(["127.0.0.1:4321:8080"]);
-    expect(site.volumes).toBeUndefined();
+    expect(site.volumes).toEqual(["site-data:/site:ro"]);
+    expect(site.depends_on).toEqual({ builder: { condition: "service_healthy" } });
     expect(site.healthcheck?.test).toContain("http://127.0.0.1:8080/");
 
-    expect(author.profiles).toEqual(["authoring"]);
-    expect(author.build).toMatchObject({ context: ".", target: "authoring" });
-    expect(author.command).toContain("rm -f .astro/dev.json");
-    expect(author.command).not.toContain("--force");
-    expect(author.ports).toEqual(["127.0.0.1:4322:4321"]);
-    expect(author.volumes).toEqual(["./src:/app/src", "./public:/app/public"]);
-    expect(author.environment).toMatchObject({
-      CHOKIDAR_USEPOLLING: "true",
-      PUBLIC_SITE_URL: "http://127.0.0.1:4322",
+    expect(builder.build).toMatchObject({ context: ".", target: "authoring" });
+    expect(builder.command).toBe("node scripts/watch-site.mjs");
+    expect(builder.profiles).toBeUndefined();
+    expect(builder.ports).toBeUndefined();
+    expect(builder.volumes).toEqual([
+      "./src:/app/src",
+      "./public:/app/public",
+      "site-data:/site",
+    ]);
+    expect(builder.environment).toMatchObject({
+      BUILD_MODE: "production",
+      PUBLIC_SITE_URL: "http://127.0.0.1:4321",
     });
 
-    expect(cms.profiles).toEqual(["authoring"]);
+    expect(cms.profiles).toBeUndefined();
     expect(cms.build).toMatchObject({ context: ".", target: "authoring" });
     expect(cms.command).toBe("npm run cms");
     expect(cms.ports).toEqual(["127.0.0.1:8081:8081"]);
@@ -221,15 +231,17 @@ describe("local authoring", () => {
       BIND_HOST: "0.0.0.0",
       GIT_REPO_DIRECTORY: "/workspace",
       MODE: "fs",
-      ORIGIN: "http://127.0.0.1:4322",
+      ORIGIN: "http://127.0.0.1:4321",
       PORT: "8081",
     });
-    expect(author.user).toBe("${LOCAL_UID:-1000}:${LOCAL_GID:-1000}");
-    expect(cms.user).toBe(author.user);
+    expect(builder.user).toBe("${LOCAL_UID:-1000}:${LOCAL_GID:-1000}");
+    expect(cms.user).toBe(builder.user);
+    expect(composeConfig.volumes).toHaveProperty("site-data");
   });
 
   it("builds a static runtime image without local credentials", () => {
     expect(dockerfile).toContain("AS authoring");
+    expect(dockerfile).toContain("AS dynamic");
     expect(dockerfile).toContain("AS production");
     expect(dockerfile).toContain("rm -f .astro/dev.json");
     expect(dockerfile).not.toContain('"--force"');

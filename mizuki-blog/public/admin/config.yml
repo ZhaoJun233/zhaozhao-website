@@ -6,8 +6,8 @@ backend:
   name: git-gateway
   branch: master
 
-site_url: http://127.0.0.1:4322
-display_url: http://127.0.0.1:4322
+site_url: http://127.0.0.1:4321
+display_url: http://127.0.0.1:4321
 
 media_folder: mizuki-blog/src/assets/uploads
 public_folder: ../../assets/uploads

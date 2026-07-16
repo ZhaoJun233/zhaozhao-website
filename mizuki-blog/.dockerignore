@@ -4,6 +4,7 @@ dist
 coverage
 test-results
 playwright-report
+.publisher-build
 *.log
 .git
 .codegraph

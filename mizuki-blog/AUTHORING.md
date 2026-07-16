@@ -1,42 +1,48 @@
-# 本地内容编辑
+# 内容维护与发布
 
-Decap CMS 会直接修改当前工作区里的文章、项目和 `src/data/profile.json`；Astro 开发服务器会随文件保存自动热更新。本机方式使用 Node.js 24。
+本站以 Markdown/JSON 作为唯一内容源。Decap CMS 写入仓库文件，`builder` 监听 `src/` 与 `public/`，保存后自动生成包含 Pagefind 索引的新版本。构建完成后通过原子链接切换到 Nginx；构建失败时继续提供上一版本，避免半成品页面上线。
 
-## 本机运行
+## Docker 运行
+
+```bash
+docker compose up -d --build --wait
+```
+
+- 博客与后台：<http://127.0.0.1:4321/>、<http://127.0.0.1:4321/admin/>
+- Decap 本地代理：<http://127.0.0.1:8081/api/v1>
+- 构建日志：`docker compose logs -f builder`
+
+进入后台后点击“登录”。保存文章、项目、博主资料或分类后，构建器通常会在数秒内发布新版本；浏览器刷新即可看到变化。三个服务均只绑定本机或 Compose 内部网络：
+
+- `cms`：只写文章、项目、资料与上传目录。
+- `builder`：只读内容源，向 `site-data` 发布完整版本并保留最近三个版本。
+- `site`：以只读方式挂载 `site-data`，只负责提供静态页面。
+
+分类列表是前台分类索引的权威来源。删除仍被文章引用的分类后，它会从分类索引隐藏，但旧文章详情链接继续可用；建议随后在文章编辑器中重新选择分类。
+
+停止服务：
+
+```bash
+docker compose down
+```
+
+删除发布缓存并从头构建：
+
+```bash
+docker compose down -v
+docker compose up -d --build --wait
+```
+
+## 本机写作
 
 ```bash
 npm ci
 npm run author
 ```
 
-- 博客与后台：<http://127.0.0.1:4322/>、<http://127.0.0.1:4322/admin/>
-- Decap 本地代理：<http://127.0.0.1:8081/api/v1>
+本机模式同样使用 <http://127.0.0.1:4321/> 和 <http://127.0.0.1:8081/api/v1>，由 Astro 开发服务器热更新。
 
-进入后台后点击“登录”，Decap 会自动连接本地代理，不需要单独的账号。
-
-## Docker Compose
-
-生产预览使用构建后的静态站点，包含 Pagefind 全文搜索，不暴露 Astro 开发端点：
-
-```bash
-docker compose up -d --build
-```
-
-- 生产预览：<http://127.0.0.1:4321/>
-- 只有静态产物进入运行镜像，服务仅绑定本机回环地址。
-
-需要在 Docker 中编辑内容时，启动写作 profile：
-
-```bash
-docker compose --profile authoring up -d --build
-```
-
-- 实时博客与后台：<http://127.0.0.1:4322/>、<http://127.0.0.1:4322/admin/>
-- Decap 本地代理：<http://127.0.0.1:8081/api/v1>
-
-实时博客只绑定 `src/` 和 `public/`；CMS 仅可写文章、项目、博主资料与上传目录。后台保存会保留在宿主机并触发 Astro 热更新。代理只绑定本机，并仅接受来自 `http://127.0.0.1:4322` 的浏览器请求。编辑完成后执行 `docker compose up -d --build site` 刷新生产预览；停止全部服务使用 `docker compose --profile authoring down`。
-
-## 校验与发布构建
+## 校验
 
 ```bash
 npm run validate:authoring
@@ -48,4 +54,14 @@ npm run audit:lighthouse
 docker compose config
 ```
 
-头像路径由 `src/data/profile.json` 统一配置，后台上传的头像保存在 `src/assets/profile/`。提交前请用 `git diff` 检查 Decap 写入的工作区变更。
+## 不可变生产镜像
+
+正式发布到远程环境时，可继续构建不含 CMS 和源码挂载的静态镜像：
+
+```bash
+docker build --target production \
+  --build-arg PUBLIC_SITE_URL=https://example.com \
+  -t mizuki-blog:latest .
+```
+
+头像路径由 `src/data/profile.json` 管理，分类由 `src/data/taxonomy.json` 管理。提交前使用 `git diff` 审核后台写入的内容变更。

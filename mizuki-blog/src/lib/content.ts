@@ -97,6 +97,7 @@ export function buildTaxonomyIndex(values: readonly string[]): TaxonomyIndexItem
 export function buildCategoryIndex(
   definitions: readonly CategoryDefinition[],
   values: readonly string[],
+  options: { includeUnmanaged?: boolean } = {},
 ): CategoryIndexItem[] {
   const usedCategories = buildTaxonomyIndex(values);
   const usedBySlug = new Map(usedCategories.map((category) => [category.slug, category]));
@@ -124,7 +125,9 @@ export function buildCategoryIndex(
 
   return [
     ...managedCategories,
-    ...usedCategories.filter(({ slug }) => !managedSlugs.has(slug)),
+    ...(options.includeUnmanaged
+      ? usedCategories.filter(({ slug }) => !managedSlugs.has(slug))
+      : []),
   ];
 }
 
