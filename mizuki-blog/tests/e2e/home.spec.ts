@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import profile from "../../src/data/profile.json";
+import taxonomy from "../../src/data/taxonomy.json";
 
 test("desktop hero keeps the complete source image visible", async ({ page }) => {
   await page.goto("/");
@@ -28,4 +29,21 @@ test("home composition exposes its discovery landmarks", async ({ page }) => {
   await expect(page.getByTestId("featured-posts")).toBeVisible();
   await expect(page.getByTestId("home-introduction")).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
+  await expect(page.locator(".topic-list .topic-link")).toHaveCount(
+    taxonomy.categories.length,
+  );
+  await expect(page.locator(".status-note")).toHaveText(
+    taxonomy.categories.map(({ name }) => name).join(" · "),
+  );
+});
+
+test("featured placeholder stays inside its card and uses the author wordmark", async ({ page }) => {
+  await page.goto("/");
+  const cardBox = await page.locator(".post-card--featured").boundingBox();
+  const mediaBox = await page.locator(".post-card--featured .post-card__media").boundingBox();
+
+  expect(cardBox).not.toBeNull();
+  expect(mediaBox).not.toBeNull();
+  expect(mediaBox!.width).toBeLessThanOrEqual(cardBox!.width + 1);
+  await expect(page.locator(".post-card__wordmark strong")).toHaveText(profile.name);
 });
