@@ -1,0 +1,48 @@
+{
+  "hero": {
+    "eyebrow": "Personal notes · 2026",
+    "typingLabel": "此刻记录",
+    "typingPhrases": ["七月动画里的海风", "Astro 与温柔的界面", "平凡日子里的微光"],
+    "primaryActionLabel": "开始阅读",
+    "secondaryActionLabel": "认识 233昭",
+    "scrollLabel": "向下阅读"
+  },
+  "status": {
+    "label": "站点状态",
+    "message": "安静运行中",
+    "postsLabel": "文章",
+    "topicsLabel": "主题",
+    "latestLabel": "最近更新"
+  },
+  "featuredPosts": {
+    "eyebrow": "Featured stories",
+    "title": "最近，写下这些",
+    "linkLabel": "浏览全部文章",
+    "emptyMessage": "第一篇故事正在路上。"
+  },
+  "topics": {
+    "eyebrow": "Browse by feeling",
+    "title": "从一个主题出发",
+    "navigationLabel": "文章分类捷径"
+  },
+  "featuredProjects": {
+    "eyebrow": "Selected works",
+    "title": "正在搭建的小世界",
+    "description": "把兴趣变成可以慢慢迭代、也可以随时回看的东西。",
+    "detailLabel": "查看项目",
+    "allLabel": "全部项目",
+    "statusLabels": {
+      "active": "进行中",
+      "completed": "已完成",
+      "archived": "已归档"
+    }
+  },
+  "introduction": {
+    "eyebrow": "A little about me",
+    "title": "在喜欢的事物之间，慢慢生活。",
+    "body": "这里收集动画留下的回声、开发过程中的小发现，也收藏光线、海风和寻常周末。不是急着给生活下结论，只想把值得回看的瞬间认真放好。",
+    "primaryActionLabel": "更多关于我",
+    "secondaryActionLabel": "来留言",
+    "artworkCaption": "Summer dream"
+  }
+}

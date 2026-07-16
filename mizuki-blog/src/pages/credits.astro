@@ -1,21 +1,21 @@
 ---
-import { Image } from "astro:assets";
 import { ExternalLink } from "lucide-astro";
-import { artwork, type ArtworkPlacement } from "../data/artwork";
+import type { ArtworkPlacement } from "../data/artwork";
+import { loadRuntimeEditorial } from "../lib/runtime-content";
 import BaseLayout from "../layouts/BaseLayout.astro";
 
-const artworkRecords = [artwork.homeHero, artwork.aboutSummerDream] as const;
+const editorial = await loadRuntimeEditorial();
+const creditsContent = editorial.credits;
+const artworkRecords = [
+  { ...editorial.artwork.homeHero, placements: ["home-hero"] as const },
+  { ...editorial.artwork.aboutSummerDream, placements: ["home-intro", "about-hero"] as const },
+];
 const placementLabels: Record<ArtworkPlacement, string> = {
   "home-hero": "首页主视觉",
   "home-intro": "首页个人介绍",
   "about-hero": "关于页主视觉",
 };
-const libraries = [
-  { name: "Astro", role: "静态站点与内容集合", license: "MIT", url: "https://github.com/withastro/astro" },
-  { name: "Lucide", role: "界面图标", license: "ISC", url: "https://github.com/lucide-icons/lucide" },
-  { name: "Pagefind", role: "构建后静态搜索", license: "MIT", url: "https://github.com/CloudCannon/pagefind" },
-  { name: "Giscus", role: "基于 Discussions 的留言与评论", license: "MIT", url: "https://github.com/giscus/giscus" },
-] as const;
+const { hero, artwork: artworkCopy, libraries, discussionSetup } = creditsContent;
 const giscusVariables = [
   'PUBLIC_GISCUS_REPO="owner/repository"',
   'PUBLIC_GISCUS_REPO_ID="R_..."',
@@ -25,19 +25,19 @@ const giscusVariables = [
 ---
 
 <BaseLayout
-  title="作品与鸣谢"
-  description="查看本站插画来源、开源依赖与 Giscus 讨论区配置说明。"
+  title={creditsContent.title}
+  description={creditsContent.description}
   page="credits"
   class="credits-page"
 >
   <section class="credits-hero" aria-labelledby="credits-title">
     <div class="site-container credits-hero__inner">
       <div>
-        <p class="eyebrow">Credits · 来源与感谢</p>
-        <h1 id="credits-title">认真记录每一束<br />照进本站的光</h1>
+        <p class="eyebrow">{hero.eyebrow}</p>
+        <h1 id="credits-title">{hero.heading}</h1>
       </div>
       <p>
-        插画、开源工具与社区服务共同构成这间网络小屋。这里保留可核对的来源、用途和配置入口，方便后来维护与替换。
+        {hero.introduction}
       </p>
     </div>
   </section>
@@ -45,21 +45,18 @@ const giscusVariables = [
   <section class="credits-artwork" aria-labelledby="artwork-title">
     <div class="site-container">
       <header class="credits-heading">
-        <p class="eyebrow">Artwork · 画面来源</p>
-        <h2 id="artwork-title">本站使用的两条素材记录</h2>
-        <p>页面只使用下列两张已确认素材；展示位置与替代文字一并记录。</p>
+        <p class="eyebrow">{artworkCopy.eyebrow}</p>
+        <h2 id="artwork-title">{artworkCopy.heading}</h2>
+        <p>{artworkCopy.introduction}</p>
       </header>
 
       <div class="artwork-list">
         {artworkRecords.map((record, index) => (
           <article class="artwork-record">
             <figure>
-              <Image
-                src={record.image}
+              <img
+                src={record.imageUrl}
                 alt={record.alt}
-                widths={[640, 960, 1440]}
-                sizes="(max-width: 760px) 100vw, 46vw"
-                format="webp"
                 loading="lazy"
               />
             </figure>
@@ -74,16 +71,16 @@ const giscusVariables = [
                   <dt>展示位置</dt>
                   <dd>{record.placements.map((placement) => placementLabels[placement]).join("、")}</dd>
                 </div>
-                {record.uploader ? (
+                {"uploader" in record ? (
                   <div><dt>上传者</dt><dd>{record.uploader}</dd></div>
                 ) : (
                   <div><dt>来源</dt><dd>站点作者提供的本地素材</dd></div>
                 )}
-                {record.bvid && <div><dt>BV 号</dt><dd><code>{record.bvid}</code></dd></div>}
+                {"bvid" in record && <div><dt>BV 号</dt><dd><code>{record.bvid}</code></dd></div>}
               </dl>
-              {record.sourceUrl && (
+              {"sourceUrl" in record && (
                 <a href={record.sourceUrl} target="_blank" rel="noreferrer noopener">
-                  在 Bilibili 原视频中查看来源
+                  {artworkCopy.sourceLinkLabel}
                   <ExternalLink size={15} stroke-width={1.8} aria-hidden="true" />
                 </a>
               )}
@@ -97,17 +94,17 @@ const giscusVariables = [
   <section class="credits-libraries" aria-labelledby="libraries-title">
     <div class="site-container credits-libraries__inner">
       <header class="credits-heading">
-        <p class="eyebrow">Open source · 开源工具</p>
-        <h2 id="libraries-title">站点建立在这些项目之上</h2>
+        <p class="eyebrow">{libraries.eyebrow}</p>
+        <h2 id="libraries-title">{libraries.heading}</h2>
       </header>
 
       <ul class="library-list">
-        {libraries.map((library) => (
+        {libraries.items.map((library) => (
           <li>
             <div><strong>{library.name}</strong><span>{library.license}</span></div>
             <p>{library.role}</p>
             <a href={library.url} target="_blank" rel="noreferrer noopener">
-              项目主页 <ExternalLink size={14} stroke-width={1.8} aria-hidden="true" />
+              {libraries.linkLabel} <ExternalLink size={14} stroke-width={1.8} aria-hidden="true" />
             </a>
           </li>
         ))}
@@ -118,33 +115,18 @@ const giscusVariables = [
   <section class="giscus-setup" id="giscus-setup" aria-labelledby="giscus-title">
     <div class="site-container giscus-setup__inner">
       <header>
-        <p class="eyebrow">Setup · Giscus</p>
-        <h2 id="giscus-title">用四个环境变量打开讨论区</h2>
-        <p>
-          文章评论按路径映射，留言簿固定使用 <code>guestbook</code>。四项配置缺少任意一项时，页面会保留说明状态，不加载远程脚本。
-        </p>
+        <p class="eyebrow">{discussionSetup.eyebrow}</p>
+        <h2 id="giscus-title">{discussionSetup.heading}</h2>
+        <p>{discussionSetup.introduction}</p>
       </header>
 
       <ol class="setup-steps">
-        <li>
-          <span>01</span>
-          <div><h3>准备 Discussions</h3><p>在 GitHub 仓库设置中启用 Discussions，并创建允许访客发言的分类。</p></div>
-        </li>
-        <li>
-          <span>02</span>
-          <div>
-            <h3>安装 Giscus App</h3>
-            <p>为目标仓库安装 Giscus App，随后在 <a href="https://giscus.app/zh-CN" target="_blank" rel="noreferrer noopener">giscus.app</a> 读取仓库与分类 ID。</p>
-          </div>
-        </li>
-        <li>
-          <span>03</span>
-          <div><h3>填写四项变量</h3><p>把生成的真实值写入本地 <code>.env</code> 或部署平台的环境变量。</p></div>
-        </li>
-        <li>
-          <span>04</span>
-          <div><h3>重新构建</h3><p>重新执行生产构建；配置齐全后，讨论区会在接近视口时按需加载。</p></div>
-        </li>
+        {discussionSetup.steps.map((step, index) => (
+          <li>
+            <span>{String(index + 1).padStart(2, "0")}</span>
+            <div><h3>{step.title}</h3><p>{step.description}</p></div>
+          </li>
+        ))}
       </ol>
 
       <div class="setup-code">

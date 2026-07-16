@@ -1,0 +1,37 @@
+{
+  "title": "作品与鸣谢",
+  "description": "查看本站插画来源、开源依赖与讨论区配置说明。",
+  "hero": {
+    "eyebrow": "Credits · 来源与感谢",
+    "heading": "认真记录每一束照进本站的光",
+    "introduction": "插画、开源工具与社区服务共同构成这间网络小屋。这里保留可核对的来源、用途和配置入口，方便后来维护与替换。"
+  },
+  "artwork": {
+    "eyebrow": "Artwork · 画面来源",
+    "heading": "本站使用的素材记录",
+    "introduction": "页面只使用下列已确认素材；展示位置与替代文字一并记录。",
+    "sourceLinkLabel": "在原始页面中查看来源"
+  },
+  "libraries": {
+    "eyebrow": "Open source · 开源工具",
+    "heading": "站点建立在这些项目之上",
+    "linkLabel": "项目主页",
+    "items": [
+      { "name": "Astro", "role": "服务端渲染与页面框架", "license": "MIT", "url": "https://github.com/withastro/astro" },
+      { "name": "Lucide", "role": "界面图标", "license": "ISC", "url": "https://github.com/lucide-icons/lucide" },
+      { "name": "Marked", "role": "运行时 Markdown 渲染", "license": "MIT", "url": "https://github.com/markedjs/marked" },
+      { "name": "Giscus", "role": "基于 Discussions 的留言与评论", "license": "MIT", "url": "https://github.com/giscus/giscus" }
+    ]
+  },
+  "discussionSetup": {
+    "eyebrow": "Setup · Giscus",
+    "heading": "用四个环境变量打开讨论区",
+    "introduction": "文章评论按路径映射，留言簿固定使用 guestbook。四项配置缺少任意一项时，页面会保留说明状态，不加载远程脚本。",
+    "steps": [
+      { "title": "准备 Discussions", "description": "在 GitHub 仓库设置中启用 Discussions，并创建允许访客发言的分类。" },
+      { "title": "安装 Giscus App", "description": "为目标仓库安装 Giscus App，随后在 giscus.app 读取仓库与分类 ID。" },
+      { "title": "填写四项变量", "description": "把生成的真实值写入本地 .env 或部署平台的环境变量。" },
+      { "title": "重新构建", "description": "重新执行生产构建；配置齐全后，讨论区会在接近视口时按需加载。" }
+    ]
+  }
+}

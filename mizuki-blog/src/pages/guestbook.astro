@@ -1,23 +1,27 @@
 ---
 import Giscus from "../components/integrations/Giscus.astro";
-import { siteConfig } from "../config/site";
+import { loadRuntimeEditorial, loadRuntimeProfile } from "../lib/runtime-content";
 import BaseLayout from "../layouts/BaseLayout.astro";
+
+const [profile, editorial] = await Promise.all([loadRuntimeProfile(), loadRuntimeEditorial()]);
+const guestbookContent = editorial.guestbook;
+const { hero, guidelines, discussion } = guestbookContent;
 ---
 
 <BaseLayout
   title="留言簿"
-  description={`给 ${siteConfig.name} 留下一句话、一个问题，或一段路过这里的心情。`}
+  description={`给 ${profile.name} ${guestbookContent.seoDescription}`}
   page="guestbook"
   class="guestbook-page"
 >
   <section class="guestbook-hero" aria-labelledby="guestbook-title">
     <div class="site-container guestbook-hero__inner">
-      <div class="guestbook-hero__number" aria-hidden="true">留言<br />簿</div>
+      <div class="guestbook-hero__number" aria-hidden="true">{hero.badge}</div>
       <div>
-        <p class="eyebrow">Guestbook · 留下回声</p>
-        <h1 id="guestbook-title">留言簿</h1>
+        <p class="eyebrow">{hero.eyebrow}</p>
+        <h1 id="guestbook-title">{hero.title}</h1>
         <p>
-          如果一篇文章让你想起了什么，或只是想说一声“来过”，都可以把话留在这里。讨论会固定映射到这一本留言簿，不随页面路径变化。
+          {hero.description}
         </p>
       </div>
     </div>
@@ -26,21 +30,21 @@ import BaseLayout from "../layouts/BaseLayout.astro";
   <section class="guestbook-content" aria-labelledby="guestbook-discussion-title">
     <div class="site-container guestbook-shell">
       <aside class="guestbook-notes" aria-labelledby="guestbook-notes-title">
-        <p class="eyebrow">Before writing</p>
-        <h2 id="guestbook-notes-title">写之前的小约定</h2>
+        <p class="eyebrow">{guidelines.eyebrow}</p>
+        <h2 id="guestbook-notes-title">{guidelines.title}</h2>
         <ol>
-          <li><span>01</span><p>尊重彼此，不发布私人信息、广告或攻击性内容。</p></li>
-          <li><span>02</span><p>谈论文章时可以直接贴链接，方便后来者理解上下文。</p></li>
-          <li><span>03</span><p>这里使用 GitHub Discussions；发布留言需要登录 GitHub。</p></li>
+          {guidelines.items.map((item, index) => (
+            <li><span>{String(index + 1).padStart(2, "0")}</span><p>{item}</p></li>
+          ))}
         </ol>
-        <a href="/credits/#giscus-setup">了解讨论区配置 <span aria-hidden="true">→</span></a>
+        <a href="/credits/#giscus-setup">{guidelines.setupLabel} <span aria-hidden="true">→</span></a>
       </aside>
 
       <div class="guestbook-discussion" data-guestbook-term="guestbook">
         <header>
-          <p class="eyebrow">Open page</p>
-          <h2 id="guestbook-discussion-title">把想说的话留在这里</h2>
-          <p>配置完成后，讨论区会在靠近视口时加载；当前缺少配置时会显示清楚的设置说明。</p>
+          <p class="eyebrow">{discussion.eyebrow}</p>
+          <h2 id="guestbook-discussion-title">{discussion.title}</h2>
+          <p>{discussion.description}</p>
         </header>
         <Giscus term="guestbook" />
       </div>

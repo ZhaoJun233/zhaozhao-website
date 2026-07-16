@@ -1,52 +1,29 @@
 ---
-import { getCollection, render, type CollectionEntry } from "astro:content";
 import PostLayout from "../../layouts/PostLayout.astro";
 import { getRelatedPosts, sortPostEntries } from "../../lib/content";
+import { loadRuntimePosts } from "../../lib/runtime-content";
 
-type ArticleProps = {
-  post: CollectionEntry<"posts">;
-  relatedPosts: CollectionEntry<"posts">[];
-  previousPost?: CollectionEntry<"posts">;
-  nextPost?: CollectionEntry<"posts">;
-};
-
-export async function getStaticPaths() {
-  const posts = sortPostEntries(await getCollection("posts", ({ data }) => !data.draft));
-  const candidates = posts.map((entry) => ({
-    entry,
-    id: entry.id,
-    publishedAt: entry.data.publishedAt,
-    category: entry.data.category,
-    tags: entry.data.tags,
-    series: entry.data.series,
-  }));
-
-  return posts.map((post, index) => {
-    const current = candidates[index]!;
-    const relatedPosts = getRelatedPosts(current, candidates, 3).map(({ entry }) => entry);
-
-    return {
-      params: { slug: post.id },
-      props: {
-        post,
-        relatedPosts,
-        previousPost: posts[index + 1],
-        nextPost: posts[index - 1],
-      } satisfies ArticleProps,
-    };
-  });
-}
-
-const { post, relatedPosts, previousPost, nextPost } = Astro.props;
-const { Content, headings } = await render(post);
+const posts = sortPostEntries((await loadRuntimePosts()).filter(({ data }) => !data.draft));
+const post = posts.find(({ id }) => id === Astro.params.slug);
+if (!post) return Astro.redirect("/404/", 302);
+const candidates = posts.map((entry) => ({
+  entry,
+  id: entry.id,
+  publishedAt: entry.data.publishedAt,
+  category: entry.data.category,
+  tags: entry.data.tags,
+  series: entry.data.series,
+}));
+const index = posts.indexOf(post);
+const relatedPosts = getRelatedPosts(candidates[index]!, candidates, 3).map(({ entry }) => entry);
 ---
 
 <PostLayout
   post={post}
-  headings={headings}
+  headings={post.headings}
   relatedPosts={relatedPosts}
-  previousPost={previousPost}
-  nextPost={nextPost}
+  previousPost={posts[index + 1]}
+  nextPost={posts[index - 1]}
 >
-  <Content />
+  <Fragment set:html={post.html} />
 </PostLayout>

@@ -1,18 +1,22 @@
 ---
-import { getCollection, type CollectionEntry } from "astro:content";
 import FeaturedPosts from "../components/home/FeaturedPosts.astro";
 import FeaturedProjects from "../components/home/FeaturedProjects.astro";
 import HomeHero from "../components/home/HomeHero.astro";
 import HomeIntroduction from "../components/home/HomeIntroduction.astro";
 import TopicBand, { type HomeTopic } from "../components/home/TopicBand.astro";
-import { artwork } from "../data/artwork";
-import taxonomy from "../data/taxonomy.json";
 import { siteConfig } from "../config/site";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import { buildCategoryIndex, sortPostEntries } from "../lib/content";
+import {
+  loadRuntimeEditorial,
+  loadRuntimePosts,
+  loadRuntimeProfile,
+  loadRuntimeProjects,
+  type RuntimePost,
+} from "../lib/runtime-content";
 
 const publishedPosts = sortPostEntries(
-  await getCollection("posts", ({ data }) => !data.draft),
+  (await loadRuntimePosts()).filter(({ data }) => !data.draft),
 );
 const featuredPosts = publishedPosts.filter(({ data }) => data.featured);
 const selectedPostIds = new Set(featuredPosts.slice(0, 3).map(({ id }) => id));
@@ -21,7 +25,7 @@ const homePosts = [
   ...publishedPosts.filter(({ id }) => !selectedPostIds.has(id)),
 ].slice(0, 3);
 
-const projects = await getCollection("projects");
+const projects = await loadRuntimeProjects();
 const homeProjects = [...projects]
   .sort(
     (left, right) =>
@@ -31,8 +35,9 @@ const homeProjects = [...projects]
   )
   .slice(0, 3);
 
+const [profile, editorial] = await Promise.all([loadRuntimeProfile(), loadRuntimeEditorial()]);
 const topics: HomeTopic[] = buildCategoryIndex(
-  taxonomy.categories,
+  editorial.taxonomy.categories,
   publishedPosts.map(({ data }) => data.category),
 ).map(({ label, slug, count }) => ({
   label,
@@ -40,7 +45,7 @@ const topics: HomeTopic[] = buildCategoryIndex(
   href: encodeURI(`/categories/${slug}/`),
 }));
 
-const latestPost: CollectionEntry<"posts"> | undefined = publishedPosts[0];
+const latestPost: RuntimePost | undefined = publishedPosts[0];
 const latestDate = latestPost?.data.publishedAt;
 const latestDateLabel = latestDate
   ? new Intl.DateTimeFormat(siteConfig.locale, {
@@ -49,12 +54,13 @@ const latestDateLabel = latestDate
       day: "2-digit",
     }).format(latestDate)
   : "—";
+const status = editorial.homepage.status;
 ---
 
 <BaseLayout
-  title={siteConfig.title}
-  description={siteConfig.description}
-  image={artwork.homeHero.image}
+  title={`${profile.name} - ${profile.siteTitle}`}
+  description={profile.description}
+  image={editorial.artwork.homeHero.imageUrl}
   page="home"
   headerOverlay={true}
 >
@@ -62,11 +68,11 @@ const latestDateLabel = latestDate
 
   <aside class="site-status" aria-label="站点近况">
     <div class="status-inner">
-      <p class="status-live"><i aria-hidden="true"></i><span>站点状态</span><strong>安静运行中</strong></p>
+      <p class="status-live"><i aria-hidden="true"></i><span>{status.label}</span><strong>{status.message}</strong></p>
       <dl>
-        <div><dt>文章</dt><dd>{publishedPosts.length}</dd></div>
-        <div><dt>主题</dt><dd>{topics.length}</dd></div>
-        <div><dt>最近更新</dt><dd>{latestDateLabel}</dd></div>
+        <div><dt>{status.postsLabel}</dt><dd>{publishedPosts.length}</dd></div>
+        <div><dt>{status.topicsLabel}</dt><dd>{topics.length}</dd></div>
+        <div><dt>{status.latestLabel}</dt><dd>{latestDateLabel}</dd></div>
       </dl>
       <p class="status-note">{topics.map(({ label }) => label).join(" · ")}</p>
     </div>

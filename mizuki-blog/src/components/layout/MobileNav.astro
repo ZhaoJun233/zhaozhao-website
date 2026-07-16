@@ -1,12 +1,14 @@
 ---
 import { ExternalLink, X } from "lucide-astro";
-import { siteConfig } from "../../config/site";
+import { loadRuntimeEditorial } from "../../lib/runtime-content";
 
 interface Props {
   currentPath: string;
 }
 
 const { currentPath } = Astro.props;
+const { navigation } = await loadRuntimeEditorial();
+const { mobile } = navigation;
 
 function normalizePath(path: string): string {
   return path === "/" ? path : `${path.replace(/\/+$/, "")}/`;
@@ -33,8 +35,8 @@ function isCurrent(href: string): boolean {
   >
     <div class="mobile-nav__head">
       <div>
-        <span class="mobile-nav__kicker">Navigation</span>
-        <h2 id="mobile-navigation-title">去往哪里？</h2>
+        <span class="mobile-nav__kicker">{mobile.kicker}</span>
+        <h2 id="mobile-navigation-title">{mobile.title}</h2>
       </div>
       <button class="icon-button" type="button" aria-label="关闭导航" data-nav-close>
         <X size={20} stroke-width={1.8} aria-hidden="true" />
@@ -43,7 +45,7 @@ function isCurrent(href: string): boolean {
 
     <nav aria-label="移动端主导航">
       <ul>
-        {siteConfig.navigation.map((item, index) => (
+        {navigation.items.map((item, index) => (
           <li>
             <a href={item.href} aria-current={isCurrent(item.href) ? "page" : undefined} data-nav-link>
               <span aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
@@ -55,11 +57,11 @@ function isCurrent(href: string): boolean {
     </nav>
 
     <a class="mobile-nav__search" href="/search/" data-nav-link>
-      <span>搜索站内内容</span>
+      <span>{mobile.searchLabel}</span>
       <ExternalLink size={16} stroke-width={1.8} aria-hidden="true" />
     </a>
 
-    <p class="mobile-nav__note">动画、代码与生活碎片，在海风里慢慢更新。</p>
+    <p class="mobile-nav__note">{mobile.note}</p>
   </aside>
 </div>
 

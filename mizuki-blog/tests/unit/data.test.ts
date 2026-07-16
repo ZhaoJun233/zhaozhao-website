@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { artwork } from "../../src/data/artwork";
-import { friends, friendsNotice } from "../../src/data/friends";
-import { timeline } from "../../src/data/timeline";
+import {
+  aboutContent,
+  creditsContent,
+  friendsContent,
+  guestbookContent,
+  homepageContent,
+  navigationContent,
+  pageCopy,
+} from "../../src/data/content";
 import taxonomy from "../../src/data/taxonomy.json";
 
 describe("site data", () => {
@@ -19,25 +26,33 @@ describe("site data", () => {
   });
 
   it("ships the specified demonstration data counts", () => {
-    expect(friends).toHaveLength(4);
-    expect(timeline).toHaveLength(4);
+    expect(friendsContent.links).toHaveLength(4);
+    expect(aboutContent.timeline.entries).toHaveLength(4);
   });
 
   it("keeps every friend link visibly fictional", () => {
-    expect(friendsNotice).toContain("演示数据");
+    expect(friendsContent.notice).toContain("演示数据");
 
-    for (const friend of friends) {
+    for (const friend of friendsContent.links) {
       expect(new URL(friend.url).hostname.endsWith(".example")).toBe(true);
     }
   });
 
   it("covers the four specified blog milestones", () => {
-    expect(timeline.map((entry) => entry.title)).toEqual([
+    expect(aboutContent.timeline.entries.map((entry) => entry.title)).toEqual([
       "创建这间网络小屋",
       "开始记录动画随记",
       "发布第一篇开发笔记",
       "打开留言簿",
     ]);
+  });
+
+  it("validates every CMS-managed editorial area", () => {
+    expect(navigationContent.items[0]).toEqual({ label: "首页", href: "/" });
+    expect(homepageContent.hero.typingPhrases.length).toBeGreaterThan(0);
+    expect(guestbookContent.guidelines.items.length).toBeGreaterThan(0);
+    expect(pageCopy.categories.heading).not.toBe("");
+    expect(creditsContent.libraries.items.length).toBeGreaterThan(0);
   });
 
   it("keeps CMS-managed categories named, described, and unique", () => {

@@ -37,13 +37,10 @@ test("home composition exposes its discovery landmarks", async ({ page }) => {
   );
 });
 
-test("featured placeholder stays inside its card and uses the author wordmark", async ({ page }) => {
+test("featured posts use a clean grid when the lead article has no cover", async ({ page }) => {
   await page.goto("/");
-  const cardBox = await page.locator(".post-card--featured").boundingBox();
-  const mediaBox = await page.locator(".post-card--featured .post-card__media").boundingBox();
 
-  expect(cardBox).not.toBeNull();
-  expect(mediaBox).not.toBeNull();
-  expect(mediaBox!.width).toBeLessThanOrEqual(cardBox!.width + 1);
-  await expect(page.locator(".post-card__wordmark strong")).toHaveText(profile.name);
+  await expect(page.locator(".posts-layout--grid .post-card")).toHaveCount(3);
+  await expect(page.locator(".post-card__media--placeholder")).toHaveCount(0);
+  await expect(page.locator(".post-card__wordmark")).toHaveCount(0);
 });

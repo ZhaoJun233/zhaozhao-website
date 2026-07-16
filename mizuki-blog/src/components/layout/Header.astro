@@ -1,7 +1,6 @@
 ---
 import { Menu, Search } from "lucide-astro";
-import { siteConfig } from "../../config/site";
-import SearchDialog from "../ui/SearchDialog.astro";
+import { loadRuntimeEditorial, loadRuntimeProfile } from "../../lib/runtime-content";
 import ThemeToggle from "../ui/ThemeToggle.astro";
 import MobileNav from "./MobileNav.astro";
 
@@ -11,6 +10,8 @@ interface Props {
 }
 
 const { currentPath = Astro.url.pathname, overlay = false } = Astro.props;
+const [profile, editorial] = await Promise.all([loadRuntimeProfile(), loadRuntimeEditorial()]);
+const navigation = editorial.navigation.items;
 
 function normalizePath(path: string): string {
   return path === "/" ? path : `${path.replace(/\/+$/, "")}/`;
@@ -26,13 +27,13 @@ function isCurrent(href: string): boolean {
 
 <header class:list={["site-header", { "site-header--overlay": overlay }]} data-site-header>
   <div class="site-header__inner site-container">
-    <a class="site-brand" href="/" aria-label={`${siteConfig.name} 首页`}>
-      <span>{siteConfig.name}</span>
+    <a class="site-brand" href="/" aria-label={`${profile.name} 首页`}>
+      <span>{profile.name}</span>
     </a>
 
     <nav class="desktop-nav" aria-label="主导航">
       <ul>
-        {siteConfig.navigation.map((item) => (
+        {navigation.map((item) => (
           <li>
             <a href={item.href} aria-current={isCurrent(item.href) ? "page" : undefined}>
               {item.label}
@@ -47,9 +48,6 @@ function isCurrent(href: string): boolean {
         class="icon-button search-link"
         href="/search/"
         aria-label="搜索"
-        aria-haspopup="dialog"
-        aria-controls="global-search-dialog"
-        data-search-open
       >
         <Search size={18} stroke-width={1.8} aria-hidden="true" />
         <span class="search-link__hint" aria-hidden="true">/</span>
@@ -70,11 +68,6 @@ function isCurrent(href: string): boolean {
 </header>
 
 <MobileNav currentPath={currentPath} />
-<SearchDialog />
-
-<script>
-  import "../../scripts/search";
-</script>
 
 <style>
   .site-header {

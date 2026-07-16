@@ -1,12 +1,29 @@
 ---
-import PagefindSearch from "../components/integrations/PagefindSearch.astro";
-import { siteConfig } from "../config/site";
+import { Search } from "lucide-astro";
+import PostCard from "../components/blog/PostCard.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
+import { sortPostEntries } from "../lib/content";
+import { loadRuntimeEditorial, loadRuntimePosts, loadRuntimeProfile } from "../lib/runtime-content";
+
+const [profile, editorial] = await Promise.all([loadRuntimeProfile(), loadRuntimeEditorial()]);
+const copy = editorial.pageCopy.search;
+const query = Astro.url.searchParams.get("q")?.normalize("NFKC").trim() ?? "";
+const normalizedQuery = query.toLocaleLowerCase("zh-CN");
+const posts = sortPostEntries((await loadRuntimePosts()).filter(({ data }) => !data.draft));
+const results = query
+  ? posts.filter((post) => [
+      post.data.title,
+      post.data.description,
+      post.data.category,
+      ...post.data.tags,
+      post.body,
+    ].join("\n").normalize("NFKC").toLocaleLowerCase("zh-CN").includes(normalizedQuery))
+  : [];
 ---
 
 <BaseLayout
-  title="搜索"
-  description={`搜索 ${siteConfig.name} 发布的文章正文，并按分类或多个标签筛选结果。`}
+  title={copy.title}
+  description={`${profile.name}：${copy.description}`}
   page="search"
   class="search-page"
 >
@@ -14,16 +31,32 @@ import BaseLayout from "../layouts/BaseLayout.astro";
     <div class="site-container search-shell">
       <header class="search-heading">
         <div>
-          <p class="eyebrow">Search · 搜索</p>
-          <h1 id="search-page-title">从文字里，找回一条线索</h1>
+          <p class="eyebrow">{copy.eyebrow}</p>
+          <h1 id="search-page-title">{copy.heading}</h1>
         </div>
         <p>
-          搜索标题与正文，分类为精确匹配；同时勾选多个标签时，会显示符合其中任意一个标签的文章。
+          {copy.introduction}
         </p>
       </header>
 
       <div class="search-surface surface-card">
-        <PagefindSearch id="search-page" variant="page" />
+        <form class="runtime-search" action="/search/" method="get" role="search">
+          <label for="runtime-search-input">搜索文章</label>
+          <div>
+            <Search size={18} stroke-width={1.8} aria-hidden="true" />
+            <input id="runtime-search-input" name="q" type="search" value={query} placeholder="输入标题、正文、分类或标签" />
+            <button type="submit">搜索</button>
+          </div>
+        </form>
+
+        {query && (
+          <section class="runtime-results" aria-live="polite" aria-labelledby="runtime-results-title">
+            <h2 id="runtime-results-title">“{query}”找到 {results.length} 篇文章</h2>
+            {results.length > 0 ? (
+              <div>{results.map((post) => <PostCard post={post} prominence="compact" />)}</div>
+            ) : <p>换一个关键词，或从分类和标签入口继续浏览。</p>}
+          </section>
+        )}
       </div>
     </div>
   </section>
@@ -87,6 +120,60 @@ import BaseLayout from "../layouts/BaseLayout.astro";
     background:
       linear-gradient(135deg, color-mix(in srgb, var(--color-accent-soft) 22%, transparent), transparent 32%),
       var(--color-surface-raised);
+  }
+
+  .runtime-search > label {
+    display: block;
+    margin-bottom: 0.55rem;
+    color: var(--color-text-muted);
+    font-size: 0.72rem;
+    font-weight: 720;
+  }
+
+  .runtime-search > div {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.55rem 0.6rem 0.55rem 0.9rem;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-control);
+    background: var(--color-bg);
+  }
+
+  .runtime-search input {
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--color-text);
+    font: inherit;
+  }
+
+  .runtime-search button {
+    min-height: 2.45rem;
+    padding: 0.55rem 0.9rem;
+    border: 0;
+    border-radius: 4px;
+    background: var(--color-text);
+    color: var(--color-text-inverse);
+    font-weight: 720;
+    cursor: pointer;
+  }
+
+  .runtime-results {
+    margin-top: 2rem;
+  }
+
+  .runtime-results > h2 {
+    margin: 0 0 1rem;
+    font-size: 1rem;
+  }
+
+  .runtime-results > p {
+    padding: 2rem 0;
+    border-block: 1px solid var(--color-border);
+    color: var(--color-text-muted);
   }
 
   @media (max-width: 760px) {

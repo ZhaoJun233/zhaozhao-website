@@ -1,27 +1,17 @@
 ---
-import type { GetStaticPaths } from "astro";
-import { getCollection } from "astro:content";
 import PostCard from "../../components/blog/PostCard.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import { buildTaxonomyIndex, sortPostEntries } from "../../lib/content";
+import { loadRuntimePosts } from "../../lib/runtime-content";
+import { taxonomySlug } from "../../lib/slug";
 
-export const getStaticPaths = (async () => {
-  const posts = await getCollection("posts", ({ data }) => !data.draft);
-  const tags = buildTaxonomyIndex(posts.flatMap(({ data }) => data.tags));
-
-  return tags.map((tag) => ({
-    params: { slug: tag.slug },
-    props: { tag },
-  }));
-}) satisfies GetStaticPaths;
-
-interface Props {
-  tag: ReturnType<typeof buildTaxonomyIndex>[number];
-}
-
-const { tag } = Astro.props;
+const allPosts = (await loadRuntimePosts()).filter(({ data }) => !data.draft);
+const tags = buildTaxonomyIndex(allPosts.flatMap(({ data }) => data.tags));
+const requestedSlug = taxonomySlug(Astro.params.slug ?? "");
+const tag = tags.find(({ slug }) => slug === requestedSlug);
+if (!tag) return Astro.redirect("/404/", 302);
 const posts = sortPostEntries(
-  (await getCollection("posts", ({ data }) => !data.draft)).filter(({ data }) =>
+  allPosts.filter(({ data }) =>
     data.tags.includes(tag.label),
   ),
 );

@@ -1,4 +1,5 @@
 import profile from "../data/profile.json";
+import { navigationContent } from "../data/content";
 
 const profileImages = import.meta.glob<{ default: ImageMetadata }>(
   "../assets/profile/*.{avif,gif,jpeg,jpg,png,webp}",
@@ -40,12 +41,7 @@ export const siteConfig: SiteConfig = {
     bio: profile.bio,
     avatar: avatarImage,
   },
-  navigation: [
-    { label: "首页", href: "/" }, { label: "文章", href: "/posts/" },
-    { label: "分类", href: "/categories/" }, { label: "归档", href: "/archive/" },
-    { label: "项目", href: "/projects/" }, { label: "友链", href: "/friends/" },
-    { label: "关于", href: "/about/" }, { label: "留言", href: "/guestbook/" }
-  ],
+  navigation: navigationContent.items,
   giscus: {
     repo: import.meta.env.PUBLIC_GISCUS_REPO,
     repoId: import.meta.env.PUBLIC_GISCUS_REPO_ID,

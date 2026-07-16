@@ -2,7 +2,7 @@
 import Footer from "../components/layout/Footer.astro";
 import Header from "../components/layout/Header.astro";
 import SeoHead from "../components/seo/SeoHead.astro";
-import { siteConfig } from "../config/site";
+import { loadRuntimeProfile } from "../lib/runtime-content";
 import { buildWebsiteJsonLd, type JsonLdNode, type SeoImage } from "../lib/seo";
 import "../styles/tokens.css";
 import "../styles/global.css";
@@ -33,7 +33,14 @@ const {
   mainClass,
 } = Astro.props;
 const mainClasses = Astro.props.class ?? mainClass;
-const structuredData = jsonLd ?? (type === "website" ? buildWebsiteJsonLd() : undefined);
+const runtimeProfile = await loadRuntimeProfile();
+const runtimeSiteTitle = `${runtimeProfile.name} - ${runtimeProfile.siteTitle}`;
+const structuredData = jsonLd ?? (type === "website" ? buildWebsiteJsonLd({
+  name: runtimeProfile.name,
+  description: runtimeProfile.description,
+  authorName: runtimeProfile.name,
+  authorBio: runtimeProfile.bio,
+}) : undefined);
 const themeBootstrap = `(() => { try { const saved = localStorage.getItem("mizuki-theme"); const preference = saved === "light" || saved === "dark" || saved === "system" ? saved : "system"; const theme = preference === "system" ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light") : preference; document.documentElement.dataset.theme = theme; document.documentElement.style.colorScheme = theme; } catch { document.documentElement.dataset.theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"; } })();`;
 ---
 
@@ -47,7 +54,7 @@ const themeBootstrap = `(() => { try { const saved = localStorage.getItem("mizuk
     <meta name="generator" content={Astro.generator} />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="alternate" type="application/rss+xml" title={`${siteConfig.name} RSS`} href="/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title={`${runtimeProfile.name} RSS`} href="/rss.xml" />
     <script is:inline set:html={themeBootstrap}></script>
     <SeoHead
       title={title}
@@ -56,6 +63,8 @@ const themeBootstrap = `(() => { try { const saved = localStorage.getItem("mizuk
       image={image}
       type={type}
       jsonLd={structuredData}
+      siteName={runtimeProfile.name}
+      siteTitle={runtimeSiteTitle}
     />
     <slot name="head" />
   </head>

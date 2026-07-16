@@ -1,23 +1,26 @@
 ---
 import { ExternalLink } from "lucide-astro";
-import { friends, friendsNotice } from "../data/friends";
+import { loadRuntimeEditorial } from "../lib/runtime-content";
 import BaseLayout from "../layouts/BaseLayout.astro";
+
+const friendsContent = (await loadRuntimeEditorial()).friends;
+const { hero, invitation, links: friends } = friendsContent;
 ---
 
 <BaseLayout
   title="友链"
-  description="一些关于动画、开发、阅读与生活的友好站点示例。"
+  description={friendsContent.seoDescription}
   page="friends"
   class="friends-page"
 >
   <section class="friends-hero" aria-labelledby="friends-title">
     <div class="site-container friends-hero__inner">
       <div>
-        <p class="eyebrow">Friends · 沿途相遇</p>
-        <h1 id="friends-title">把彼此的小站，<br />连成一张安静的地图</h1>
+        <p class="eyebrow">{hero.eyebrow}</p>
+        <h1 id="friends-title">{hero.title}</h1>
       </div>
       <p>
-        友链不是数字交换，而是对另一处长期写作空间的认真介绍。这里先用四张虚构名片展示未来的呈现方式。
+        {hero.description}
       </p>
     </div>
   </section>
@@ -27,8 +30,8 @@ import BaseLayout from "../layouts/BaseLayout.astro";
       <div class="friends-notice" role="note">
         <span aria-hidden="true">i</span>
         <div>
-          <h2 id="friends-directory-title">演示友链</h2>
-          <p>{friendsNotice}</p>
+          <h2 id="friends-directory-title">{friendsContent.noticeTitle}</h2>
+          <p>{friendsContent.notice}</p>
         </div>
       </div>
 
@@ -42,7 +45,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
                 href={friend.url}
                 target="_blank"
                 rel="noreferrer noopener nofollow"
-                aria-label={`访问友链：${friend.name}（演示站点）`}
+                aria-label={`访问友链：${friend.name}`}
               >
                 <span class="friend-card__number" aria-hidden="true">
                   {String(index + 1).padStart(2, "0")}
@@ -55,7 +58,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
                   {friend.interests.map((interest) => <li>{interest}</li>)}
                 </ul>
                 <span class="friend-card__visit">
-                  访问站点 <ExternalLink size={15} stroke-width={1.8} aria-hidden="true" />
+                  {friendsContent.visitLabel} <ExternalLink size={15} stroke-width={1.8} aria-hidden="true" />
                 </span>
               </a>
             </li>
@@ -63,18 +66,18 @@ import BaseLayout from "../layouts/BaseLayout.astro";
         </ul>
       ) : (
         <div class="friends-empty" role="status">
-          <h2>友链册还没有条目</h2>
-          <p>遇见长期写作的邻居后，这里会出现第一张名片。</p>
+          <h2>{friendsContent.emptyTitle}</h2>
+          <p>{friendsContent.emptyDescription}</p>
         </div>
       )}
 
       <aside class="friends-invitation" aria-labelledby="friends-invitation-title">
-        <p class="eyebrow">A small note</p>
-        <h2 id="friends-invitation-title">未来想交换友链？</h2>
+        <p class="eyebrow">{invitation.eyebrow}</p>
+        <h2 id="friends-invitation-title">{invitation.title}</h2>
         <p>
-          可以先在留言簿介绍站点名称、地址与主要写作主题。正式展示前会确认链接可访问、说明准确，并用清楚的外链标识告知访客。
+          {invitation.description}
         </p>
-        <a href="/guestbook/">去留言簿 <span aria-hidden="true">→</span></a>
+        <a href="/guestbook/">{invitation.actionLabel} <span aria-hidden="true">→</span></a>
       </aside>
     </div>
   </section>
@@ -89,6 +92,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
     position: relative;
     padding-block: clamp(4.5rem, 10vw, 8rem) clamp(4rem, 8vw, 6rem);
     border-block-end: 1px solid var(--color-border);
+    overflow: hidden;
   }
 
   .friends-hero::after {

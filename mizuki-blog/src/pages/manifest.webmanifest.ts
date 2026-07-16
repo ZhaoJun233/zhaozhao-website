@@ -1,12 +1,12 @@
 import { siteConfig } from "../config/site";
+import { loadRuntimeProfile } from "../lib/runtime-content";
 
-export const prerender = true;
-
-export function GET() {
+export async function GET() {
+  const profile = await loadRuntimeProfile();
   return new Response(JSON.stringify({
-    name: siteConfig.title,
-    short_name: siteConfig.name,
-    description: siteConfig.description,
+    name: `${profile.name} - ${profile.siteTitle}`,
+    short_name: profile.name,
+    description: profile.description,
     lang: siteConfig.locale,
     start_url: "/",
     scope: "/",
@@ -20,6 +20,6 @@ export function GET() {
       purpose: "any maskable",
     }],
   }), {
-    headers: { "content-type": "application/manifest+json; charset=utf-8" },
+    headers: { "content-type": "application/manifest+json; charset=utf-8", "cache-control": "no-store" },
   });
 }

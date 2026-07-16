@@ -1,7 +1,9 @@
 ---
-import { Image } from "astro:assets";
-import { artwork } from "../../data/artwork";
-import { siteConfig } from "../../config/site";
+import { loadRuntimeEditorial, loadRuntimeProfile } from "../../lib/runtime-content";
+
+const [profile, editorial] = await Promise.all([loadRuntimeProfile(), loadRuntimeEditorial()]);
+const copy = editorial.homepage.introduction;
+const artwork = editorial.artwork.aboutSummerDream;
 ---
 
 <section
@@ -11,34 +13,31 @@ import { siteConfig } from "../../config/site";
 >
   <div class="introduction-inner">
     <figure class="introduction-artwork">
-      <Image
-        src={artwork.aboutSummerDream.image}
-        alt={artwork.aboutSummerDream.alt}
-        widths={[640, 960, 1440]}
-        sizes="(max-width: 760px) 100vw, 58vw"
-        format="webp"
+      <img
+        src={artwork.imageUrl}
+        alt={artwork.alt}
         loading="lazy"
         decoding="async"
       />
       <div class="artwork-overlay" aria-hidden="true"></div>
       <figcaption>
-        <span>Summer dream</span>
-        <a href={artwork.aboutSummerDream.sourceUrl} target="_blank" rel="noreferrer">
-          画面：{artwork.aboutSummerDream.uploader} <i aria-hidden="true">↗</i>
+        <span>{copy.artworkCaption}</span>
+        <a href={artwork.sourceUrl} target="_blank" rel="noreferrer">
+          画面：{artwork.uploader} <i aria-hidden="true">↗</i>
         </a>
       </figcaption>
     </figure>
 
     <div class="introduction-copy">
-      <p class="introduction-kicker">A little about me <span>03</span></p>
-      <h2 id="home-introduction-title">在喜欢的事物之间，慢慢生活。</h2>
-      <p class="introduction-lead">{siteConfig.author.bio}</p>
+      <p class="introduction-kicker">{copy.eyebrow} <span>03</span></p>
+      <h2 id="home-introduction-title">{copy.title}</h2>
+      <p class="introduction-lead">{profile.bio}</p>
       <p>
-        这里收集动画留下的回声、开发过程中的小发现，也收藏光线、海风和寻常周末。不是急着给生活下结论，只想把值得回看的瞬间认真放好。
+        {copy.body}
       </p>
       <div class="introduction-actions">
-        <a class="introduction-primary" href="/about/">更多关于我 <span aria-hidden="true">→</span></a>
-        <a href="/guestbook/">来留言</a>
+        <a class="introduction-primary" href="/about/">{copy.primaryActionLabel} <span aria-hidden="true">→</span></a>
+        <a href="/guestbook/">{copy.secondaryActionLabel}</a>
       </div>
     </div>
   </div>

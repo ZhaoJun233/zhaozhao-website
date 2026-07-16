@@ -13,6 +13,8 @@ interface Props {
   image?: SeoImage;
   type?: "website" | "article" | "profile";
   jsonLd?: JsonLdNode | JsonLdNode[];
+  siteName?: string;
+  siteTitle?: string;
 }
 
 const {
@@ -22,11 +24,13 @@ const {
   image,
   type = "website",
   jsonLd,
+  siteName = siteConfig.name,
+  siteTitle = siteConfig.title,
 } = Astro.props;
 
-const pageTitle = title === siteConfig.title || title.includes(siteConfig.name)
+const pageTitle = title === siteTitle || title.includes(siteName)
   ? title
-  : `${title} | ${siteConfig.name}`;
+  : `${title} | ${siteName}`;
 const canonicalUrl = buildCanonical(canonical);
 const imageSource = image instanceof URL
   ? image.href
@@ -41,7 +45,7 @@ const schemas = jsonLd ? (Array.isArray(jsonLd) ? jsonLd : [jsonLd]) : [];
 <meta name="description" content={description} />
 <link rel="canonical" href={canonicalUrl} />
 
-<meta property="og:site_name" content={siteConfig.name} />
+<meta property="og:site_name" content={siteName} />
 <meta property="og:locale" content={siteConfig.locale.replace("-", "_")} />
 <meta property="og:type" content={type} />
 <meta property="og:title" content={pageTitle} />

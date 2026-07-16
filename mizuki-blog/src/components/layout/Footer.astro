@@ -1,42 +1,44 @@
 ---
 import { ExternalLink, Rss } from "lucide-astro";
-import { siteConfig } from "../../config/site";
+import { loadRuntimeEditorial, loadRuntimeProfile } from "../../lib/runtime-content";
 
 const year = new Date().getFullYear();
+const [profile, editorial] = await Promise.all([loadRuntimeProfile(), loadRuntimeEditorial()]);
+const { footer, items: navigation } = editorial.navigation;
 ---
 
 <footer class="site-footer">
   <div class="site-footer__inner site-container">
     <div class="site-footer__identity">
-      <a class="site-footer__brand" href="/">{siteConfig.name}</a>
-      <p>{siteConfig.author.bio}</p>
+      <a class="site-footer__brand" href="/">{profile.name}</a>
+      <p>{profile.bio}</p>
     </div>
 
     <nav aria-label="页脚导航">
-      <span>Explore</span>
+      <span>{footer.navigationLabel}</span>
       <ul>
-        {siteConfig.navigation.slice(1).map((item) => (
+        {navigation.slice(1).map((item) => (
           <li><a href={item.href}>{item.label}</a></li>
         ))}
       </ul>
     </nav>
 
     <div class="site-footer__meta">
-      <span>Elsewhere</span>
+      <span>{footer.linksLabel}</span>
       <a href="/rss.xml">
         <Rss size={14} stroke-width={1.8} aria-hidden="true" />
-        RSS 订阅
+        {footer.rssLabel}
       </a>
       <a href="/credits/">
         <ExternalLink size={14} stroke-width={1.8} aria-hidden="true" />
-        作品与鸣谢
+        {footer.creditsLabel}
       </a>
     </div>
   </div>
 
   <div class="site-footer__bottom site-container">
-    <p>© {year} {siteConfig.author.name}.</p>
-    <p>静态生成于 Astro · Made beside the sea.</p>
+    <p>© {year} {profile.name}.</p>
+    <p>{footer.note}</p>
   </div>
 </footer>
 

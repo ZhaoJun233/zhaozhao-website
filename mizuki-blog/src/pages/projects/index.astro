@@ -1,11 +1,11 @@
 ---
-import { getCollection } from "astro:content";
 import ProjectCard from "../../components/project/ProjectCard.astro";
 import ProjectFilters, { type ProjectStatus } from "../../components/project/ProjectFilters.astro";
-import { siteConfig } from "../../config/site";
 import BaseLayout from "../../layouts/BaseLayout.astro";
+import { loadRuntimeEditorial, loadRuntimeProfile, loadRuntimeProjects } from "../../lib/runtime-content";
 
-const projects = [...await getCollection("projects")].sort(
+const [profile, editorial] = await Promise.all([loadRuntimeProfile(), loadRuntimeEditorial()]);
+const projects = [...await loadRuntimeProjects()].sort(
   (left, right) =>
     Number(right.data.featured) - Number(left.data.featured) ||
     right.data.date.getTime() - left.data.date.getTime() ||
@@ -18,22 +18,23 @@ const counts = projects.reduce<Record<ProjectStatus, number>>(
   },
   { active: 0, completed: 0, archived: 0 },
 );
+const copy = editorial.pageCopy.projects;
 ---
 
 <BaseLayout
-  title="项目"
-  description={`浏览 ${siteConfig.name} 正在推进、已经完成与收进档案的项目记录。`}
+  title={copy.title}
+  description={`${profile.name}：${copy.description}`}
   page="projects"
   class="projects-page"
 >
   <section class="projects-hero" aria-labelledby="projects-title">
     <div class="site-container projects-hero__inner">
       <div>
-        <p class="eyebrow">Projects · 小型世界</p>
-        <h1 id="projects-title">把兴趣做成<br />可以继续生长的东西</h1>
+        <p class="eyebrow">{copy.eyebrow}</p>
+        <h1 id="projects-title">{copy.heading}</h1>
       </div>
       <div class="projects-hero__aside">
-        <p>开发实验、内容整理与视觉笔记。每个项目都保留真实状态，外部链接只在确实配置后出现。</p>
+        <p>{copy.introduction}</p>
         <dl aria-label="项目概览">
           <div><dt>全部</dt><dd>{projects.length}</dd></div>
           <div><dt>进行中</dt><dd>{counts.active}</dd></div>
@@ -48,21 +49,21 @@ const counts = projects.reduce<Record<ProjectStatus, number>>(
       <ProjectFilters total={projects.length} counts={counts} />
 
       {projects.length > 0 ? (
-        <div class="projects-grid" id="project-grid" data-pagefind-body>
+        <div class="projects-grid" id="project-grid">
           {projects.map((project, index) => <ProjectCard project={project} index={index} />)}
         </div>
       ) : (
         <div class="projects-empty" role="status">
           <span aria-hidden="true">○</span>
-          <h2>项目架上还是空的</h2>
-          <p>新的实验整理好后，会从这里开始记录。</p>
+          <h2>{copy.emptyTitle}</h2>
+          <p>{copy.emptyDescription}</p>
         </div>
       )}
 
       <div class="projects-empty" data-project-empty role="status" hidden>
         <span aria-hidden="true">○</span>
-        <h2>这个状态下还没有项目</h2>
-        <p>换一个状态看看，或稍后再来。</p>
+        <h2>{copy.filteredEmptyTitle}</h2>
+        <p>{copy.filteredEmptyDescription}</p>
       </div>
     </div>
   </section>

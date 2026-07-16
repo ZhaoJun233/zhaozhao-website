@@ -79,7 +79,7 @@ test("credits records the exact approved Bilibili artwork metadata", async ({ pa
   await expect(page.getByText(`${profile.name}首页主视觉`, { exact: true })).toBeVisible();
   await expect(page.getByText("BV1NCjx6oEhj", { exact: true })).toBeVisible();
   await expect(page.getByText("清水未萌_Minamo", { exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: /Bilibili 原视频/ })).toHaveAttribute(
+  await expect(page.getByRole("link", { name: /原始页面/ })).toHaveAttribute(
     "href",
     "https://www.bilibili.com/video/BV1NCjx6oEhj/",
   );
@@ -111,8 +111,17 @@ test("robots.txt advertises the configured sitemap URL", async ({ request }) => 
   expect(response.ok()).toBe(true);
 
   await expect(response.text()).resolves.toContain(
-    "Sitemap: http://localhost:4321/sitemap-index.xml",
+    "Sitemap: http://localhost:4321/sitemap.xml",
   );
+});
+
+test("runtime sitemap contains current content routes", async ({ request }) => {
+  const response = await request.get("/sitemap.xml");
+  expect(response.ok()).toBe(true);
+  const xml = await response.text();
+  expect(xml).toContain("/posts/summer-anime-notes/");
+  expect(xml).toContain("/projects/mizuki-blog/");
+  expect(xml).toContain("/friends/");
 });
 
 test("web app manifest derives the editable author identity", async ({ request }) => {

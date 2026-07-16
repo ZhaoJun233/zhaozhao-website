@@ -1,0 +1,37 @@
+{
+  "seoDescription": "个人介绍、兴趣、工具与站点时间线。",
+  "hero": {
+    "eyebrow": "Hello, here is",
+    "introduction": "我把这里当作一间靠近海风的网络小屋：动画负责留下想象，代码负责搭好书架，日常则慢慢填满其中的空隙。写作不追赶热闹，只记录愿意再次回看的东西。",
+    "guestbookLabel": "在留言簿打招呼",
+    "rssLabel": "RSS 订阅"
+  },
+  "interests": {
+    "eyebrow": "Interests · 喜欢的事",
+    "title": "在几条不同的路上，寻找相似的光",
+    "description": "兴趣不需要被整理成履历，它们更像长期陪伴写作的坐标。",
+    "items": [
+      { "title": "动画与声音", "description": "记录镜头、配乐和片尾之后仍然留下的情绪。" },
+      { "title": "前端与写作", "description": "把结构、可访问性与内容维护做成安静可靠的网页。" },
+      { "title": "光影与日常", "description": "收藏季节颜色、街角光线和不需要解释的小片段。" },
+      { "title": "阅读与摘录", "description": "用自己的问题回访长文，而不是只保存漂亮句子。" }
+    ]
+  },
+  "workbench": {
+    "eyebrow": "Workbench · 常用工具",
+    "title": "轻量、可读，也方便明天继续整理",
+    "description": "工具的价值在于减少写作和维护之间的摩擦。这个站点使用 Astro SSR、运行时内容校验与少量浏览器脚本，让后台保存后的内容无需重建即可更新。",
+    "tools": ["Astro", "TypeScript", "原生 CSS", "Markdown", "Content Collections", "Playwright"]
+  },
+  "timeline": {
+    "eyebrow": "Timeline · 小站时间线",
+    "title": "从第一块空白画布开始",
+    "description": "四个节点，记录这间小屋怎样一步步拥有文章、项目和可以相遇的入口。",
+    "entries": [
+      { "date": "2026-03", "title": "创建这间网络小屋", "description": "确定 233昭 的名字，把动画、代码与生活碎片放进同一份写作计划。" },
+      { "date": "2026-04", "title": "开始记录动画随记", "description": "用短笔记保存喜欢的镜头、声音和观看当下的心情。" },
+      { "date": "2026-06", "title": "发布第一篇开发笔记", "description": "把搭建过程中的取舍整理成可复查、可继续补充的技术记录。" },
+      { "date": "2026-07", "title": "打开留言簿", "description": "为来访者留下一处安静的交流入口，也提醒自己认真回应每次相遇。" }
+    ]
+  }
+}

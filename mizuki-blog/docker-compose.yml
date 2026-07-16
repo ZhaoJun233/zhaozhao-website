@@ -1,55 +1,36 @@
 services:
-  builder:
+  site:
     build:
       context: .
-      target: authoring
+      target: runtime
+      args:
+        PUBLIC_SITE_URL: http://127.0.0.1:4321
     init: true
     restart: unless-stopped
-    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
-    working_dir: /app
-    command: node scripts/watch-site.mjs
     environment:
-      BUILD_MODE: production
-      POLL_INTERVAL_MS: "1000"
+      HOST: 0.0.0.0
+      PORT: "4321"
+      CONTENT_ROOT: /app/src
       PUBLIC_SITE_URL: http://127.0.0.1:4321
-      SITE_ROOT: /site
       PUBLIC_GISCUS_REPO: ${PUBLIC_GISCUS_REPO:-}
       PUBLIC_GISCUS_REPO_ID: ${PUBLIC_GISCUS_REPO_ID:-}
       PUBLIC_GISCUS_CATEGORY: ${PUBLIC_GISCUS_CATEGORY:-}
       PUBLIC_GISCUS_CATEGORY_ID: ${PUBLIC_GISCUS_CATEGORY_ID:-}
+    ports:
+      - "127.0.0.1:4321:4321"
     volumes:
-      - ./src:/app/src
-      - ./public:/app/public
-      - site-data:/site
+      - ./src/data:/app/src/data:ro
+      - ./src/content:/app/src/content:ro
+      - ./src/assets:/app/src/assets:ro
     healthcheck:
       test:
         - CMD
         - node
         - -e
-        - require('node:fs').accessSync('/site/current/index.html')
-      interval: 5s
-      timeout: 3s
-      start_period: 30s
-      retries: 12
-
-  site:
-    build:
-      context: .
-      target: dynamic
-    init: true
-    restart: unless-stopped
-    depends_on:
-      builder:
-        condition: service_healthy
-    ports:
-      - "127.0.0.1:4321:8080"
-    volumes:
-      - site-data:/site:ro
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/"]
+        - fetch('http://127.0.0.1:4321/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
       interval: 10s
       timeout: 3s
-      start_period: 5s
+      start_period: 10s
       retries: 6
 
   cms:
@@ -73,6 +54,7 @@ services:
       - ./src/content:/workspace/mizuki-blog/src/content
       - ./src/data:/workspace/mizuki-blog/src/data
       - ./src/assets/profile:/workspace/mizuki-blog/src/assets/profile
+      - ./src/assets/backgrounds:/workspace/mizuki-blog/src/assets/backgrounds
       - ./src/assets/uploads:/workspace/mizuki-blog/src/assets/uploads
     healthcheck:
       test:
@@ -85,6 +67,3 @@ services:
       timeout: 3s
       start_period: 5s
       retries: 6
-
-volumes:
-  site-data:

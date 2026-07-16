@@ -1,11 +1,12 @@
 ---
-import { getCollection } from "astro:content";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import { siteConfig } from "../config/site";
+import { loadRuntimeEditorial, loadRuntimePosts, loadRuntimeProfile } from "../lib/runtime-content";
 import { estimateReadingMinutes, groupPostsByMonth } from "../lib/content";
 import { taxonomySlug } from "../lib/slug";
 
-const posts = await getCollection("posts", ({ data }) => !data.draft);
+const [profile, editorial] = await Promise.all([loadRuntimeProfile(), loadRuntimeEditorial()]);
+const posts = (await loadRuntimePosts()).filter(({ data }) => !data.draft);
 const groups = groupPostsByMonth(
   posts.map((post) => ({
     post,
@@ -19,19 +20,20 @@ const dayFormatter = new Intl.DateTimeFormat(siteConfig.locale, {
   month: "2-digit",
   day: "2-digit",
 });
+const copy = editorial.pageCopy.archive;
 ---
 
 <BaseLayout
-  title="文章归档"
-  description={`按年份与月份浏览 ${siteConfig.name} 的全部公开文章。`}
+  title={copy.title}
+  description={`${profile.name}：${copy.description}`}
   class="discovery-page"
 >
   <section class="archive-page section" aria-labelledby="archive-title">
     <div class="site-container archive-shell">
       <header class="archive-heading">
         <div>
-          <p class="eyebrow">Chronicle · 时间归档</p>
-          <h1 id="archive-title">写下的日子，<br />沿时间展开</h1>
+          <p class="eyebrow">{copy.eyebrow}</p>
+          <h1 id="archive-title">{copy.heading}</h1>
         </div>
         <div class="archive-heading__aside">
           <p><strong>{posts.length}</strong> 篇文章</p>
@@ -87,8 +89,8 @@ const dayFormatter = new Intl.DateTimeFormat(siteConfig.locale, {
       ) : (
         <section class="empty-state" aria-labelledby="archive-empty-title">
           <p aria-hidden="true">—</p>
-          <h2 id="archive-empty-title">时间线上还没有文章</h2>
-          <p>第一篇公开文章发布后，会自动出现在对应月份。</p>
+          <h2 id="archive-empty-title">{copy.emptyTitle}</h2>
+          <p>{copy.emptyDescription}</p>
         </section>
       )}
     </div>

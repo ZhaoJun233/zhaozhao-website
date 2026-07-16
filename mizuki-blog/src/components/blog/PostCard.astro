@@ -1,24 +1,16 @@
 ---
-import { Image } from "astro:assets";
-import type { CollectionEntry } from "astro:content";
-import { siteConfig } from "../../config/site";
+import type { RuntimePost } from "../../lib/runtime-content";
 import PostMeta from "./PostMeta.astro";
 import TagList from "./TagList.astro";
 
 export interface Props {
-  post: CollectionEntry<"posts">;
+  post: RuntimePost;
   prominence?: "featured" | "standard" | "compact";
 }
 
 const { post, prominence = "standard" } = Astro.props;
 const postHref = encodeURI(`/posts/${post.id}/`);
-const hasCover = post.data.cover !== undefined;
-const imageSizes =
-  prominence === "featured"
-    ? "(min-width: 900px) 58vw, 100vw"
-    : prominence === "compact"
-      ? "(min-width: 720px) 190px, 100vw"
-      : "(min-width: 900px) 34vw, 100vw";
+const hasCover = post.data.coverUrl !== undefined;
 ---
 
 <article
@@ -33,27 +25,14 @@ const imageSizes =
 >
   {hasCover && (
     <div class="post-card__media">
-      <Image
-        src={post.data.cover!}
+      <img
+        src={post.data.coverUrl!}
         alt={post.data.coverAlt!}
-        widths={[360, 540, 720, 960, 1200]}
-        sizes={imageSizes}
-        layout="full-width"
-        fit="cover"
-        position="center"
-        quality="high"
+        loading={prominence === "featured" ? "eager" : "lazy"}
+        decoding="async"
       />
     </div>
   )}
-  {!hasCover && prominence === "featured" && (
-    <div class="post-card__media post-card__media--placeholder" aria-hidden="true">
-      <span class="post-card__wordmark">
-        <strong>{siteConfig.name}</strong>
-        <small>Field notes</small>
-      </span>
-    </div>
-  )}
-
   <div class="post-card__content">
     <PostMeta post={post} />
     <h2 class="post-card__title">
@@ -143,44 +122,6 @@ const imageSizes =
     height: 100%;
     object-fit: cover;
     transition: transform 500ms cubic-bezier(0.2, 0.75, 0.25, 1);
-  }
-
-  .post-card__media--placeholder {
-    display: grid;
-    min-height: 100%;
-    place-items: center;
-    background:
-      linear-gradient(125deg, transparent 0 58%, rgb(255 255 255 / 30%) 58% 59%, transparent 59%),
-      radial-gradient(circle at 24% 28%, rgb(255 255 255 / 70%) 0 3px, transparent 4px),
-      linear-gradient(145deg, rgb(28 167 181 / 28%), rgb(255 255 255 / 10%) 45%, rgb(231 111 152 / 26%)),
-      var(--color-surface-muted, #e8f0f1);
-    color: color-mix(in srgb, var(--color-text, #18252a) 78%, transparent);
-  }
-
-  .post-card__wordmark {
-    display: grid;
-    justify-items: start;
-    gap: 0.55rem;
-    padding: 1.25rem;
-  }
-
-  .post-card__wordmark strong {
-    font-family: var(--font-display, ui-serif, "Noto Serif SC", serif);
-    font-size: clamp(2.7rem, 6vw, 4.8rem);
-    font-weight: 600;
-    line-height: 1;
-    opacity: 0.18;
-  }
-
-  .post-card__wordmark small {
-    padding-top: 0.5rem;
-    border-top: 1px solid currentColor;
-    font-family: var(--font-mono, ui-monospace, monospace);
-    font-size: 0.58rem;
-    font-weight: 720;
-    letter-spacing: 0.16em;
-    opacity: 0.48;
-    text-transform: uppercase;
   }
 
   .post-card:has(.post-card__title a:hover) .post-card__media :global(img) {

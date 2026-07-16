@@ -47,11 +47,9 @@ type ComposeService = {
 };
 type ComposeConfig = {
   services: {
-    builder: ComposeService;
     cms: ComposeService;
     site: ComposeService;
   };
-  volumes?: Record<string, unknown>;
 };
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -173,6 +171,24 @@ describe("local authoring", () => {
     });
     expect(taxonomy.files?.[0]?.fields.map(({ name }) => name)).toEqual(["categories"]);
     expectRepositoryPath(taxonomy.files![0]!.file);
+
+    const pageContent = collection("page_content");
+    expect(pageContent.files?.map(({ name }) => name)).toEqual([
+      "navigation",
+      "homepage",
+      "about",
+      "friends",
+      "guestbook",
+      "credits",
+      "page_copy",
+    ]);
+    for (const file of pageContent.files ?? []) expectRepositoryPath(file.file);
+
+    const visuals = collection("visuals");
+    expect(visuals.media_folder).toBe("/mizuki-blog/src/assets/backgrounds");
+    expect(visuals.public_folder).toBe("/src/assets/backgrounds");
+    expect(visuals.files?.[0]?.file).toBe("mizuki-blog/src/data/artwork.json");
+    expectRepositoryPath(visuals.files![0]!.file);
   });
 
   it("keeps the editable nickname and avatar in profile data", () => {
@@ -194,28 +210,22 @@ describe("local authoring", () => {
     expect(existsSync(resolve(appRoot, "public/uploads/avatar.jpg"))).toBe(false);
   });
 
-  it("atomically republishes CMS changes through the loopback-only site", () => {
-    const { builder, cms, site } = composeConfig.services;
+  it("serves runtime content through Astro SSR and the local CMS", () => {
+    const { cms, site } = composeConfig.services;
 
-    expect(site.build).toMatchObject({ context: ".", target: "dynamic" });
-    expect(site.ports).toEqual(["127.0.0.1:4321:8080"]);
-    expect(site.volumes).toEqual(["site-data:/site:ro"]);
-    expect(site.depends_on).toEqual({ builder: { condition: "service_healthy" } });
-    expect(site.healthcheck?.test).toContain("http://127.0.0.1:8080/");
-
-    expect(builder.build).toMatchObject({ context: ".", target: "authoring" });
-    expect(builder.command).toBe("node scripts/watch-site.mjs");
-    expect(builder.profiles).toBeUndefined();
-    expect(builder.ports).toBeUndefined();
-    expect(builder.volumes).toEqual([
-      "./src:/app/src",
-      "./public:/app/public",
-      "site-data:/site",
+    expect(site.build).toMatchObject({ context: ".", target: "runtime" });
+    expect(site.ports).toEqual(["127.0.0.1:4321:4321"]);
+    expect(site.volumes).toEqual([
+      "./src/data:/app/src/data:ro",
+      "./src/content:/app/src/content:ro",
+      "./src/assets:/app/src/assets:ro",
     ]);
-    expect(builder.environment).toMatchObject({
-      BUILD_MODE: "production",
+    expect(site.environment).toMatchObject({
+      CONTENT_ROOT: "/app/src",
       PUBLIC_SITE_URL: "http://127.0.0.1:4321",
     });
+    expect(site.healthcheck?.test.some((part) => part.includes("http://127.0.0.1:4321/api/health")))
+      .toBe(true);
 
     expect(cms.profiles).toBeUndefined();
     expect(cms.build).toMatchObject({ context: ".", target: "authoring" });
@@ -225,6 +235,7 @@ describe("local authoring", () => {
       "./src/content:/workspace/mizuki-blog/src/content",
       "./src/data:/workspace/mizuki-blog/src/data",
       "./src/assets/profile:/workspace/mizuki-blog/src/assets/profile",
+      "./src/assets/backgrounds:/workspace/mizuki-blog/src/assets/backgrounds",
       "./src/assets/uploads:/workspace/mizuki-blog/src/assets/uploads",
     ]);
     expect(cms.environment).toEqual({
@@ -234,21 +245,20 @@ describe("local authoring", () => {
       ORIGIN: "http://127.0.0.1:4321",
       PORT: "8081",
     });
-    expect(builder.user).toBe("${LOCAL_UID:-1000}:${LOCAL_GID:-1000}");
-    expect(cms.user).toBe(builder.user);
-    expect(composeConfig.volumes).toHaveProperty("site-data");
+    expect(cms.user).toBe("${LOCAL_UID:-1000}:${LOCAL_GID:-1000}");
   });
 
-  it("builds a static runtime image without local credentials", () => {
+  it("builds a standalone Node SSR image without local credentials", () => {
     expect(dockerfile).toContain("AS authoring");
-    expect(dockerfile).toContain("AS dynamic");
-    expect(dockerfile).toContain("AS production");
+    expect(dockerfile).toContain("AS runtime");
+    expect(dockerfile).toContain('CMD ["node", "dist/server/entry.mjs"]');
+    expect(dockerfile).toContain("CONTENT_ROOT=/app/src");
     expect(dockerfile).toContain("rm -f .astro/dev.json");
     expect(dockerfile).not.toContain('"--force"');
     expect(dockerfile).toContain("RUN npm run build");
     expect(dockerfile).toMatch(/ARG PUBLIC_SITE_URL\r?\n/);
     expect(dockerfile).not.toContain("ARG PUBLIC_SITE_URL=http");
-    expect(dockerfile).toContain("USER nginx");
+    expect(dockerfile).toContain("USER node");
     expect(dockerfile).not.toContain("blog_node_modules");
 
     expect(dockerignore).toContain(".env.*");

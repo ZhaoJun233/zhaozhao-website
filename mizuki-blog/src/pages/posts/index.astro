@@ -1,28 +1,30 @@
 ---
-import { getCollection } from "astro:content";
 import PostCard from "../../components/blog/PostCard.astro";
 import Pagination from "../../components/blog/Pagination.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import { siteConfig } from "../../config/site";
+import { loadRuntimeEditorial, loadRuntimePosts, loadRuntimeProfile } from "../../lib/runtime-content";
 import { paginate, sortPostEntries } from "../../lib/content";
 
-const posts = sortPostEntries(await getCollection("posts", ({ data }) => !data.draft));
+const [profile, editorial] = await Promise.all([loadRuntimeProfile(), loadRuntimeEditorial()]);
+const posts = sortPostEntries((await loadRuntimePosts()).filter(({ data }) => !data.draft));
 const page = paginate(posts, 1, siteConfig.pageSize);
+const copy = editorial.pageCopy.posts;
 ---
 
 <BaseLayout
-  title="文章"
-  description={`浏览 ${siteConfig.name} 关于动画、开发、阅读与日常的全部文章。`}
+  title={copy.title}
+  description={`${profile.name}：${copy.description}`}
   class="discovery-page"
 >
   <section class="posts-page section" aria-labelledby="posts-title">
     <div class="site-container">
       <header class="page-heading">
         <div>
-          <p class="eyebrow">Writing index · 文章索引</p>
-          <h1 id="posts-title">所有文章</h1>
+          <p class="eyebrow">{copy.eyebrow}</p>
+          <h1 id="posts-title">{copy.heading}</h1>
           <p class="page-heading__intro">
-            把动画片段、开发笔记与生活里的微光，按时间轻轻收在这里。
+            {copy.introduction}
           </p>
         </div>
         <div class="page-heading__aside" aria-label="文章索引概览">
@@ -42,8 +44,8 @@ const page = paginate(posts, 1, siteConfig.pageSize);
       ) : (
         <section class="empty-state" aria-labelledby="posts-empty-title">
           <p aria-hidden="true">✦</p>
-          <h2 id="posts-empty-title">新的文字正在路上</h2>
-          <p>这里暂时还没有公开文章，过一会儿再来看看吧。</p>
+          <h2 id="posts-empty-title">{copy.emptyTitle}</h2>
+          <p>{copy.emptyDescription}</p>
         </section>
       )}
 

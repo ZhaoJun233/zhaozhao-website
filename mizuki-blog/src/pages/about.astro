@@ -1,50 +1,40 @@
 ---
-import { Image } from "astro:assets";
 import { ExternalLink, Rss } from "lucide-astro";
-import { siteConfig } from "../config/site";
-import { artwork } from "../data/artwork";
-import { timeline } from "../data/timeline";
+import { loadRuntimeEditorial, loadRuntimeProfile } from "../lib/runtime-content";
 import BaseLayout from "../layouts/BaseLayout.astro";
 
-const interests = [
-  { index: "01", title: "动画与声音", description: "记录镜头、配乐和片尾之后仍然留下的情绪。" },
-  { index: "02", title: "前端与写作", description: "把结构、可访问性与内容维护做成安静可靠的网页。" },
-  { index: "03", title: "光影与日常", description: "收藏季节颜色、街角光线和不需要解释的小片段。" },
-  { index: "04", title: "阅读与摘录", description: "用自己的问题回访长文，而不是只保存漂亮句子。" },
-] as const;
-const tools = ["Astro", "TypeScript", "原生 CSS", "Markdown", "Content Collections", "Playwright"];
+const [profile, editorial] = await Promise.all([loadRuntimeProfile(), loadRuntimeEditorial()]);
+const aboutContent = editorial.about;
+const artwork = editorial.artwork.aboutSummerDream;
+const { hero, interests, workbench, timeline } = aboutContent;
 ---
 
 <BaseLayout
-  title={`关于 ${siteConfig.author.name}`}
-  description={`${siteConfig.author.name} 的个人介绍、兴趣、工具与站点时间线。`}
-  image={artwork.aboutSummerDream.image}
+  title={`关于 ${profile.name}`}
+  description={`${profile.name}：${aboutContent.seoDescription}`}
+  image={artwork.imageUrl}
   type="profile"
   page="about"
   class="about-page"
 >
   <section class="about-hero" aria-labelledby="about-title">
     <figure class="about-artwork">
-      <Image
-        src={artwork.aboutSummerDream.image}
-        alt={artwork.aboutSummerDream.alt}
-        widths={[640, 960, 1440]}
-        sizes="100vw"
-        format="webp"
-        quality="high"
+      <img
+        src={artwork.imageUrl}
+        alt={artwork.alt}
         loading="eager"
         fetchpriority="high"
       />
       <div class="about-artwork__veil" aria-hidden="true"></div>
       <figcaption>
-        <span>{artwork.aboutSummerDream.title}</span>
+        <span>{artwork.title}</span>
         <a
-          href={artwork.aboutSummerDream.sourceUrl}
+          href={artwork.sourceUrl}
           target="_blank"
           rel="noreferrer noopener"
-          aria-label={`查看《${artwork.aboutSummerDream.title}》来源（Bilibili）`}
+          aria-label={`查看《${artwork.title}》来源（Bilibili）`}
         >
-          画面：{artwork.aboutSummerDream.uploader}
+          画面：{artwork.uploader}
           <ExternalLink size={14} stroke-width={1.8} aria-hidden="true" />
         </a>
       </figcaption>
@@ -52,27 +42,26 @@ const tools = ["Astro", "TypeScript", "原生 CSS", "Markdown", "Content Collect
 
     <div class="site-container about-profile">
       <div class="about-profile__avatar">
-        <Image
-          src={siteConfig.author.avatar}
-          alt={`${siteConfig.author.name} 的头像`}
+        <img
+          src={profile.avatarUrl}
+          alt={`${profile.name} 的头像`}
           width={176}
           height={176}
-          quality="high"
           loading="eager"
         />
       </div>
       <div class="about-profile__copy">
-        <p class="eyebrow">Hello, here is</p>
-        <h1 id="about-title">{siteConfig.author.name}</h1>
-        <p class="about-profile__bio">{siteConfig.author.bio}</p>
+        <p class="eyebrow">{hero.eyebrow}</p>
+        <h1 id="about-title">{profile.name}</h1>
+        <p class="about-profile__bio">{profile.bio}</p>
         <p>
-          我把这里当作一间靠近海风的网络小屋：动画负责留下想象，代码负责搭好书架，日常则慢慢填满其中的空隙。写作不追赶热闹，只记录愿意再次回看的东西。
+          {hero.introduction}
         </p>
       </div>
       <nav class="about-profile__links" aria-label="联系与订阅">
-        <a href="/guestbook/">在留言簿打招呼 <span aria-hidden="true">→</span></a>
+        <a href="/guestbook/">{hero.guestbookLabel} <span aria-hidden="true">→</span></a>
         <a href="/rss.xml">
-          <Rss size={15} stroke-width={1.8} aria-hidden="true" /> RSS 订阅
+          <Rss size={15} stroke-width={1.8} aria-hidden="true" /> {hero.rssLabel}
         </a>
       </nav>
     </div>
@@ -81,15 +70,15 @@ const tools = ["Astro", "TypeScript", "原生 CSS", "Markdown", "Content Collect
   <section class="about-interests" aria-labelledby="interests-title">
     <div class="site-container">
       <header class="about-section-heading">
-        <p class="eyebrow">Interests · 喜欢的事</p>
-        <h2 id="interests-title">在几条不同的路上，<br />寻找相似的光</h2>
-        <p>兴趣不需要被整理成履历，它们更像长期陪伴写作的坐标。</p>
+        <p class="eyebrow">{interests.eyebrow}</p>
+        <h2 id="interests-title">{interests.title}</h2>
+        <p>{interests.description}</p>
       </header>
 
       <ol class="interest-list">
-        {interests.map((interest) => (
+        {interests.items.map((interest, index) => (
           <li>
-            <span aria-hidden="true">{interest.index}</span>
+            <span aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
             <h3>{interest.title}</h3>
             <p>{interest.description}</p>
           </li>
@@ -101,15 +90,15 @@ const tools = ["Astro", "TypeScript", "原生 CSS", "Markdown", "Content Collect
   <section class="about-workbench" aria-labelledby="tools-title">
     <div class="site-container about-workbench__inner">
       <div>
-        <p class="eyebrow">Workbench · 常用工具</p>
-        <h2 id="tools-title">轻量、可读，<br />也方便明天继续整理</h2>
+        <p class="eyebrow">{workbench.eyebrow}</p>
+        <h2 id="tools-title">{workbench.title}</h2>
       </div>
       <div class="about-workbench__copy">
         <p>
-          工具的价值在于减少写作和维护之间的摩擦。这个站点优先使用静态生成、类型约束与少量浏览器脚本，让内容在没有复杂运行时的情况下依然完整。
+          {workbench.description}
         </p>
         <ul aria-label="常用工具列表">
-          {tools.map((tool) => <li>{tool}</li>)}
+          {workbench.tools.map((tool) => <li>{tool}</li>)}
         </ul>
       </div>
     </div>
@@ -118,13 +107,13 @@ const tools = ["Astro", "TypeScript", "原生 CSS", "Markdown", "Content Collect
   <section class="about-timeline" aria-labelledby="timeline-title">
     <div class="site-container about-timeline__inner">
       <header class="about-section-heading">
-        <p class="eyebrow">Timeline · 小站时间线</p>
-        <h2 id="timeline-title">从第一块空白画布开始</h2>
-        <p>四个节点，记录这间小屋怎样一步步拥有文章、项目和可以相遇的入口。</p>
+        <p class="eyebrow">{timeline.eyebrow}</p>
+        <h2 id="timeline-title">{timeline.title}</h2>
+        <p>{timeline.description}</p>
       </header>
 
       <ol class="timeline-list">
-        {timeline.map((entry) => (
+        {timeline.entries.map((entry) => (
           <li>
             <time datetime={`${entry.date}-01`}>{entry.date.replace("-", ".")}</time>
             <div>

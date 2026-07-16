@@ -1,7 +1,7 @@
 FROM node:24.14.1-alpine3.23 AS dependencies
 
 WORKDIR /app
-RUN mkdir /site && chown node:node /app /site
+RUN chown node:node /app
 
 COPY --chown=node:node package.json package-lock.json ./
 USER node
@@ -31,27 +31,16 @@ ENV BUILD_MODE=$BUILD_MODE \
 
 RUN npm run build
 
-FROM nginx:1.29.3-alpine3.22-slim AS dynamic
+FROM build AS runtime
 
-COPY docker/nginx.dynamic.conf /etc/nginx/nginx.conf
+ENV HOST=0.0.0.0 \
+    PORT=4321 \
+    CONTENT_ROOT=/app/src
 
-USER nginx
-EXPOSE 8080
+USER node
+EXPOSE 4321
 
-HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=6 \
-  CMD wget -qO- http://127.0.0.1:8080/ >/dev/null || exit 1
+HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=6 \
+  CMD node -e "fetch('http://127.0.0.1:4321/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
 
-CMD ["nginx", "-g", "daemon off;"]
-
-FROM nginx:1.29.3-alpine3.22-slim AS production
-
-COPY docker/nginx.conf /etc/nginx/nginx.conf
-COPY --from=build --chown=nginx:nginx /app/dist /usr/share/nginx/html
-
-USER nginx
-EXPOSE 8080
-
-HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=6 \
-  CMD wget -qO- http://127.0.0.1:8080/ >/dev/null || exit 1
-
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["node", "dist/server/entry.mjs"]

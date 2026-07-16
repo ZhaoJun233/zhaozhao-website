@@ -1,0 +1,25 @@
+{
+  "items": [
+    { "label": "首页", "href": "/" },
+    { "label": "文章", "href": "/posts/" },
+    { "label": "分类", "href": "/categories/" },
+    { "label": "归档", "href": "/archive/" },
+    { "label": "项目", "href": "/projects/" },
+    { "label": "友链", "href": "/friends/" },
+    { "label": "关于", "href": "/about/" },
+    { "label": "留言", "href": "/guestbook/" }
+  ],
+  "mobile": {
+    "kicker": "Navigation",
+    "title": "去往哪里？",
+    "searchLabel": "搜索站内内容",
+    "note": "动画、代码与生活碎片，在海风里慢慢更新。"
+  },
+  "footer": {
+    "navigationLabel": "Explore",
+    "linksLabel": "Elsewhere",
+    "rssLabel": "RSS 订阅",
+    "creditsLabel": "作品与鸣谢",
+    "note": "Astro SSR · Made beside the sea."
+  }
+}

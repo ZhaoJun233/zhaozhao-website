@@ -1,0 +1,25 @@
+{
+  "seoDescription": "一些关于动画、开发、阅读与生活的友好站点。",
+  "hero": {
+    "eyebrow": "Friends · 沿途相遇",
+    "title": "把彼此的小站，连成一张安静的地图",
+    "description": "友链不是数字交换，而是对另一处长期写作空间的认真介绍。这里保存愿意长期往来的站点。"
+  },
+  "noticeTitle": "友链说明",
+  "notice": "以下友链为演示数据，域名均使用 .example，不指向真实站点。",
+  "visitLabel": "访问站点",
+  "emptyTitle": "友链册还没有条目",
+  "emptyDescription": "遇见长期写作的邻居后，这里会出现第一张名片。",
+  "invitation": {
+    "eyebrow": "A small note",
+    "title": "未来想交换友链？",
+    "description": "可以先在留言簿介绍站点名称、地址与主要写作主题。正式展示前会确认链接可访问、说明准确，并用清楚的外链标识告知访客。",
+    "actionLabel": "去留言簿"
+  },
+  "links": [
+    { "name": "春潮放映室", "url": "https://spring-screen.example/", "description": "记录动画分镜、配乐与片尾余韵的虚构小站。", "interests": ["动画", "音乐"] },
+    { "name": "白昼代码簿", "url": "https://daylight-code.example/", "description": "整理前端实验和阅读笔记的虚构开发日志。", "interests": ["前端", "开源"] },
+    { "name": "纸上星图", "url": "https://paper-stars.example/", "description": "分享小说、散文与夜间观察的虚构文字空间。", "interests": ["阅读", "随笔"] },
+    { "name": "风铃照片馆", "url": "https://windbell-photo.example/", "description": "收集街角光影和季节颜色的虚构摄影册。", "interests": ["摄影", "生活"] }
+  ]
+}

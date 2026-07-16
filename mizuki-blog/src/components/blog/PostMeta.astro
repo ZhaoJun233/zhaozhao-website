@@ -1,11 +1,11 @@
 ---
-import type { CollectionEntry } from "astro:content";
 import { siteConfig } from "../../config/site";
 import { estimateReadingMinutes } from "../../lib/content";
+import type { RuntimePost } from "../../lib/runtime-content";
 import { taxonomySlug } from "../../lib/slug";
 
 interface Props {
-  post: CollectionEntry<"posts">;
+  post: RuntimePost;
   showCategory?: boolean;
 }
 

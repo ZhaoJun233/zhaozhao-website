@@ -1,43 +1,67 @@
-import aboutSummerDreamImage from "../assets/backgrounds/about-summer-dream.jpg";
-import homeHeroImage from "../assets/backgrounds/home-hero.png";
-import profile from "./profile.json";
+import { z } from "astro/zod";
+import artworkSource from "./artwork.json";
 
 export type ArtworkPlacement = "home-hero" | "home-intro" | "about-hero";
 
-export type ArtworkRecord = {
+type ArtworkRecord = {
   image: ImageMetadata;
   title: string;
   alt: string;
   placements: readonly ArtworkPlacement[];
-  sourceUrl?: `https://${string}`;
+  sourceUrl?: `http${string}`;
   uploader?: string;
-  bvid?: `BV${string}`;
+  bvid?: string;
 };
 
-export type ArtworkCatalog = {
-  homeHero: ArtworkRecord & {
-    placements: readonly ["home-hero"];
-  };
+const requiredText = z.string().trim().min(1);
+const assetPath = requiredText.regex(
+  /^\/src\/assets\/backgrounds\/[\w.-]+\.(?:avif|gif|jpe?g|png|webp)$/i,
+  "视觉图片必须位于 src/assets/backgrounds。",
+);
+const schema = z.object({
+  homeHero: z.object({ image: assetPath, title: requiredText, alt: requiredText }),
+  aboutSummerDream: z.object({
+    image: assetPath,
+    title: requiredText,
+    alt: requiredText,
+    sourceUrl: z.url({ protocol: /^https?$/ }),
+    uploader: requiredText,
+    bvid: requiredText,
+  }),
+});
+
+const source = schema.parse(artworkSource);
+const backgroundImages = import.meta.glob<{ default: ImageMetadata }>(
+  "../assets/backgrounds/*.{avif,gif,jpeg,jpg,png,webp}",
+  { eager: true },
+);
+
+function resolveBackground(asset: string): ImageMetadata {
+  const filename = asset.split("/").at(-1);
+  const image = Object.entries(backgroundImages).find(([path]) =>
+    filename ? path.endsWith(`/${filename}`) : false,
+  )?.[1].default;
+
+  if (!image) throw new Error(`Background image does not exist: ${asset}`);
+  return image;
+}
+
+export const artwork: {
+  homeHero: ArtworkRecord & { placements: readonly ["home-hero"] };
   aboutSummerDream: ArtworkRecord &
     Required<Pick<ArtworkRecord, "sourceUrl" | "uploader" | "bvid">> & {
       placements: readonly ["home-intro", "about-hero"];
     };
-};
-
-export const artwork: ArtworkCatalog = {
+} = {
   homeHero: {
-    image: homeHeroImage,
-    title: `${profile.name}首页主视觉`,
-    alt: "粉蓝海浪间微笑的白发少女插画",
+    ...source.homeHero,
+    image: resolveBackground(source.homeHero.image),
     placements: ["home-hero"],
   },
   aboutSummerDream: {
-    image: aboutSummerDreamImage,
-    title: "【动态壁纸】夏日白色绮梦",
-    alt: "粉紫色海边的白发少女插画",
-    sourceUrl: "https://www.bilibili.com/video/BV1NCjx6oEhj/",
-    uploader: "清水未萌_Minamo",
-    bvid: "BV1NCjx6oEhj",
+    ...source.aboutSummerDream,
+    image: resolveBackground(source.aboutSummerDream.image),
+    sourceUrl: source.aboutSummerDream.sourceUrl as `http${string}`,
     placements: ["home-intro", "about-hero"],
   },
 };

@@ -1,13 +1,15 @@
 ---
-import type { CollectionEntry } from "astro:content";
+import { loadRuntimeEditorial, type RuntimePost } from "../../lib/runtime-content";
 import PostCard from "../blog/PostCard.astro";
 
 interface Props {
-  posts: CollectionEntry<"posts">[];
+  posts: RuntimePost[];
 }
 
 const { posts } = Astro.props;
 const [leadPost, ...supportingPosts] = posts;
+const useLeadLayout = leadPost?.data.coverUrl !== undefined;
+const copy = (await loadRuntimeEditorial()).homepage.featuredPosts;
 ---
 
 <section
@@ -19,27 +21,27 @@ const [leadPost, ...supportingPosts] = posts;
   <div class="section-inner">
     <header class="section-heading">
       <div>
-        <p class="section-kicker">Featured stories <span>01</span></p>
-        <h2 id="featured-posts-title">最近，写下这些</h2>
+        <p class="section-kicker">{copy.eyebrow} <span>01</span></p>
+        <h2 id="featured-posts-title">{copy.title}</h2>
       </div>
-      <a class="section-link" href="/posts/">浏览全部文章 <span aria-hidden="true">→</span></a>
+      <a class="section-link" href="/posts/">{copy.linkLabel} <span aria-hidden="true">→</span></a>
     </header>
 
     {leadPost ? (
-      <div class="posts-layout">
-        <div class="lead-post">
-          <PostCard post={leadPost} prominence="featured" />
-        </div>
-        {supportingPosts.length > 0 && (
-          <div class="supporting-posts">
-            {supportingPosts.map((post) => (
-              <PostCard post={post} prominence="standard" />
-            ))}
-          </div>
-        )}
+      <div class:list={["posts-layout", { "posts-layout--grid": !useLeadLayout }]}>
+        {useLeadLayout ? (
+          <>
+            <div class="lead-post"><PostCard post={leadPost} prominence="featured" /></div>
+            {supportingPosts.length > 0 && (
+              <div class="supporting-posts">
+                {supportingPosts.map((post) => <PostCard post={post} prominence="standard" />)}
+              </div>
+            )}
+          </>
+        ) : posts.map((post) => <PostCard post={post} prominence="standard" />)}
       </div>
     ) : (
-      <p class="empty-state">第一篇故事正在路上。</p>
+      <p class="empty-state">{copy.emptyMessage}</p>
     )}
   </div>
 </section>
@@ -145,6 +147,14 @@ const [leadPost, ...supportingPosts] = posts;
     height: 100%;
   }
 
+  .posts-layout--grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .posts-layout--grid :global(article) {
+    height: 100%;
+  }
+
   .empty-state {
     margin: 0;
     padding: 3rem 0;
@@ -160,6 +170,14 @@ const [leadPost, ...supportingPosts] = posts;
     .supporting-posts {
       grid-template-columns: repeat(2, minmax(0, 1fr));
       grid-template-rows: none;
+    }
+
+    .posts-layout--grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .posts-layout--grid :global(article:last-child:nth-child(odd)) {
+      grid-column: 1 / -1;
     }
   }
 
@@ -185,6 +203,14 @@ const [leadPost, ...supportingPosts] = posts;
 
     .supporting-posts {
       grid-template-columns: 1fr;
+    }
+
+    .posts-layout--grid {
+      grid-template-columns: 1fr;
+    }
+
+    .posts-layout--grid :global(article:last-child:nth-child(odd)) {
+      grid-column: auto;
     }
   }
 </style>

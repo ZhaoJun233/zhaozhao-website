@@ -1,16 +1,17 @@
 import rss from "@astrojs/rss";
-import { getCollection } from "astro:content";
 import { siteConfig } from "../config/site";
 import { sortPostEntries } from "../lib/content";
+import { loadRuntimePosts, loadRuntimeProfile } from "../lib/runtime-content";
 
 export async function GET({ site }: { site: URL | undefined }) {
   const posts = sortPostEntries(
-    await getCollection("posts", ({ data }) => !data.draft),
+    (await loadRuntimePosts()).filter(({ data }) => !data.draft),
   );
+  const profile = await loadRuntimeProfile();
 
   return rss({
-    title: siteConfig.title,
-    description: siteConfig.description,
+    title: `${profile.name} - ${profile.siteTitle}`,
+    description: profile.description,
     site: site ?? new URL(siteConfig.siteUrl),
     items: posts.map((post) => ({
       title: post.data.title,

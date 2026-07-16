@@ -1,35 +1,26 @@
 ---
-import { Image } from "astro:assets";
-import { artwork } from "../../data/artwork";
-import { siteConfig } from "../../config/site";
+import { loadRuntimeEditorial, loadRuntimeProfile } from "../../lib/runtime-content";
 
-const typingLines = [
-  "七月动画里的海风",
-  "Astro 与温柔的界面",
-  "平凡日子里的微光",
-];
+const [profile, editorial] = await Promise.all([loadRuntimeProfile(), loadRuntimeEditorial()]);
+const { hero } = editorial.homepage;
+const heroArtwork = editorial.artwork.homeHero;
+const typingLines = hero.typingPhrases;
 ---
 
 <section class="home-hero" aria-labelledby="home-hero-title">
   <div class="hero-artwork">
-    <Image
+    <img
       class="hero-artwork-blur"
-      src={artwork.homeHero.image}
+      src={heroArtwork.imageUrl}
       alt=""
-      widths={[960, 1440, 1920]}
-      sizes="100vw"
-      format="webp"
       loading="eager"
       decoding="async"
     />
-    <Image
+    <img
       class="hero-artwork-image"
-      src={artwork.homeHero.image}
-      alt={artwork.homeHero.alt}
+      src={heroArtwork.imageUrl}
+      alt={heroArtwork.alt}
       data-testid="home-hero-image"
-      widths={[640, 960, 1440, 1920, 2556]}
-      sizes="100vw"
-      format="webp"
       loading="eager"
       decoding="sync"
       fetchpriority="high"
@@ -39,11 +30,11 @@ const typingLines = [
   <div class="hero-wash" aria-hidden="true"></div>
 
   <div class="hero-copy" data-testid="hero-copy">
-    <p class="hero-eyebrow"><span></span> Personal notes · 2026</p>
-    <h1 id="home-hero-title">{siteConfig.name}</h1>
-    <p class="hero-description">{siteConfig.description}</p>
+    <p class="hero-eyebrow"><span></span> {hero.eyebrow}</p>
+    <h1 id="home-hero-title">{profile.name}</h1>
+    <p class="hero-description">{profile.description}</p>
     <p class="hero-typing-line">
-      <span class="typing-label">此刻记录</span>
+      <span class="typing-label">{hero.typingLabel}</span>
       <span
         class="typing-text"
         data-hero-typing
@@ -53,9 +44,9 @@ const typingLines = [
     </p>
     <div class="hero-actions">
       <a class="hero-action hero-action-primary" href="/posts/">
-        开始阅读 <span aria-hidden="true">↗</span>
+        {hero.primaryActionLabel} <span aria-hidden="true">↗</span>
       </a>
-      <a class="hero-action hero-action-secondary" href="/about/">认识 {siteConfig.name}</a>
+      <a class="hero-action hero-action-secondary" href="/about/">{hero.secondaryActionLabel}</a>
     </div>
   </div>
 
@@ -68,7 +59,7 @@ const typingLines = [
   </div>
 
   <a class="hero-scroll" href="#featured-posts">
-    <span>向下阅读</span>
+    <span>{hero.scrollLabel}</span>
     <i aria-hidden="true"></i>
   </a>
 </section>

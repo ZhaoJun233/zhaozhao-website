@@ -1,7 +1,5 @@
 ---
-import { Image } from "astro:assets";
 import type { MarkdownHeading } from "astro";
-import type { CollectionEntry } from "astro:content";
 import { ArrowLeft, ArrowRight, CalendarDays, Clock3, Link2, RefreshCw } from "lucide-astro";
 import Comments from "../components/blog/Comments.astro";
 import ReadingProgress from "../components/blog/ReadingProgress.astro";
@@ -9,19 +7,21 @@ import RelatedPosts from "../components/blog/RelatedPosts.astro";
 import TableOfContents from "../components/blog/TableOfContents.astro";
 import { siteConfig } from "../config/site";
 import { estimateReadingMinutes } from "../lib/content";
+import { loadRuntimeProfile, type RuntimePost } from "../lib/runtime-content";
 import { buildBlogPostingJsonLd } from "../lib/seo";
 import { taxonomySlug } from "../lib/slug";
 import BaseLayout from "./BaseLayout.astro";
 
 interface Props {
-  post: CollectionEntry<"posts">;
+  post: RuntimePost;
   headings: MarkdownHeading[];
-  relatedPosts: CollectionEntry<"posts">[];
-  previousPost?: CollectionEntry<"posts">;
-  nextPost?: CollectionEntry<"posts">;
+  relatedPosts: RuntimePost[];
+  previousPost?: RuntimePost;
+  nextPost?: RuntimePost;
 }
 
 const { post, headings, relatedPosts, previousPost, nextPost } = Astro.props;
+const profile = await loadRuntimeProfile();
 const postPath = encodeURI(`/posts/${post.id}/`);
 const canonical = post.data.canonicalUrl ?? postPath;
 const readingMinutes = estimateReadingMinutes(post.body ?? "");
@@ -38,16 +38,18 @@ const jsonLd = buildBlogPostingJsonLd({
   canonicalUrl: post.data.canonicalUrl,
   publishedAt: post.data.publishedAt,
   updatedAt: post.data.updatedAt,
-  image: post.data.cover,
+  image: post.data.coverUrl,
   category: post.data.category,
   tags: post.data.tags,
+  authorName: profile.name,
+  publisherName: profile.name,
 });
 ---
 
 <BaseLayout
   title={post.data.title}
   description={post.data.description}
-  image={post.data.cover}
+  image={post.data.coverUrl}
   type="article"
   jsonLd={jsonLd}
   canonical={canonical}
@@ -64,14 +66,13 @@ const jsonLd = buildBlogPostingJsonLd({
           <span aria-hidden="true">/</span>
           <a
             href={encodeURI(`/categories/${taxonomySlug(post.data.category)}/`)}
-            data-pagefind-filter={`category:${post.data.category}`}
           >
             {post.data.category}
           </a>
         </nav>
 
-        <h1 data-pagefind-meta="title">{post.data.title}</h1>
-        <p class="article-hero__description" data-pagefind-meta="description">
+        <h1>{post.data.title}</h1>
+        <p class="article-hero__description">
           {post.data.description}
         </p>
 
@@ -99,16 +100,15 @@ const jsonLd = buildBlogPostingJsonLd({
 
         <div class="article-hero__footer">
           <div class="article-author">
-            <Image
-              src={siteConfig.author.avatar}
-              alt={`${siteConfig.author.name} 的头像`}
+            <img
+              src={profile.avatarUrl}
+              alt={`${profile.name} 的头像`}
               width={48}
               height={48}
-              quality="high"
             />
             <div>
               <span>Written by</span>
-              <strong>{siteConfig.author.name}</strong>
+              <strong>{profile.name}</strong>
             </div>
           </div>
 
@@ -117,7 +117,6 @@ const jsonLd = buildBlogPostingJsonLd({
               <li>
                 <a
                   href={encodeURI(`/tags/${taxonomySlug(tag)}/`)}
-                  data-pagefind-filter={`tag:${tag}`}
                 >
                   <span aria-hidden="true">#</span>{tag}
                 </a>
@@ -128,17 +127,11 @@ const jsonLd = buildBlogPostingJsonLd({
       </div>
     </header>
 
-    {post.data.cover && (
+    {post.data.coverUrl && (
       <figure class="article-cover site-container">
-        <Image
-          src={post.data.cover}
+        <img
+          src={post.data.coverUrl}
           alt={post.data.coverAlt!}
-          widths={[720, 1080, 1440, 1920]}
-          sizes="(min-width: 1180px) 1180px, 100vw"
-          layout="full-width"
-          fit="cover"
-          position="center"
-          quality="high"
           loading="eager"
         />
       </figure>
@@ -150,23 +143,22 @@ const jsonLd = buildBlogPostingJsonLd({
       </aside>
 
       <div class="article-shell__main">
-        <div class="prose article-body" data-article-body data-pagefind-body>
+        <div class="prose article-body" data-article-body>
           <slot />
         </div>
 
         <footer class="article-end">
           <div class="article-end__author">
-            <Image
-              src={siteConfig.author.avatar}
+            <img
+              src={profile.avatarUrl}
               alt=""
               width={56}
               height={56}
-              quality="high"
             />
             <div>
               <p>感谢读到这里</p>
-              <strong>{siteConfig.author.name}</strong>
-              <span>{siteConfig.author.bio}</span>
+              <strong>{profile.name}</strong>
+              <span>{profile.bio}</span>
             </div>
           </div>
 

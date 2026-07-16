@@ -1,31 +1,31 @@
 ---
-import { getCollection } from "astro:content";
-import { siteConfig } from "../../config/site";
-import taxonomy from "../../data/taxonomy.json";
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import { buildCategoryIndex } from "../../lib/content";
+import { loadRuntimeEditorial, loadRuntimePosts, loadRuntimeProfile } from "../../lib/runtime-content";
 
-const posts = await getCollection("posts", ({ data }) => !data.draft);
+const [profile, editorial] = await Promise.all([loadRuntimeProfile(), loadRuntimeEditorial()]);
+const posts = (await loadRuntimePosts()).filter(({ data }) => !data.draft);
 const categories = buildCategoryIndex(
-  taxonomy.categories,
+  editorial.taxonomy.categories,
   posts.map(({ data }) => data.category),
 );
+const copy = editorial.pageCopy.categories;
 ---
 
 <BaseLayout
-  title="文章分类"
-  description={`从动画、开发、阅读与生活主题进入 ${siteConfig.name} 的文章。`}
+  title={copy.title}
+  description={`${profile.name}：${copy.description}`}
   class="discovery-page"
 >
   <section class="taxonomy-page section" aria-labelledby="categories-title">
     <div class="site-container taxonomy-shell">
       <header class="taxonomy-heading">
         <div>
-          <p class="eyebrow">Filed by subject · 分类</p>
-          <h1 id="categories-title">从一个主题<br />开始阅读</h1>
+          <p class="eyebrow">{copy.eyebrow}</p>
+          <h1 id="categories-title">{copy.heading}</h1>
         </div>
         <p>
-          每篇文章只归入一个主要分类。像沿着书架上的隔板，先选择今天想靠近的方向。
+          {copy.introduction}
         </p>
       </header>
 
@@ -52,8 +52,8 @@ const categories = buildCategoryIndex(
       ) : (
         <section class="empty-state" aria-labelledby="categories-empty-title">
           <p aria-hidden="true">○</p>
-          <h2 id="categories-empty-title">分类书架还是空的</h2>
-          <p>公开文章出现后，主题入口会自动整理在这里。</p>
+          <h2 id="categories-empty-title">{copy.emptyTitle}</h2>
+          <p>{copy.emptyDescription}</p>
         </section>
       )}
 

@@ -20,6 +20,7 @@ export interface BlogPostingSeoInput {
   tags?: string[];
   category?: string;
   authorName?: string;
+  publisherName?: string;
 }
 
 export interface PersonJsonLd extends JsonLdNode {
@@ -84,12 +85,15 @@ function isoDate(value: Date | string): string {
   return (value instanceof Date ? value : new Date(value)).toISOString();
 }
 
-function buildPersonJsonLd(): PersonJsonLd {
+function buildPersonJsonLd(identity = {
+  name: siteConfig.author.name,
+  description: siteConfig.author.bio,
+}): PersonJsonLd {
   return {
     "@type": "Person",
     "@id": `${buildCanonical("/")}#person`,
-    name: siteConfig.author.name,
-    description: siteConfig.author.bio,
+    name: identity.name,
+    description: identity.description,
     url: buildCanonical("/"),
   };
 }
@@ -99,7 +103,12 @@ export function buildCanonical(path: string | URL): string {
   return withTrailingSlash(url).href;
 }
 
-export function buildWebsiteJsonLd(): WebsiteJsonLd {
+export function buildWebsiteJsonLd(identity = {
+  name: siteConfig.name,
+  description: siteConfig.description,
+  authorName: siteConfig.author.name,
+  authorBio: siteConfig.author.bio,
+}): WebsiteJsonLd {
   const root = buildCanonical("/");
 
   return {
@@ -107,10 +116,10 @@ export function buildWebsiteJsonLd(): WebsiteJsonLd {
     "@type": "WebSite",
     "@id": `${root}#website`,
     url: root,
-    name: siteConfig.name,
-    description: siteConfig.description,
+    name: identity.name,
+    description: identity.description,
     inLanguage: siteConfig.locale,
-    publisher: buildPersonJsonLd(),
+    publisher: buildPersonJsonLd({ name: identity.authorName, description: identity.authorBio }),
   };
 }
 
@@ -143,7 +152,7 @@ export function buildBlogPostingJsonLd(
     publisher: {
       "@type": "Person",
       "@id": `${buildCanonical("/")}#person`,
-      name: siteConfig.author.name,
+      name: post.publisherName ?? siteConfig.author.name,
     },
     ...(post.image ? { image: [buildAssetUrl(post.image)] } : {}),
     ...(post.category ? { articleSection: post.category } : {}),

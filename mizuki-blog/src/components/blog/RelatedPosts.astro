@@ -1,9 +1,9 @@
 ---
-import type { CollectionEntry } from "astro:content";
 import { siteConfig } from "../../config/site";
+import type { RuntimePost } from "../../lib/runtime-content";
 
 interface Props {
-  posts: CollectionEntry<"posts">[];
+  posts: RuntimePost[];
 }
 
 const { posts } = Astro.props;

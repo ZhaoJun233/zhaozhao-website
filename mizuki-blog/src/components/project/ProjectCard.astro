@@ -1,10 +1,10 @@
 ---
-import type { CollectionEntry } from "astro:content";
 import { ExternalLink } from "lucide-astro";
 import { siteConfig } from "../../config/site";
+import type { RuntimeProject } from "../../lib/runtime-content";
 
 interface Props {
-  project: CollectionEntry<"projects">;
+  project: RuntimeProject;
   index: number;
 }
 

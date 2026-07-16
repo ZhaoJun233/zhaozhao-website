@@ -1,24 +1,11 @@
 ---
-import { getCollection, render, type CollectionEntry } from "astro:content";
 import { ArrowLeft, CalendarDays, ExternalLink } from "lucide-astro";
 import { siteConfig } from "../../config/site";
 import BaseLayout from "../../layouts/BaseLayout.astro";
+import { loadRuntimeProjects } from "../../lib/runtime-content";
 
-type Props = {
-  project: CollectionEntry<"projects">;
-};
-
-export async function getStaticPaths() {
-  const projects = await getCollection("projects");
-
-  return projects.map((project) => ({
-    params: { slug: project.id },
-    props: { project } satisfies Props,
-  }));
-}
-
-const { project } = Astro.props;
-const { Content } = await render(project);
+const project = (await loadRuntimeProjects()).find(({ id }) => id === Astro.params.slug);
+if (!project) return Astro.redirect("/404/", 302);
 const statusLabels = {
   active: "进行中",
   completed: "已完成",
@@ -35,11 +22,11 @@ const dateLabel = new Intl.DateTimeFormat(siteConfig.locale, {
 <BaseLayout
   title={project.data.title}
   description={project.data.description}
-  image={project.data.cover}
+  image={project.data.coverUrl}
   page="project"
   class="project-page"
 >
-  <article data-pagefind-body>
+  <article>
     <header class="project-hero">
       <div class="site-container project-hero__inner">
         <a class="project-back" href="/projects/">
@@ -57,8 +44,8 @@ const dateLabel = new Intl.DateTimeFormat(siteConfig.locale, {
           </span>
         </div>
 
-        <h1 data-pagefind-meta="title">{project.data.title}</h1>
-        <p class="project-hero__description" data-pagefind-meta="description">
+        <h1>{project.data.title}</h1>
+        <p class="project-hero__description">
           {project.data.description}
         </p>
 
@@ -91,7 +78,7 @@ const dateLabel = new Intl.DateTimeFormat(siteConfig.locale, {
         <strong>{String(project.data.date.getFullYear()).slice(-2)}</strong>
       </div>
       <div class="prose project-body">
-        <Content />
+        <Fragment set:html={project.html} />
       </div>
     </div>
   </article>

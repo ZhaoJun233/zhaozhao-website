@@ -1,26 +1,23 @@
 ---
-import type { CollectionEntry } from "astro:content";
+import { loadRuntimeEditorial, type RuntimeProject } from "../../lib/runtime-content";
 
 interface Props {
-  projects: CollectionEntry<"projects">[];
+  projects: RuntimeProject[];
 }
 
 const { projects } = Astro.props;
-const statusLabels = {
-  active: "进行中",
-  completed: "已完成",
-  archived: "已归档",
-} as const;
+const copy = (await loadRuntimeEditorial()).homepage.featuredProjects;
+const statusLabels = copy.statusLabels;
 ---
 
 <section class="featured-projects" aria-labelledby="featured-projects-title">
   <div class="projects-inner">
     <header class="projects-heading">
       <div>
-        <p>Selected works <span>02</span></p>
-        <h2 id="featured-projects-title">正在搭建的小世界</h2>
+        <p>{copy.eyebrow} <span>02</span></p>
+        <h2 id="featured-projects-title">{copy.title}</h2>
       </div>
-      <p class="projects-intro">把兴趣变成可以慢慢迭代、也可以随时回看的东西。</p>
+      <p class="projects-intro">{copy.description}</p>
     </header>
 
     <div class="projects-grid">
@@ -38,13 +35,13 @@ const statusLabels = {
             {project.data.tags.slice(0, 4).map((tag) => <li>{tag}</li>)}
           </ul>
           <a class="project-link" href={`/projects/${project.id}/`} aria-label={`查看项目：${project.data.title}`}>
-            查看项目 <span aria-hidden="true">↗</span>
+            {copy.detailLabel} <span aria-hidden="true">↗</span>
           </a>
         </article>
       ))}
     </div>
 
-    <a class="all-projects-link" href="/projects/">全部项目 <span aria-hidden="true">→</span></a>
+    <a class="all-projects-link" href="/projects/">{copy.allLabel} <span aria-hidden="true">→</span></a>
   </div>
 </section>
 

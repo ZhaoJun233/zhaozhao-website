@@ -1,23 +1,24 @@
 ---
-import { getCollection } from "astro:content";
 import { Home, Search } from "lucide-astro";
 import { siteConfig } from "../config/site";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import { sortPostEntries } from "../lib/content";
+import { loadRuntimeEditorial, loadRuntimePosts } from "../lib/runtime-content";
 
 const recentPosts = sortPostEntries(
-  await getCollection("posts", ({ data }) => !data.draft),
+  (await loadRuntimePosts()).filter(({ data }) => !data.draft),
 ).slice(0, 3);
 const dateFormatter = new Intl.DateTimeFormat(siteConfig.locale, {
   timeZone: siteConfig.timeZone,
   month: "2-digit",
   day: "2-digit",
 });
+const copy = (await loadRuntimeEditorial()).pageCopy.notFound;
 ---
 
 <BaseLayout
-  title="404 · 页面没有找到"
-  description="请求的页面没有找到，可以返回首页、搜索文章或浏览最近更新。"
+  title={copy.title}
+  description={copy.description}
   page="404"
   class="not-found-page"
 >
@@ -28,19 +29,19 @@ const dateFormatter = new Intl.DateTimeFormat(siteConfig.locale, {
       </div>
 
       <div class="not-found__copy">
-        <p class="eyebrow">Lost at sea · 航线偏移</p>
-        <h1 id="not-found-title"><span>404</span>这片海域暂时没有页面</h1>
+        <p class="eyebrow">{copy.eyebrow}</p>
+        <h1 id="not-found-title"><span>404</span>{copy.heading}</h1>
         <p>
-          链接可能已经移动，也可能只是多拐了一个弯。可以回到首页重新出发，或直接搜索想找的文章。
+          {copy.introduction}
         </p>
         <div class="not-found__actions">
           <a class="button button--primary" href="/">
             <Home size={17} stroke-width={1.8} aria-hidden="true" />
-            返回首页
+            {copy.homeLabel}
           </a>
           <a class="button" href="/search/">
             <Search size={17} stroke-width={1.8} aria-hidden="true" />
-            搜索文章
+            {copy.searchLabel}
           </a>
         </div>
       </div>
@@ -50,8 +51,8 @@ const dateFormatter = new Intl.DateTimeFormat(siteConfig.locale, {
   <section class="not-found-recent" aria-labelledby="recent-title">
     <div class="site-container not-found-recent__inner">
       <header>
-        <p class="eyebrow">Recent notes</p>
-        <h2 id="recent-title">最近写下</h2>
+        <p class="eyebrow">{copy.recentEyebrow}</p>
+        <h2 id="recent-title">{copy.recentTitle}</h2>
       </header>
 
       <ol>

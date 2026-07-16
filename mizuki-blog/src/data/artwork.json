@@ -1,0 +1,15 @@
+{
+  "homeHero": {
+    "image": "/src/assets/backgrounds/home-hero.png",
+    "title": "233昭首页主视觉",
+    "alt": "粉蓝海浪间微笑的白发少女插画"
+  },
+  "aboutSummerDream": {
+    "image": "/src/assets/backgrounds/about-summer-dream.jpg",
+    "title": "【动态壁纸】夏日白色绮梦",
+    "alt": "粉紫色海边的白发少女插画",
+    "sourceUrl": "https://www.bilibili.com/video/BV1NCjx6oEhj/",
+    "uploader": "清水未萌_Minamo",
+    "bvid": "BV1NCjx6oEhj"
+  }
+}

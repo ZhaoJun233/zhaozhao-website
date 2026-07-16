@@ -1,34 +1,22 @@
 ---
-import { getCollection } from "astro:content";
-import type { GetStaticPaths } from "astro";
 import PostCard from "../../../components/blog/PostCard.astro";
 import Pagination from "../../../components/blog/Pagination.astro";
 import BaseLayout from "../../../layouts/BaseLayout.astro";
 import { siteConfig } from "../../../config/site";
 import { paginate, sortPostEntries } from "../../../lib/content";
+import { loadRuntimePosts, loadRuntimeProfile } from "../../../lib/runtime-content";
 
-export const getStaticPaths = (async () => {
-  const posts = await getCollection("posts", ({ data }) => !data.draft);
-  const pageCount = Math.ceil(posts.length / siteConfig.pageSize);
-
-  return Array.from({ length: Math.max(0, pageCount - 1) }, (_, index) => {
-    const page = index + 2;
-    return { params: { page: String(page) }, props: { currentPage: page } };
-  });
-}) satisfies GetStaticPaths;
-
-interface Props {
-  currentPage: number;
-}
-
-const { currentPage } = Astro.props;
-const posts = sortPostEntries(await getCollection("posts", ({ data }) => !data.draft));
+const currentPage = Number(Astro.params.page);
+if (!Number.isInteger(currentPage) || currentPage < 2) return Astro.redirect("/posts/", 302);
+const profile = await loadRuntimeProfile();
+const posts = sortPostEntries((await loadRuntimePosts()).filter(({ data }) => !data.draft));
+if ((currentPage - 1) * siteConfig.pageSize >= posts.length) return Astro.redirect("/404/", 302);
 const page = paginate(posts, currentPage, siteConfig.pageSize);
 ---
 
 <BaseLayout
   title={`文章 · 第 ${page.page} 页`}
-  description={`浏览 ${siteConfig.name} 的文章索引第 ${page.page} 页，共 ${page.total} 篇公开文章。`}
+  description={`浏览 ${profile.name} 的文章索引第 ${page.page} 页，共 ${page.total} 篇公开文章。`}
   class="discovery-page"
 >
   <section class="posts-page section" aria-labelledby="posts-title">

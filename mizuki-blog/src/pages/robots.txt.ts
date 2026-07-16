@@ -3,7 +3,7 @@ import { siteConfig } from "../config/site";
 
 export const GET: APIRoute = ({ site }) => {
   const siteUrl = site ?? new URL(siteConfig.siteUrl);
-  const sitemapUrl = new URL("sitemap-index.xml", siteUrl);
+  const sitemapUrl = new URL("sitemap.xml", siteUrl);
   const body = [
     "User-agent: *",
     "Allow: /",

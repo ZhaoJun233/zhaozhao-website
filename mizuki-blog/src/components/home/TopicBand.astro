@@ -1,4 +1,6 @@
 ---
+import { loadRuntimeEditorial } from "../../lib/runtime-content";
+
 export type HomeTopic = {
   label: string;
   href: string;
@@ -10,15 +12,16 @@ interface Props {
 }
 
 const { topics } = Astro.props;
+const copy = (await loadRuntimeEditorial()).homepage.topics;
 ---
 
 <section class="topic-band" aria-labelledby="topic-band-title">
   <div class="topic-inner">
     <header class="topic-heading">
-      <p>Browse by feeling</p>
-      <h2 id="topic-band-title">从一个主题出发</h2>
+      <p>{copy.eyebrow}</p>
+      <h2 id="topic-band-title">{copy.title}</h2>
     </header>
-    <nav class="topic-list" aria-label="文章分类捷径">
+    <nav class="topic-list" aria-label={copy.navigationLabel}>
       {topics.map((topic, index) => (
         <a href={topic.href} class="topic-link">
           <span class="topic-index">{String(index + 1).padStart(2, "0")}</span>
@@ -64,6 +67,7 @@ const { topics } = Astro.props;
 
   .topic-heading h2 {
     margin: 0;
+    color: #f7fbfa;
     font-family: var(--font-display, "Iowan Old Style", "Noto Serif SC", serif);
     font-size: clamp(1.65rem, 3vw, 2.55rem);
     font-weight: 580;
@@ -71,25 +75,25 @@ const { topics } = Astro.props;
   }
 
   .topic-list {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    border-block: 1px solid rgb(255 255 255 / 0.24);
+    display: flex;
+    flex-wrap: wrap;
+    border-top: 1px solid rgb(255 255 255 / 0.24);
+    border-left: 1px solid rgb(255 255 255 / 0.2);
   }
 
   .topic-link {
     position: relative;
     display: grid;
+    min-width: 0;
     min-height: 8.6rem;
+    flex: 1 1 max(12rem, 25%);
     align-content: center;
     padding: 1.4rem clamp(1rem, 2.1vw, 1.8rem);
-    border-left: 1px solid rgb(255 255 255 / 0.2);
+    border-right: 1px solid rgb(255 255 255 / 0.2);
+    border-bottom: 1px solid rgb(255 255 255 / 0.24);
     color: inherit;
     text-decoration: none;
     transition: background-color 180ms ease;
-  }
-
-  .topic-link:last-child {
-    border-right: 1px solid rgb(255 255 255 / 0.2);
   }
 
   .topic-link:hover {
@@ -129,7 +133,7 @@ const { topics } = Astro.props;
     transform: translate(2px, -2px);
   }
 
-  @media (max-width: 760px) {
+  @media (max-width: 600px) {
     .topic-heading {
       display: block;
     }
@@ -138,21 +142,11 @@ const { topics } = Astro.props;
       margin-bottom: 0.55rem;
     }
 
-    .topic-list {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .topic-link:nth-child(2n) {
-      border-right: 1px solid rgb(255 255 255 / 0.2);
-    }
-
-    .topic-link:nth-child(n + 3) {
-      border-top: 1px solid rgb(255 255 255 / 0.2);
-    }
   }
 
   @media (max-width: 360px) {
     .topic-link {
+      flex-basis: 100%;
       min-height: 7.4rem;
       padding-inline: 0.9rem;
     }
