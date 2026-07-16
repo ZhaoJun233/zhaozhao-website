@@ -7,14 +7,9 @@ COPY --chown=node:node package.json package-lock.json ./
 USER node
 RUN npm ci
 
-FROM dependencies AS authoring
+FROM dependencies AS build
 
 COPY --chown=node:node . .
-
-EXPOSE 4321 8081
-CMD ["sh", "-c", "rm -f .astro/dev.json && exec npm run dev -- --host 0.0.0.0 --port 4321"]
-
-FROM authoring AS build
 
 ARG PUBLIC_SITE_URL
 ARG BUILD_MODE=production
@@ -35,8 +30,11 @@ FROM build AS runtime
 
 ENV HOST=0.0.0.0 \
     PORT=4321 \
-    CONTENT_ROOT=/app/src
+    CONTENT_ROOT=/app/src \
+    BLOG_DATABASE_PATH=/app/storage/blog.sqlite
 
+USER root
+RUN mkdir -p /app/storage && chown node:node /app/storage
 USER node
 EXPOSE 4321
 

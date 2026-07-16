@@ -3,6 +3,7 @@ dist
 .astro
 coverage
 test-results
+storage
 playwright-report
 .publisher-build
 *.log

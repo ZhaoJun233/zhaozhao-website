@@ -1,268 +1,71 @@
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, isAbsolute, relative, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 
-import { siteConfig } from "../../src/config/site";
-import profile from "../../src/data/profile.json";
-
-type CmsField = {
-  name: string;
-  pattern?: string[];
-  widget?: string;
-  collection?: string;
-  file?: string;
-  search_fields?: string[];
-  value_field?: string;
-  display_fields?: string[];
-};
-type CmsCollection = {
-  name: string;
-  folder?: string;
-  files?: Array<{ file: string; fields: CmsField[]; name: string }>;
-  fields?: CmsField[];
-  media_folder?: string;
-  public_folder?: string;
-};
-type CmsConfig = {
-  backend: { branch: string; name: string };
-  local_backend: boolean | { url: string };
-  site_url: string;
-  display_url: string;
-  media_folder: string;
-  public_folder: string;
-  collections: CmsCollection[];
-};
 type ComposeService = {
   build: { args?: Record<string, string>; context: string; target?: string };
-  command?: string;
-  depends_on?: Record<string, { condition: string }>;
   environment?: Record<string, string>;
   healthcheck?: { test: string[] };
   ports?: string[];
-  profiles?: string[];
-  user?: string;
   volumes?: string[];
 };
 type ComposeConfig = {
-  services: {
-    cms: ComposeService;
-    site: ComposeService;
-  };
+  services: Record<string, ComposeService>;
+  volumes?: Record<string, unknown>;
 };
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const repositoryRoot = resolve(appRoot, "..");
-const adminHtml = readFileSync(resolve(appRoot, "src/pages/admin/index.astro"), "utf8");
-const cmsConfig = parse(
-  readFileSync(resolve(appRoot, "public/admin/config.yml"), "utf8"),
-) as CmsConfig;
-const composeConfig = parse(
-  readFileSync(resolve(appRoot, "docker-compose.yml"), "utf8"),
-) as ComposeConfig;
+const root = resolve(appRoot, "..");
+const packageJson = JSON.parse(readFileSync(resolve(appRoot, "package.json"), "utf8"));
+const compose = parse(readFileSync(resolve(appRoot, "docker-compose.yml"), "utf8")) as ComposeConfig;
 const dockerfile = readFileSync(resolve(appRoot, "Dockerfile"), "utf8");
-const dockerignore = readFileSync(resolve(appRoot, ".dockerignore"), "utf8");
+const environmentExample = readFileSync(resolve(appRoot, ".env.example"), "utf8");
 
-function collection(name: string) {
-  const match = cmsConfig.collections.find((item) => item.name === name);
-  expect(match, `Missing Decap collection: ${name}`).toBeDefined();
-  return match!;
-}
-
-function expectRepositoryPath(relativePath: string) {
-  const absolutePath = resolve(repositoryRoot, relativePath);
-  const pathFromRoot = relative(repositoryRoot, absolutePath);
-  expect(pathFromRoot.startsWith("..")).toBe(false);
-  expect(isAbsolute(pathFromRoot)).toBe(false);
-  expect(existsSync(absolutePath), `${relativePath} must exist`).toBe(true);
-}
-
-describe("local authoring", () => {
-  it("bundles a pinned Decap app and explicit /admin/ config route", () => {
-    expect(adminHtml).toContain('href="/admin/config.yml"');
-    expect(adminHtml).toContain('rel="cms-config-url"');
-    expect(adminHtml).toContain('from "decap-cms-app"');
-    expect(adminHtml).toContain('name: "preSave"');
-    expect(adminHtml).toContain("validatePostCoverPair");
-    expect(adminHtml).toContain("CMS.init()");
-    expect(adminHtml).not.toContain("https://unpkg.com");
-    expect(adminHtml).not.toContain(profile.name);
-  });
-
-  it("uses repository-root paths and fields that match the Astro schemas", () => {
-    expect(cmsConfig.backend).toEqual({ name: "git-gateway", branch: "master" });
-    expect(cmsConfig.local_backend).toEqual({
-      url: "http://127.0.0.1:8081/api/v1",
-    });
-    expect(cmsConfig.site_url).toBe("http://127.0.0.1:4321");
-    expect(cmsConfig.display_url).toBe(cmsConfig.site_url);
-    expect(cmsConfig.media_folder).toBe("mizuki-blog/src/assets/uploads");
-    expect(cmsConfig.public_folder).toBe("../../assets/uploads");
-
-    const posts = collection("posts");
-    expect(posts.folder).toBe("mizuki-blog/src/content/posts");
-    expect(posts.fields?.map(({ name }) => name)).toEqual([
-      "title",
-      "description",
-      "publishedAt",
-      "updatedAt",
-      "draft",
-      "featured",
-      "category",
-      "tags",
-      "series",
-      "cover",
-      "coverAlt",
-      "canonicalUrl",
-      "body",
-    ]);
-    expect(posts.fields?.find(({ name }) => name === "canonicalUrl")?.pattern?.[0])
-      .toBe("^https?://\\S+$");
-    expect(posts.fields?.find(({ name }) => name === "category")).toMatchObject({
-      widget: "relation",
-      collection: "taxonomy",
-      file: "categories",
-      search_fields: ["categories.*.name"],
-      value_field: "categories.*.name",
-      display_fields: ["categories.*.name"],
-    });
-    expectRepositoryPath(posts.folder!);
-
-    const projects = collection("projects");
-    expect(projects.folder).toBe("mizuki-blog/src/content/projects");
-    expect(projects.fields?.map(({ name }) => name)).toEqual([
-      "title",
-      "description",
-      "date",
-      "status",
-      "tags",
-      "featured",
-      "cover",
-      "repositoryUrl",
-      "demoUrl",
-      "body",
-    ]);
-    for (const fieldName of ["repositoryUrl", "demoUrl"]) {
-      expect(projects.fields?.find(({ name }) => name === fieldName)?.pattern?.[0])
-        .toBe("^https?://\\S+$");
+describe("database-backed authoring", () => {
+  it("ships a custom admin workspace for every maintainable content area", () => {
+    for (const page of [
+      "index", "login", "posts", "projects", "categories", "friends", "messages", "content", "data",
+    ]) {
+      expect(existsSync(resolve(appRoot, `src/pages/admin/${page}.astro`))).toBe(true);
     }
-    expectRepositoryPath(projects.folder!);
-
-    const settings = collection("settings");
-    expect(settings.media_folder).toBe("/mizuki-blog/src/assets/profile");
-    expect(settings.public_folder).toBe("/src/assets/profile");
-    expect(settings.files).toHaveLength(1);
-    expect(settings.files?.[0]?.file).toBe("mizuki-blog/src/data/profile.json");
-    expect(settings.files?.[0]?.fields.map(({ name }) => name)).toEqual([
-      "name",
-      "siteTitle",
-      "description",
-      "bio",
-      "avatar",
-    ]);
-    expectRepositoryPath(settings.files![0]!.file);
-
-    const taxonomy = collection("taxonomy");
-    expect(taxonomy.files).toHaveLength(1);
-    expect(taxonomy.files?.[0]).toMatchObject({
-      name: "categories",
-      file: "mizuki-blog/src/data/taxonomy.json",
-    });
-    expect(taxonomy.files?.[0]?.fields.map(({ name }) => name)).toEqual(["categories"]);
-    expectRepositoryPath(taxonomy.files![0]!.file);
-
-    const pageContent = collection("page_content");
-    expect(pageContent.files?.map(({ name }) => name)).toEqual([
-      "navigation",
-      "homepage",
-      "about",
-      "friends",
-      "guestbook",
-      "credits",
-      "page_copy",
-    ]);
-    for (const file of pageContent.files ?? []) expectRepositoryPath(file.file);
-
-    const visuals = collection("visuals");
-    expect(visuals.media_folder).toBe("/mizuki-blog/src/assets/backgrounds");
-    expect(visuals.public_folder).toBe("/src/assets/backgrounds");
-    expect(visuals.files?.[0]?.file).toBe("mizuki-blog/src/data/artwork.json");
-    expectRepositoryPath(visuals.files![0]!.file);
+    const adminIndex = readFileSync(resolve(appRoot, "src/pages/admin/index.astro"), "utf8");
+    expect(adminIndex).toContain("AdminShell");
+    expect(adminIndex).not.toContain("decap-cms-app");
+    expect(existsSync(resolve(appRoot, "public/admin/config.yml"))).toBe(false);
   });
 
-  it("keeps the editable nickname and avatar in profile data", () => {
-    expect(profile.name.trim()).not.toBe("");
-    const avatarFilename = profile.avatar.split("/").at(-1);
-    expect(avatarFilename).toMatch(/\.(?:avif|gif|jpe?g|png|webp)$/i);
-    expectRepositoryPath(`mizuki-blog/src/assets/profile/${avatarFilename}`);
-
-    expect(siteConfig.name).toBe(profile.name);
-    expect(siteConfig.author.name).toBe(profile.name);
-    expect(siteConfig.author.avatar).toBeTruthy();
-
-    const siteConfigSource = readFileSync(
-      resolve(appRoot, "src/config/site.ts"),
-      "utf8",
-    );
-    expect(siteConfigSource).not.toContain(profile.name);
-    expect(siteConfigSource).not.toContain(avatarFilename!);
-    expect(existsSync(resolve(appRoot, "public/uploads/avatar.jpg"))).toBe(false);
+  it("removes Decap dependencies and file-authoring scripts", () => {
+    expect(packageJson.dependencies).not.toHaveProperty("decap-cms-app");
+    expect(packageJson.devDependencies).not.toHaveProperty("decap-server");
+    expect(packageJson.scripts).not.toHaveProperty("cms");
+    expect(packageJson.scripts).not.toHaveProperty("author");
+    expect(existsSync(resolve(appRoot, "scripts/start-cms.mjs"))).toBe(false);
   });
 
-  it("serves runtime content through Astro SSR and the local CMS", () => {
-    const { cms, site } = composeConfig.services;
-
+  it("runs one SSR service with a persistent SQLite volume", () => {
+    expect(Object.keys(compose.services)).toEqual(["site"]);
+    const site = compose.services.site!;
     expect(site.build).toMatchObject({ context: ".", target: "runtime" });
     expect(site.ports).toEqual(["127.0.0.1:4321:4321"]);
-    expect(site.volumes).toEqual([
-      "./src/data:/app/src/data:ro",
-      "./src/content:/app/src/content:ro",
-      "./src/assets:/app/src/assets:ro",
-    ]);
+    expect(site.volumes).toContain("blog-data:/app/storage");
+    expect(site.volumes).toContain("./src/data:/app/src/data:ro");
     expect(site.environment).toMatchObject({
       CONTENT_ROOT: "/app/src",
-      PUBLIC_SITE_URL: "http://127.0.0.1:4321",
+      BLOG_DATABASE_PATH: "/app/storage/blog.sqlite",
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-233zhao-local-admin}",
+      ADMIN_SESSION_SECRET: "${ADMIN_SESSION_SECRET:-change-this-local-session-secret}",
     });
-    expect(site.healthcheck?.test.some((part) => part.includes("http://127.0.0.1:4321/api/health")))
-      .toBe(true);
-
-    expect(cms.profiles).toBeUndefined();
-    expect(cms.build).toMatchObject({ context: ".", target: "authoring" });
-    expect(cms.command).toBe("npm run cms");
-    expect(cms.ports).toEqual(["127.0.0.1:8081:8081"]);
-    expect(cms.volumes).toEqual([
-      "./src/content:/workspace/mizuki-blog/src/content",
-      "./src/data:/workspace/mizuki-blog/src/data",
-      "./src/assets/profile:/workspace/mizuki-blog/src/assets/profile",
-      "./src/assets/backgrounds:/workspace/mizuki-blog/src/assets/backgrounds",
-      "./src/assets/uploads:/workspace/mizuki-blog/src/assets/uploads",
-    ]);
-    expect(cms.environment).toEqual({
-      BIND_HOST: "0.0.0.0",
-      GIT_REPO_DIRECTORY: "/workspace",
-      MODE: "fs",
-      ORIGIN: "http://127.0.0.1:4321",
-      PORT: "8081",
-    });
-    expect(cms.user).toBe("${LOCAL_UID:-1000}:${LOCAL_GID:-1000}");
+    expect(compose.volumes).toHaveProperty("blog-data");
   });
 
-  it("builds a standalone Node SSR image without local credentials", () => {
-    expect(dockerfile).toContain("AS authoring");
-    expect(dockerfile).toContain("AS runtime");
+  it("documents the required database and administrator environment", () => {
+    expect(environmentExample).toContain("BLOG_DATABASE_PATH=");
+    expect(environmentExample).toContain("ADMIN_PASSWORD=");
+    expect(environmentExample).toContain("ADMIN_SESSION_SECRET=");
     expect(dockerfile).toContain('CMD ["node", "dist/server/entry.mjs"]');
-    expect(dockerfile).toContain("CONTENT_ROOT=/app/src");
-    expect(dockerfile).toContain("rm -f .astro/dev.json");
-    expect(dockerfile).not.toContain('"--force"');
-    expect(dockerfile).toContain("RUN npm run build");
-    expect(dockerfile).toMatch(/ARG PUBLIC_SITE_URL\r?\n/);
-    expect(dockerfile).not.toContain("ARG PUBLIC_SITE_URL=http");
-    expect(dockerfile).toContain("USER node");
-    expect(dockerfile).not.toContain("blog_node_modules");
-
-    expect(dockerignore).toContain(".env.*");
-    expect(dockerignore).toContain("!.env.example");
-    expect(dockerignore).toContain(".npmrc");
+    expect(dockerfile).toContain("/app/storage");
+    expect(readFileSync(resolve(root, ".gitignore"), "utf8")).toContain("storage/*.sqlite");
   });
 });
