@@ -1,7 +1,7 @@
 export type ThemePreference = "light" | "dark" | "system";
 export type ResolvedTheme = Exclude<ThemePreference, "system">;
 
-const storageKey = "mizuki-theme";
+const storageKey = "zhaozhao-theme";
 const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
 const themeLabels: Record<ThemePreference, string> = {
   light: "浅色",

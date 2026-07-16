@@ -275,7 +275,7 @@ Expected: one healthy `site` service and a created SQLite database in the volume
 
 - [ ] **Step 5: Verify infrastructure tests pass**
 
-Run: `docker run --rm -e CONTENT_ROOT=/app/src -e BLOG_DATABASE_PATH=/tmp/test.sqlite mizuki-blog-site npm run check`
+Run: `docker run --rm -e CONTENT_ROOT=/app/src -e BLOG_DATABASE_PATH=/tmp/test.sqlite zhaozhao-blog-site npm run check`
 
 Expected: Astro and TypeScript checks pass.
 
@@ -318,8 +318,8 @@ Restart the site container and confirm the restored content and administrator se
 Run:
 
 ```bash
-git add mizuki-blog
+git add zhaozhao-blog
 git commit -m "feat: add database-backed content admin"
 ```
 
-Expected: only `mizuki-blog` changes are committed; `.codegraph/` remains untracked.
+Expected: only `zhaozhao-blog` changes are committed; `.codegraph/` remains untracked.

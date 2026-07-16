@@ -1,4 +1,4 @@
-# Mizuki Anime Personal Blog Design
+# zhaozhao Anime Personal Blog Design
 
 ## Goal
 
@@ -8,7 +8,7 @@ Build a complete Astro personal blog with a polished light anime aesthetic, fast
 
 The site is a personal journal for anime, development notes, projects, and daily fragments. It should feel like a quiet Japanese editorial site rather than a generic template or a dense dashboard.
 
-The default site identity is `Mizuki.` and all identity fields live in one editable configuration file. Sample content demonstrates the finished experience but is clearly replaceable.
+The default site identity is `zhaozhao.` and all identity fields live in one editable configuration file. Sample content demonstrates the finished experience but is clearly replaceable.
 
 ## Visual System
 
@@ -207,7 +207,7 @@ When any required value is missing, the page renders `评论功能尚未配置` 
 
 ## Project Boundary
 
-Create the project in `E:/ShortTime/shortTimeSpace/mizuki-blog`. The Git repository root is `E:/ShortTime/shortTimeSpace`; do not modify the unrelated `reverse` directory.
+Create the project in `E:/ShortTime/shortTimeSpace/zhaozhao-blog`. The Git repository root is `E:/ShortTime/shortTimeSpace`; do not modify the unrelated `reverse` directory.
 
 ## Acceptance Criteria
 

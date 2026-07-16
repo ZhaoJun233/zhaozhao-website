@@ -61,7 +61,7 @@ docker compose config
 ```bash
 docker build --target production \
   --build-arg PUBLIC_SITE_URL=https://example.com \
-  -t mizuki-blog:latest .
+  -t zhaozhao-blog:latest .
 ```
 
 头像路径由 `src/data/profile.json` 管理，分类由 `src/data/taxonomy.json` 管理。提交前使用 `git diff` 审核后台写入的内容变更。

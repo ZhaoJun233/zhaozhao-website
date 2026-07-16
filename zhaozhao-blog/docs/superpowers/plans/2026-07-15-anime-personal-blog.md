@@ -1,4 +1,4 @@
-# Mizuki Anime Personal Blog Implementation Plan
+# zhaozhao Anime Personal Blog Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- Repository root: `E:/ShortTime/shortTimeSpace`; project root: `E:/ShortTime/shortTimeSpace/mizuki-blog`; do not modify `reverse`.
+- Repository root: `E:/ShortTime/shortTimeSpace`; project root: `E:/ShortTime/shortTimeSpace/zhaozhao-blog`; do not modify `reverse`.
 - Runtime: Node 24.14.0 or newer; package manager: npm.
 - Site output is static, `base: "/"`, `trailingSlash: "always"`, language `zh-CN`, timezone `Asia/Shanghai`.
 - Use no Tailwind, React/Vue/Svelte integration, state library, particle library, or custom backend.
@@ -19,14 +19,14 @@
 - Client JavaScript is limited to navigation, theme, search, code copy, reading progress, project filters, and lazy Giscus.
 - All decorative motion must stop under `prefers-reduced-motion: reduce`.
 - Target WCAG 2.2 AA, zero serious/critical Axe violations, median mobile LCP below 2.5s, and CLS below 0.1.
-- Run commands from `E:/ShortTime/shortTimeSpace/mizuki-blog` unless a step states otherwise.
+- Run commands from `E:/ShortTime/shortTimeSpace/zhaozhao-blog` unless a step states otherwise.
 
 ---
 
 ## File Map
 
 ```text
-mizuki-blog/
+zhaozhao-blog/
   astro.config.mjs                 # Static build, site URL, sitemap, Markdown settings
   package.json                     # Scripts and pinned dependencies
   playwright.config.ts             # Preview-backed cross-viewport browser tests
@@ -87,7 +87,7 @@ mizuki-blog/
 
 ```json
 {
-  "name": "mizuki-blog",
+  "name": "zhaozhao-blog",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -175,14 +175,14 @@ export type SiteConfig = {
 };
 
 export const siteConfig: SiteConfig = {
-  name: "Mizuki.",
-  title: "Mizuki. - 动画、代码与生活碎片",
+  name: "zhaozhao.",
+  title: "zhaozhao. - 动画、代码与生活碎片",
   description: "记录动画、开发与日常灵感的个人博客。",
   locale: "zh-CN",
   timeZone: "Asia/Shanghai",
   siteUrl: import.meta.env.PUBLIC_SITE_URL ?? "http://localhost:4321",
   pageSize: 8,
-  author: { name: "Mizuki", bio: "在动画、代码与海风之间记录生活。" },
+  author: { name: "zhaozhao", bio: "在动画、代码与海风之间记录生活。" },
   navigation: [
     { label: "首页", href: "/" }, { label: "文章", href: "/posts/" },
     { label: "分类", href: "/categories/" }, { label: "归档", href: "/archive/" },
@@ -209,7 +209,7 @@ Expected: the unit test passes; Astro check reports no errors.
 - [ ] **Step 8: Commit the bootstrap**
 
 ```powershell
-git add mizuki-blog/package.json mizuki-blog/package-lock.json mizuki-blog/astro.config.mjs mizuki-blog/tsconfig.json mizuki-blog/vitest.config.ts mizuki-blog/.env.example mizuki-blog/src/env.d.ts mizuki-blog/src/config/site.ts mizuki-blog/tests/unit/site-config.test.ts
+git add zhaozhao-blog/package.json zhaozhao-blog/package-lock.json zhaozhao-blog/astro.config.mjs zhaozhao-blog/tsconfig.json zhaozhao-blog/vitest.config.ts zhaozhao-blog/.env.example zhaozhao-blog/src/env.d.ts zhaozhao-blog/src/config/site.ts zhaozhao-blog/tests/unit/site-config.test.ts
 git commit -m "chore: bootstrap Astro blog"
 ```
 
@@ -288,7 +288,7 @@ Expected: all tests pass; collection configuration has no type errors.
 - [ ] **Step 6: Commit the content domain**
 
 ```powershell
-git add mizuki-blog/src/content.config.ts mizuki-blog/src/lib mizuki-blog/tests/unit/content.test.ts mizuki-blog/tests/unit/slug.test.ts
+git add zhaozhao-blog/src/content.config.ts zhaozhao-blog/src/lib zhaozhao-blog/tests/unit/content.test.ts zhaozhao-blog/tests/unit/slug.test.ts
 git commit -m "feat: add typed content domain"
 ```
 
@@ -356,7 +356,7 @@ Create these posts with 500-900 Chinese characters each, headings, lists, links,
 5. `reading-workflow.md` - `我的长文阅读与摘录流程`
 6. `blog-design-log.md` - `这间网络小屋的设计记录`
 
-Create projects `anime-watchlist.md`, `photo-notes.md`, and `mizuki-blog.md` with active/completed states and honest demonstration repository/demo links omitted.
+Create projects `anime-watchlist.md`, `photo-notes.md`, and `zhaozhao-blog.md` with active/completed states and honest demonstration repository/demo links omitted.
 
 - [ ] **Step 5: Run data and collection verification**
 
@@ -367,7 +367,7 @@ Expected: tests pass and all nine entries satisfy collection schemas.
 - [ ] **Step 6: Commit content and approved artwork**
 
 ```powershell
-git add mizuki-blog/src/assets mizuki-blog/src/data mizuki-blog/src/content mizuki-blog/tests/unit/data.test.ts
+git add zhaozhao-blog/src/assets zhaozhao-blog/src/data zhaozhao-blog/src/content zhaozhao-blog/tests/unit/data.test.ts
 git commit -m "content: add artwork and sample writing"
 ```
 
@@ -422,7 +422,7 @@ Define separate neutral, cyan, pink, success, warning, border, overlay, focus, a
 
 - [ ] **Step 4: Implement the HTML shell and theme bootstrap**
 
-`BaseLayout` renders `<html lang="zh-CN">`, `SeoHead`, skip link, Header, main slot, and Footer. An inline head script reads `localStorage.getItem("mizuki-theme")`, resolves `system`, and applies `data-theme` before CSS paint. `theme.ts` updates the attribute, control state, and storage.
+`BaseLayout` renders `<html lang="zh-CN">`, `SeoHead`, skip link, Header, main slot, and Footer. An inline head script reads `localStorage.getItem("zhaozhao-theme")`, resolves `system`, and applies `data-theme` before CSS paint. `theme.ts` updates the attribute, control state, and storage.
 
 - [ ] **Step 5: Implement responsive navigation**
 
@@ -437,7 +437,7 @@ Expected: all commands pass and generated HTML contains one `<main>`, one canoni
 - [ ] **Step 7: Commit the foundation**
 
 ```powershell
-git add mizuki-blog/src/styles mizuki-blog/src/layouts mizuki-blog/src/components/layout mizuki-blog/src/components/seo mizuki-blog/src/components/ui/ThemeToggle.astro mizuki-blog/src/scripts/theme.ts mizuki-blog/src/scripts/navigation.ts mizuki-blog/src/lib/seo.ts mizuki-blog/tests/unit/seo.test.ts
+git add zhaozhao-blog/src/styles zhaozhao-blog/src/layouts zhaozhao-blog/src/components/layout zhaozhao-blog/src/components/seo zhaozhao-blog/src/components/ui/ThemeToggle.astro zhaozhao-blog/src/scripts/theme.ts zhaozhao-blog/src/scripts/navigation.ts zhaozhao-blog/src/lib/seo.ts zhaozhao-blog/tests/unit/seo.test.ts
 git commit -m "feat: add visual foundation and site shell"
 ```
 
@@ -494,7 +494,7 @@ Expected: all commands pass; `dist/posts/`, category/tag routes, and `dist/archi
 - [ ] **Step 7: Commit content discovery routes**
 
 ```powershell
-git add mizuki-blog/src/components/blog mizuki-blog/src/pages/posts mizuki-blog/src/pages/categories mizuki-blog/src/pages/tags mizuki-blog/src/pages/archive.astro mizuki-blog/src/lib/content.ts mizuki-blog/tests/unit/content.test.ts
+git add zhaozhao-blog/src/components/blog zhaozhao-blog/src/pages/posts zhaozhao-blog/src/pages/categories zhaozhao-blog/src/pages/tags zhaozhao-blog/src/pages/archive.astro zhaozhao-blog/src/lib/content.ts zhaozhao-blog/tests/unit/content.test.ts
 git commit -m "feat: add article discovery routes"
 ```
 
@@ -526,7 +526,7 @@ test("desktop hero keeps the complete source image visible", async ({ page }) =>
   const image = page.getByTestId("home-hero-image");
   await expect(image).toBeVisible();
   await expect(image).toHaveCSS("object-fit", "contain");
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("Mizuki");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("zhaozhao");
 });
 
 test("mobile moves copy below the artwork", async ({ page }) => {
@@ -561,7 +561,7 @@ Expected: PASS at 320, 390, 768, 1440, and 1920 projects; no text/image overlap.
 - [ ] **Step 6: Commit the home page**
 
 ```powershell
-git add mizuki-blog/src/components/home mizuki-blog/src/scripts/hero-typing.ts mizuki-blog/src/pages/index.astro mizuki-blog/tests/e2e/home.spec.ts mizuki-blog/playwright.config.ts
+git add zhaozhao-blog/src/components/home zhaozhao-blog/src/scripts/hero-typing.ts zhaozhao-blog/src/pages/index.astro zhaozhao-blog/tests/e2e/home.spec.ts zhaozhao-blog/playwright.config.ts
 git commit -m "feat: build immersive home page"
 ```
 
@@ -616,7 +616,7 @@ Expected: all article tests pass; built HTML includes `BlogPosting` JSON-LD and 
 - [ ] **Step 7: Commit the reading experience**
 
 ```powershell
-git add mizuki-blog/src/layouts/PostLayout.astro mizuki-blog/src/components/blog mizuki-blog/src/components/integrations/Giscus.astro mizuki-blog/src/scripts/article.ts mizuki-blog/src/scripts/comments.ts mizuki-blog/src/pages/posts mizuki-blog/tests/e2e/article.spec.ts
+git add zhaozhao-blog/src/layouts/PostLayout.astro zhaozhao-blog/src/components/blog zhaozhao-blog/src/components/integrations/Giscus.astro zhaozhao-blog/src/scripts/article.ts zhaozhao-blog/src/scripts/comments.ts zhaozhao-blog/src/pages/posts zhaozhao-blog/tests/e2e/article.spec.ts
 git commit -m "feat: add polished article reading"
 ```
 
@@ -664,7 +664,7 @@ About uses the approved Bilibili cover with its focal point, profile, interests,
 
 - [ ] **Step 5: Implement recovery and generated assets**
 
-404 offers home, search, and three recent posts. RSS uses the shared published/sorted content query. `robots.txt.ts` derives sitemap from `Astro.site`. Manifest and favicon use the Mizuki sea-cyan/sakura-pink identity without an SVG illustration.
+404 offers home, search, and three recent posts. RSS uses the shared published/sorted content query. `robots.txt.ts` derives sitemap from `Astro.site`. Manifest and favicon use the zhaozhao sea-cyan/sakura-pink identity without an SVG illustration.
 
 - [ ] **Step 6: Verify every supporting route**
 
@@ -675,7 +675,7 @@ Expected: tests pass and all route-contract files exist in `dist`.
 - [ ] **Step 7: Commit supporting features**
 
 ```powershell
-git add mizuki-blog/src/components/project mizuki-blog/src/scripts/project-filters.ts mizuki-blog/src/pages mizuki-blog/public mizuki-blog/tests/e2e/supporting-pages.spec.ts
+git add zhaozhao-blog/src/components/project zhaozhao-blog/src/scripts/project-filters.ts zhaozhao-blog/src/pages zhaozhao-blog/public zhaozhao-blog/tests/e2e/supporting-pages.spec.ts
 git commit -m "feat: add projects and supporting pages"
 ```
 
@@ -731,7 +731,7 @@ Expected: all search, filters, empty state, focus, and keyboard tests pass.
 - [ ] **Step 6: Commit search**
 
 ```powershell
-git add mizuki-blog/src/components/ui/SearchDialog.astro mizuki-blog/src/components/integrations/PagefindSearch.astro mizuki-blog/src/scripts/search.ts mizuki-blog/src/pages/search.astro mizuki-blog/src/components/layout/Header.astro mizuki-blog/tests/e2e/search.spec.ts
+git add zhaozhao-blog/src/components/ui/SearchDialog.astro zhaozhao-blog/src/components/integrations/PagefindSearch.astro zhaozhao-blog/src/scripts/search.ts zhaozhao-blog/src/pages/search.astro zhaozhao-blog/src/components/layout/Header.astro zhaozhao-blog/tests/e2e/search.spec.ts
 git commit -m "feat: add Pagefind search experience"
 ```
 
@@ -772,7 +772,7 @@ Expected: all projects pass with no retries required. Inspect 1440, 390, and 256
 - [ ] **Step 5: Commit cross-device quality fixes**
 
 ```powershell
-git add mizuki-blog/tests/e2e mizuki-blog/playwright.config.ts mizuki-blog/src
+git add zhaozhao-blog/tests/e2e zhaozhao-blog/playwright.config.ts zhaozhao-blog/src
 git commit -m "test: verify accessibility and responsive UX"
 ```
 
@@ -842,7 +842,7 @@ Expected: preview stays running at `http://127.0.0.1:4321/`; Pagefind search wor
 - [ ] **Step 7: Commit documentation and final audit**
 
 ```powershell
-git add mizuki-blog/README.md mizuki-blog/docs mizuki-blog/scripts/verify-build.mjs mizuki-blog/lighthouserc.cjs mizuki-blog/package.json mizuki-blog/package-lock.json
+git add zhaozhao-blog/README.md zhaozhao-blog/docs zhaozhao-blog/scripts/verify-build.mjs zhaozhao-blog/lighthouserc.cjs zhaozhao-blog/package.json zhaozhao-blog/package-lock.json
 git commit -m "docs: add authoring and deployment guide"
 ```
 

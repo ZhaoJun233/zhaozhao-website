@@ -9,7 +9,7 @@ const temporaryDirectories: string[] = [];
 const databases: ReturnType<typeof openBlogDatabase>[] = [];
 
 function createDatabase() {
-  const directory = mkdtempSync(join(tmpdir(), "mizuki-database-"));
+  const directory = mkdtempSync(join(tmpdir(), "zhaozhao-database-"));
   temporaryDirectories.push(directory);
   const database = openBlogDatabase(join(directory, "blog.sqlite"));
   databases.push(database);

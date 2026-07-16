@@ -128,7 +128,7 @@ test("runtime sitemap contains current content routes", async ({ request }) => {
   expect(response.ok()).toBe(true);
   const xml = await response.text();
   expect(xml).toContain("/posts/summer-anime-notes/");
-  expect(xml).toContain("/projects/mizuki-blog/");
+  expect(xml).toContain("/projects/zhaozhao-blog/");
   expect(xml).toContain("/friends/");
 });
 

@@ -21,12 +21,12 @@
 
 ## Docker 数据持久化
 
-生产数据库路径为 `/app/storage/blog.sqlite`，保存在 Compose 命名卷 `mizuki-blog_blog-data` 中。执行 `docker compose up -d --build` 或重建容器不会删除该卷。
+生产数据库路径为 `/app/storage/blog.sqlite`，保存在 Compose 命名卷 `zhaozhao-blog_blog-data` 中。执行 `docker compose up -d --build` 或重建容器不会删除该卷。
 
 查看卷：
 
 ```powershell
-docker volume inspect mizuki-blog_blog-data
+docker volume inspect zhaozhao-blog_blog-data
 ```
 
 只停止服务：

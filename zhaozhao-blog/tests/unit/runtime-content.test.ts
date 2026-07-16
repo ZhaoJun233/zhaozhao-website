@@ -15,7 +15,7 @@ describe("runtime content repository", () => {
   let directory: string;
 
   beforeEach(() => {
-    directory = mkdtempSync(join(tmpdir(), "mizuki-runtime-"));
+    directory = mkdtempSync(join(tmpdir(), "zhaozhao-runtime-"));
     process.env.BLOG_DATABASE_PATH = join(directory, "blog.sqlite");
     const database = openBlogDatabase(process.env.BLOG_DATABASE_PATH);
     initializeBlogDatabase(database, resolve("src"));

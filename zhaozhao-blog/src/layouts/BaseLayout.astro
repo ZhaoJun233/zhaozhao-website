@@ -41,7 +41,7 @@ const structuredData = jsonLd ?? (type === "website" ? buildWebsiteJsonLd({
   authorName: runtimeProfile.name,
   authorBio: runtimeProfile.bio,
 }) : undefined);
-const themeBootstrap = `(() => { try { const saved = localStorage.getItem("mizuki-theme"); const preference = saved === "light" || saved === "dark" || saved === "system" ? saved : "system"; const theme = preference === "system" ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light") : preference; document.documentElement.dataset.theme = theme; document.documentElement.style.colorScheme = theme; } catch { document.documentElement.dataset.theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"; } })();`;
+const themeBootstrap = `(() => { try { const saved = localStorage.getItem("zhaozhao-theme"); const preference = saved === "light" || saved === "dark" || saved === "system" ? saved : "system"; const theme = preference === "system" ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light") : preference; document.documentElement.dataset.theme = theme; document.documentElement.style.colorScheme = theme; } catch { document.documentElement.dataset.theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"; } })();`;
 ---
 
 <!doctype html>
