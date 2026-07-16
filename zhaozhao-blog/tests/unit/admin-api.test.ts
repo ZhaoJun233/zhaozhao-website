@@ -72,8 +72,20 @@ describe("administrator content operations", () => {
       description: "数据库说明",
       bio: "数据库简介",
       avatar: "/src/assets/profile/avatar.jpg",
+      occupation: "独立开发者",
+      location: "杭州",
+      motto: "持续记录，持续创造。",
+      email: "hello@example.com",
+      website: "https://example.com/",
     }) as { name: string };
     expect(profile.name).toBe("数据库博主");
+    expect(profile).toMatchObject({
+      occupation: "独立开发者",
+      location: "杭州",
+      motto: "持续记录，持续创造。",
+      email: "hello@example.com",
+      website: "https://example.com/",
+    });
     database.close();
   });
 

@@ -22,16 +22,5 @@
       { "name": "Marked", "role": "运行时 Markdown 渲染", "license": "MIT", "url": "https://github.com/markedjs/marked" },
       { "name": "Giscus", "role": "基于 Discussions 的留言与评论", "license": "MIT", "url": "https://github.com/giscus/giscus" }
     ]
-  },
-  "discussionSetup": {
-    "eyebrow": "Setup · Giscus",
-    "heading": "用四个环境变量打开讨论区",
-    "introduction": "文章评论按路径映射，留言簿固定使用 guestbook。四项配置缺少任意一项时，页面会保留说明状态，不加载远程脚本。",
-    "steps": [
-      { "title": "准备 Discussions", "description": "在 GitHub 仓库设置中启用 Discussions，并创建允许访客发言的分类。" },
-      { "title": "安装 Giscus App", "description": "为目标仓库安装 Giscus App，随后在 giscus.app 读取仓库与分类 ID。" },
-      { "title": "填写四项变量", "description": "把生成的真实值写入本地 .env 或部署平台的环境变量。" },
-      { "title": "重新构建", "description": "重新执行生产构建；配置齐全后，讨论区会在接近视口时按需加载。" }
-    ]
   }
 }

@@ -3,5 +3,10 @@
   "siteTitle": "代码与生活碎片",
   "description": "记录动画、开发与日常灵感的个人博客。",
   "bio": "在代码与海风之间记录生活。",
-  "avatar": "/src/assets/profile/b_661194cb40c25792a896f0450f4e2736.jpg"
+  "avatar": "/src/assets/profile/b_661194cb40c25792a896f0450f4e2736.jpg",
+  "occupation": "",
+  "location": "",
+  "motto": "",
+  "email": "",
+  "website": ""
 }

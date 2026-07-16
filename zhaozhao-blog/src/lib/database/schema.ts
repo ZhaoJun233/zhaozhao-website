@@ -84,6 +84,61 @@ const schema = `
   );
 `;
 
+const profileDetailsDefaults = {
+  occupation: "",
+  location: "",
+  motto: "",
+  email: "",
+  website: "",
+};
+
+function migrateProfileDetails(database: DatabaseSync): void {
+  const version = "profile-details-v1";
+  if (database.prepare("SELECT 1 FROM schema_migrations WHERE version = ?").get(version)) return;
+  const row = database.prepare("SELECT value_json FROM site_settings WHERE key = 'profile'")
+    .get() as { value_json?: string } | undefined;
+  if (!row?.value_json) return;
+
+  database.exec("BEGIN IMMEDIATE");
+  try {
+    const profile = JSON.parse(row.value_json) as Record<string, unknown>;
+    const migrated = { ...profile };
+    for (const [key, value] of Object.entries(profileDetailsDefaults)) {
+      if (typeof migrated[key] !== "string") migrated[key] = value;
+    }
+    database.prepare("UPDATE site_settings SET value_json = ?, updated_at = ? WHERE key = 'profile'")
+      .run(JSON.stringify(migrated), new Date().toISOString());
+    database.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)")
+      .run(version, new Date().toISOString());
+    database.exec("COMMIT");
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+function removeRetiredGiscusSetup(database: DatabaseSync): void {
+  const version = "remove-giscus-setup-v1";
+  if (database.prepare("SELECT 1 FROM schema_migrations WHERE version = ?").get(version)) return;
+  const row = database.prepare("SELECT value_json FROM site_settings WHERE key = 'credits'")
+    .get() as { value_json?: string } | undefined;
+  if (!row?.value_json) return;
+
+  database.exec("BEGIN IMMEDIATE");
+  try {
+    const credits = JSON.parse(row.value_json) as Record<string, unknown>;
+    delete credits.discussionSetup;
+    database.prepare("UPDATE site_settings SET value_json = ?, updated_at = ? WHERE key = 'credits'")
+      .run(JSON.stringify(credits), new Date().toISOString());
+    database.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)")
+      .run(version, new Date().toISOString());
+    database.exec("COMMIT");
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  }
+}
+
 export function initializeBlogDatabase(database: DatabaseSync, contentRoot: string): void {
   database.exec(schema);
   if (!database.prepare("SELECT 1 FROM schema_migrations WHERE version = ?").get("schema-v1")) {
@@ -97,4 +152,6 @@ export function initializeBlogDatabase(database: DatabaseSync, contentRoot: stri
     ).run("schema-v2-messages", new Date().toISOString());
   }
   seedFromContentFiles(database, contentRoot);
+  migrateProfileDetails(database);
+  removeRetiredGiscusSetup(database);
 }

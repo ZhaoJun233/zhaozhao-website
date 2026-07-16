@@ -32,6 +32,11 @@ const profileSchema = z.object({
   description: requiredText,
   bio: requiredText,
   avatar: requiredText,
+  occupation: z.string(),
+  location: z.string(),
+  motto: z.string(),
+  email: z.string(),
+  website: z.string(),
 });
 const taxonomySchema = z.object({
   categories: z.array(z.object({ name: requiredText, description: optionalText })).min(1),

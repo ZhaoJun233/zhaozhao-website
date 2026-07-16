@@ -84,6 +84,12 @@ test("credits records the exact approved Bilibili artwork metadata", async ({ pa
   );
 });
 
+test("credits omits the Giscus environment setup section", async ({ page }) => {
+  await page.goto("/credits/");
+  await expect(page.getByRole("heading", { name: "用四个环境变量打开讨论区" })).toHaveCount(0);
+  await expect(page.locator("#giscus-setup")).toHaveCount(0);
+});
+
 test("404 page offers direct home and search recovery", async ({ page }) => {
   await page.goto("/missing-supporting-route/");
 

@@ -84,6 +84,11 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .admin-setting-tabs { display: flex; flex-wrap: wrap; gap: .45rem; margin-block-end: 1rem; }
 .admin-setting-tabs button[aria-pressed="true"] { border-color: #086d77; background: #dff2f1; color: #08616a; }
 .admin-setting-editor { padding: 1.25rem; border: 1px solid #dfdcd6; border-radius: .55rem; background: #fff; }
+.admin-setting-editor[data-setting-key="profile"] { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .85rem 1rem; }
+.admin-setting-editor[data-setting-key="profile"] > [data-setting-field="description"],
+.admin-setting-editor[data-setting-key="profile"] > [data-setting-field="bio"],
+.admin-setting-editor[data-setting-key="profile"] > [data-setting-field="avatar"],
+.admin-setting-editor[data-setting-key="profile"] > [data-setting-field="motto"] { grid-column: 1 / -1; }
 .admin-setting-group { display: grid; gap: .8rem; margin: 0 0 1rem; padding: 1rem; border: 1px solid #ebe8e2; }
 .admin-setting-group legend { padding: 0 .4rem; color: #08616a; font-size: .7rem; font-weight: 760; }
 .admin-data-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
@@ -114,4 +119,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .admin-main { padding: 1rem; }
   .admin-grid { grid-template-columns: repeat(2, 1fr); }
   .admin-quicklinks, .admin-data-actions { grid-template-columns: 1fr; }
+  .admin-setting-editor[data-setting-key="profile"] { grid-template-columns: 1fr; }
+  .admin-setting-editor[data-setting-key="profile"] > [data-setting-field] { grid-column: auto; }
 }

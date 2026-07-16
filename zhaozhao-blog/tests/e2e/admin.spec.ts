@@ -7,6 +7,7 @@ test.beforeEach(({}, testInfo) => {
 test("administrator manages friends and moderates guestbook messages", async ({ page }) => {
   const friendName = `端到端友链-${Date.now()}`;
   const visitorName = `留言访客-${Date.now()}`;
+  const importedSlug = `e2e-markdown-${Date.now()}`;
 
   await page.goto("/admin/");
   await expect(page).toHaveURL(/\/admin\/login\/$/);
@@ -15,11 +16,33 @@ test("administrator manages friends and moderates guestbook messages", async ({ 
   await expect(page.getByRole("heading", { level: 1, name: "后台概览" })).toBeVisible();
   await expect(page.getByRole("link", { name: "留言", exact: true })).toBeVisible();
 
+  await page.goto("/admin/posts/");
+  await page.locator("[data-import-post-file]").setInputFiles({
+    name: `${importedSlug}.md`,
+    mimeType: "text/markdown",
+    buffer: Buffer.from(`---
+title: 端到端 Markdown 导入
+description: 验证后台能够直接导入 Markdown 文件。
+publishedAt: 2026-07-16
+category: 开发
+tags: 测试, Markdown
+---
+导入正文。
+`),
+  });
+  const importedRow = page.locator("tr").filter({ hasText: "端到端 Markdown 导入" });
+  await expect(importedRow).toBeVisible();
+  await expect(importedRow.getByText("草稿", { exact: true })).toBeVisible();
+  page.once("dialog", (dialog) => dialog.accept());
+  await importedRow.getByRole("button", { name: /删除/ }).click();
+  await expect(page.getByText("端到端 Markdown 导入", { exact: true })).toHaveCount(0);
+
   await page.goto("/admin/friends/");
   await page.getByLabel("站点名称").fill(friendName);
   await page.getByLabel("网址").fill("https://e2e-friend.example/");
   await page.getByLabel("介绍").fill("用于验证数据库友链管理。" );
   await page.getByLabel("兴趣标签").fill("测试, 博客");
+  await page.getByLabel("在前台展示").uncheck();
   await page.getByRole("button", { name: /保存友链/ }).click();
   await expect(page.getByText(friendName, { exact: true })).toBeVisible();
 

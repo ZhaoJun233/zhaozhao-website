@@ -145,12 +145,6 @@ export const creditsSchema = z.object({
     linkLabel: text,
     items: z.array(z.object({ name: text, role: text, license: text, url: httpUrl })).min(1).max(30),
   }),
-  discussionSetup: z.object({
-    eyebrow: text,
-    heading: text,
-    introduction: text,
-    steps: z.array(z.object({ title: text, description: text })).min(1).max(12),
-  }),
 });
 
 const indexPage = z.object({

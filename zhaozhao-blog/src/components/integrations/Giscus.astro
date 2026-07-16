@@ -12,7 +12,7 @@ const isConfigured = [repo, repoId, category, categoryId].every(
 );
 ---
 
-{isConfigured ? (
+{isConfigured && (
   <div
     class="giscus-placeholder"
     data-giscus-root
@@ -25,17 +25,6 @@ const isConfigured = [repo, repoId, category, categoryId].every(
   >
     <p data-giscus-status>评论将在靠近这里时加载。</p>
   </div>
-) : (
-  <div class="giscus-unconfigured" role="status">
-    <span aria-hidden="true">✦</span>
-    <div>
-      <h3>评论功能尚未配置</h3>
-      <p>
-        完成 Giscus 环境变量后，讨论区会在这里出现。
-        <a href="/credits/#giscus-setup">查看配置说明</a>
-      </p>
-    </div>
-  </div>
 )}
 
 <script>
@@ -43,8 +32,7 @@ const isConfigured = [repo, repoId, category, categoryId].every(
 </script>
 
 <style>
-  .giscus-placeholder,
-  .giscus-unconfigured {
+  .giscus-placeholder {
     min-block-size: 8rem;
     padding: clamp(1.25rem, 4vw, 2rem);
     border: 1px solid var(--color-border);
@@ -71,37 +59,4 @@ const isConfigured = [repo, repoId, category, categoryId].every(
     background: transparent;
   }
 
-  .giscus-unconfigured {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: start;
-    gap: 1rem;
-  }
-
-  .giscus-unconfigured > span {
-    display: grid;
-    inline-size: 2.2rem;
-    block-size: 2.2rem;
-    place-items: center;
-    border-radius: 50%;
-    background: var(--color-accent-soft);
-    color: var(--color-accent-strong);
-  }
-
-  .giscus-unconfigured h3 {
-    margin: 0 0 0.35rem;
-    font-family: var(--font-sans);
-    font-size: 0.94rem;
-  }
-
-  .giscus-unconfigured p {
-    margin: 0;
-    color: var(--color-text-muted);
-    font-size: 0.82rem;
-  }
-
-  .giscus-unconfigured a {
-    color: var(--color-accent-strong);
-    font-weight: 700;
-  }
 </style>

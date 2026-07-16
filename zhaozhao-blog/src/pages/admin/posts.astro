@@ -1,5 +1,5 @@
 ---
-import { Pencil, Plus, Save, Trash2, X } from "lucide-astro";
+import { FileUp, Pencil, Plus, Save, Trash2, X } from "lucide-astro";
 import AdminShell from "../../components/admin/AdminShell.astro";
 import AdminLayout from "../../layouts/AdminLayout.astro";
 import { listCategories, listPosts } from "../../lib/database/admin-repository";
@@ -21,7 +21,11 @@ const config = { endpoint: "/api/admin/posts", confirmName: "文章", fields: [
 
 <AdminLayout title="文章管理">
   <AdminShell active="posts" title="文章管理" description="正文、草稿、分类与发布信息都保存在数据库。">
-    <button slot="actions" class="admin-button admin-button--primary" type="button" data-create-record><Plus size={16} />新建文章</button>
+    <div slot="actions" class="admin-actions">
+      <input type="file" accept=".md,.markdown,text/markdown" data-import-post-file hidden />
+      <button class="admin-button" type="button" data-import-post><FileUp size={16} />导入 Markdown</button>
+      <button class="admin-button admin-button--primary" type="button" data-create-record><Plus size={16} />新建文章</button>
+    </div>
     <div class="admin-split" data-record-page>
       <section class="admin-panel" style="margin:0">
         <div class="admin-panel__header"><div><h2>文章列表</h2><p>{posts.length} 篇文章，其中 {posts.filter(({ draft }) => draft).length} 篇草稿。</p></div></div>

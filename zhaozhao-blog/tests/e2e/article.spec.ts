@@ -59,18 +59,15 @@ test("code copy writes the rendered source to the clipboard", async ({ page }) =
   ).__copiedCode)).toContain("const post = z.object");
 });
 
-test("missing Giscus configuration shows setup guidance without loading its client", async ({ page }) => {
+test("missing Giscus configuration hides the discussion area and its client", async ({ page }) => {
   const giscusRequests: string[] = [];
   page.on("request", (request) => {
     if (request.url().includes("giscus.app/client.js")) giscusRequests.push(request.url());
   });
 
   await page.goto(articlePath);
-  await expect(page.getByText("评论功能尚未配置", { exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: "查看配置说明" })).toHaveAttribute(
-    "href",
-    "/credits/#giscus-setup",
-  );
+  await expect(page.getByRole("heading", { name: "评论", exact: true })).toHaveCount(0);
+  await expect(page.getByText("评论功能尚未配置", { exact: true })).toHaveCount(0);
   expect(giscusRequests).toEqual([]);
   await expect(page.locator('script[src="https://giscus.app/client.js"]')).toHaveCount(0);
 });

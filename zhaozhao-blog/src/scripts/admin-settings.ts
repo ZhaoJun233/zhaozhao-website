@@ -7,13 +7,28 @@ const tabs = [...document.querySelectorAll<HTMLButtonElement>("[data-setting-key
 let activeKey = tabs[0]?.dataset.settingKey ?? "profile";
 let activeValue: unknown;
 
+const fieldLabels: Record<string, string> = {
+  name: "昵称",
+  siteTitle: "站点副标题",
+  description: "站点简介",
+  bio: "个人简介",
+  avatar: "头像路径",
+  occupation: "职业 / 身份",
+  location: "所在地",
+  motto: "个性签名",
+  email: "联系邮箱",
+  website: "个人网站",
+};
+
 function titleFor(key: string) {
-  return key.replaceAll("_", " ");
+  return fieldLabels[key] ?? key.replaceAll("_", " ");
 }
 
 function createControl(value: unknown, path: Array<string | number>): HTMLElement {
   const wrapper = document.createElement("div");
   wrapper.className = "admin-field";
+  const fieldName = String(path.at(-1));
+  wrapper.dataset.settingField = fieldName;
   const pathValue = JSON.stringify(path);
   if (typeof value === "boolean") {
     const label = document.createElement("label");
@@ -31,7 +46,9 @@ function createControl(value: unknown, path: Array<string | number>): HTMLElemen
   const label = document.createElement("label");
   label.textContent = titleFor(String(path.at(-1)));
   const complexArray = Array.isArray(value) && value.some((item) => typeof item === "object");
-  const longText = typeof value === "string" && (value.length > 80 || value.includes("\n"));
+  const longText = typeof value === "string" && (
+    value.length > 80 || value.includes("\n") || ["description", "bio", "motto"].includes(fieldName)
+  );
   const array = Array.isArray(value);
   const control = complexArray || longText || array
     ? document.createElement("textarea")
@@ -41,6 +58,10 @@ function createControl(value: unknown, path: Array<string | number>): HTMLElemen
   control.value = complexArray
     ? JSON.stringify(value, null, 2)
     : array ? value.join("\n") : String(value ?? "");
+  if (control instanceof HTMLInputElement) {
+    if (fieldName === "email") control.type = "email";
+    if (fieldName === "website") control.type = "url";
+  }
   if (complexArray) control.style.minBlockSize = "12rem";
   wrapper.append(label, control);
   return wrapper;
@@ -79,6 +100,7 @@ async function loadSetting(key: string) {
   if (!response.ok) throw new Error(result.error ?? "读取设置失败。");
   activeKey = key;
   activeValue = result.data;
+  editor.dataset.settingKey = key;
   editor.replaceChildren(renderObject(result.data));
   tabs.forEach((tab) => tab.setAttribute("aria-pressed", String(tab.dataset.settingKey === key)));
   status.textContent = "";

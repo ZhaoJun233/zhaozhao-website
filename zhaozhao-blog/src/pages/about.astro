@@ -1,5 +1,5 @@
 ---
-import { ExternalLink, Rss } from "lucide-astro";
+import { BriefcaseBusiness, ExternalLink, Globe2, Mail, MapPin, Rss } from "lucide-astro";
 import { loadRuntimeEditorial, loadRuntimeProfile } from "../lib/runtime-content";
 import BaseLayout from "../layouts/BaseLayout.astro";
 
@@ -7,6 +7,12 @@ const [profile, editorial] = await Promise.all([loadRuntimeProfile(), loadRuntim
 const aboutContent = editorial.about;
 const artwork = editorial.artwork.aboutSummerDream;
 const { hero, interests, workbench, timeline } = aboutContent;
+const profileDetails = [
+  { label: "职业", value: profile.occupation, href: undefined, icon: BriefcaseBusiness },
+  { label: "所在地", value: profile.location, href: undefined, icon: MapPin },
+  { label: "邮箱", value: profile.email, href: profile.email ? `mailto:${profile.email}` : undefined, icon: Mail },
+  { label: "个人网站", value: profile.website, href: profile.website || undefined, icon: Globe2 },
+].filter(({ value }) => value);
 ---
 
 <BaseLayout
@@ -54,6 +60,19 @@ const { hero, interests, workbench, timeline } = aboutContent;
         <p class="eyebrow">{hero.eyebrow}</p>
         <h1 id="about-title">{profile.name}</h1>
         <p class="about-profile__bio">{profile.bio}</p>
+        {profile.motto && <blockquote class="about-profile__motto">{profile.motto}</blockquote>}
+        {profileDetails.length > 0 && (
+          <dl class="about-profile__details">
+            {profileDetails.map(({ label, value, href, icon: Icon }) => (
+              <div>
+                <dt><Icon size={14} stroke-width={1.8} aria-hidden="true" />{label}</dt>
+                <dd>{href
+                  ? <a href={href} target={href.startsWith("http") ? "_blank" : undefined} rel={href.startsWith("http") ? "noreferrer noopener" : undefined}>{value}</a>
+                  : value}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
         <p>
           {hero.introduction}
         </p>
@@ -257,6 +276,54 @@ const { hero, interests, workbench, timeline } = aboutContent;
     margin: 1.1rem 0 0 !important;
     color: var(--color-text) !important;
     font-weight: 720;
+  }
+
+  .about-profile__motto {
+    margin: 0.85rem 0 0;
+    padding-inline-start: 0.85rem;
+    border-inline-start: 2px solid var(--color-pink);
+    color: var(--color-text-soft);
+    font-family: var(--font-serif);
+    font-size: 0.82rem;
+    font-style: italic;
+  }
+
+  .about-profile__details {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem 1.15rem;
+    margin: 1rem 0 0;
+  }
+
+  .about-profile__details div,
+  .about-profile__details dt {
+    display: flex;
+    align-items: center;
+  }
+
+  .about-profile__details div {
+    gap: 0.35rem;
+  }
+
+  .about-profile__details dt {
+    gap: 0.3rem;
+    color: var(--color-text-muted);
+    font-size: 0.64rem;
+  }
+
+  .about-profile__details dd {
+    margin: 0;
+    color: var(--color-text-soft);
+    font-size: 0.68rem;
+  }
+
+  .about-profile__details a {
+    color: var(--color-accent-strong);
+    text-decoration: none;
+  }
+
+  .about-profile__details a:hover {
+    text-decoration: underline;
   }
 
   .about-profile__copy > p:not(.eyebrow) {

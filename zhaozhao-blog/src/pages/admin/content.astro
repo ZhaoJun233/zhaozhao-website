@@ -11,7 +11,7 @@ const settings = [
 ---
 
 <AdminLayout title="页面内容">
-  <AdminShell active="content" title="页面内容" description="结构化维护个人资料、导航和各页面文案。">
+  <AdminShell active="content" title="页面内容" description="结构化维护详细个人资料、导航和各页面文案。">
     <form data-setting-form>
       <div class="admin-setting-tabs" role="toolbar" aria-label="页面内容区域">
         {settings.map(([key, label], index) => <button class="admin-button" type="button" data-setting-key={key} aria-pressed={index === 0 ? "true" : "false"}>{label}</button>)}

@@ -1,15 +1,21 @@
 ---
 import Giscus from "../integrations/Giscus.astro";
+import { siteConfig } from "../../config/site";
+
+const { repo, repoId, category, categoryId } = siteConfig.giscus;
+const isConfigured = [repo, repoId, category, categoryId].every(
+  (value) => typeof value === "string" && value.trim().length > 0,
+);
 ---
 
-<section class="comments" aria-labelledby="comments-title">
+{isConfigured && <section class="comments" aria-labelledby="comments-title">
   <header>
     <p class="eyebrow">Conversation · 留言</p>
     <h2 id="comments-title">评论</h2>
     <p>欢迎留下你的想法，也请让讨论保持温柔和具体。</p>
   </header>
   <Giscus />
-</section>
+</section>}
 
 <style>
   .comments {

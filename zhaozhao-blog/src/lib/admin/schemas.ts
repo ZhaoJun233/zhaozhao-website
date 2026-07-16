@@ -11,6 +11,9 @@ import {
 const text = z.string().trim().min(1);
 const optionalText = z.string().trim().transform((value) => value || undefined).optional();
 const httpUrl = z.url({ protocol: /^https?$/ });
+const blankText = z.string().trim().max(160);
+const blankEmail = z.union([z.literal(""), z.email()]);
+const blankHttpUrl = z.union([z.literal(""), httpUrl]);
 const slug = text.regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Slug 只能包含小写字母、数字和连字符。");
 const dateText = z.union([z.string(), z.date()]).transform((value, context) => {
   const date = value instanceof Date ? value : new Date(value);
@@ -76,6 +79,11 @@ export const profileSettingSchema = z.object({
   description: text,
   bio: text,
   avatar: text,
+  occupation: blankText,
+  location: blankText,
+  motto: blankText,
+  email: blankEmail,
+  website: blankHttpUrl,
 });
 
 export const artworkSettingSchema = z.object({
