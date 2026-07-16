@@ -1,13 +1,14 @@
 import { expect, test } from "@playwright/test";
+import profile from "../../src/data/profile.json";
 
 test("desktop hero keeps the complete source image visible", async ({ page }) => {
   await page.goto("/");
   const image = page.getByTestId("home-hero-image");
 
-  await expect(page.locator(".site-brand")).toHaveText("233昭");
+  await expect(page.locator(".site-brand")).toHaveText(profile.name);
   await expect(image).toBeVisible();
   await expect(image).toHaveCSS("object-fit", "contain");
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("233昭");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(profile.name);
 });
 
 test("mobile moves copy below the artwork", async ({ page }) => {

@@ -57,6 +57,15 @@ export type TaxonomyIndexItem = {
   count: number;
 };
 
+export type CategoryDefinition = {
+  name: string;
+  description?: string;
+};
+
+export type CategoryIndexItem = TaxonomyIndexItem & {
+  description?: string;
+};
+
 export function buildTaxonomyIndex(values: readonly string[]): TaxonomyIndexItem[] {
   const terms = new Map<string, TaxonomyIndexItem>();
 
@@ -83,6 +92,40 @@ export function buildTaxonomyIndex(values: readonly string[]): TaxonomyIndexItem
   return [...terms.values()].sort(
     (left, right) => right.count - left.count || left.label.localeCompare(right.label, "zh-CN"),
   );
+}
+
+export function buildCategoryIndex(
+  definitions: readonly CategoryDefinition[],
+  values: readonly string[],
+): CategoryIndexItem[] {
+  const usedCategories = buildTaxonomyIndex(values);
+  const usedBySlug = new Map(usedCategories.map((category) => [category.slug, category]));
+  const managedSlugs = new Set<string>();
+
+  const managedCategories = definitions.map(({ name, description }) => {
+    const label = name.trim();
+    const slug = taxonomySlug(label);
+
+    if (slug.length === 0) {
+      throw new Error(`Category name "${name}" produces an empty slug.`);
+    }
+    if (managedSlugs.has(slug)) {
+      throw new Error(`Managed category slug collision for "${name}".`);
+    }
+
+    managedSlugs.add(slug);
+    return {
+      label,
+      slug,
+      count: usedBySlug.get(slug)?.count ?? 0,
+      ...(description?.trim() ? { description: description.trim() } : {}),
+    };
+  });
+
+  return [
+    ...managedCategories,
+    ...usedCategories.filter(({ slug }) => !managedSlugs.has(slug)),
+  ];
 }
 
 export function paginate<T>(

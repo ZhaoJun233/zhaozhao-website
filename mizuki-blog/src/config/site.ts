@@ -4,7 +4,10 @@ const profileImages = import.meta.glob<{ default: ImageMetadata }>(
   "../assets/profile/*.{avif,gif,jpeg,jpg,png,webp}",
   { eager: true },
 );
-const avatarImage = profileImages[profile.avatar]?.default;
+const avatarFilename = profile.avatar.split("/").at(-1);
+const avatarImage = Object.entries(profileImages).find(([path]) =>
+  avatarFilename ? path.endsWith(`/${avatarFilename}`) : false,
+)?.[1].default;
 
 if (!avatarImage) {
   throw new Error(`Profile avatar does not exist: ${profile.avatar}`);

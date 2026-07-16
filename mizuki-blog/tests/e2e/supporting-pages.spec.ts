@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import profile from "../../src/data/profile.json";
 
 test("project filters expose one active status and a live result count", async ({ page }) => {
   await page.goto("/projects/");
@@ -52,8 +53,8 @@ test("friends page labels all four cards as demonstration data", async ({ page }
 test("about page prominently presents the author and approved artwork source", async ({ page }) => {
   await page.goto("/about/");
 
-  await expect(page.getByRole("heading", { level: 1, name: "233昭" })).toBeVisible();
-  await expect(page.getByRole("img", { name: "233昭 的头像" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: profile.name })).toBeVisible();
+  await expect(page.getByRole("img", { name: `${profile.name} 的头像` })).toBeVisible();
   await expect(page.getByRole("img", { name: "粉紫色海边的白发少女插画" })).toBeVisible();
   await expect(page.getByRole("link", { name: /查看《【动态壁纸】夏日白色绮梦》来源/ }))
     .toHaveAttribute("href", "https://www.bilibili.com/video/BV1NCjx6oEhj/");
@@ -75,7 +76,7 @@ test("guestbook renders the shared missing-Giscus state", async ({ page }) => {
 test("credits records the exact approved Bilibili artwork metadata", async ({ page }) => {
   await page.goto("/credits/");
 
-  await expect(page.getByText("233昭首页主视觉", { exact: true })).toBeVisible();
+  await expect(page.getByText(`${profile.name}首页主视觉`, { exact: true })).toBeVisible();
   await expect(page.getByText("BV1NCjx6oEhj", { exact: true })).toBeVisible();
   await expect(page.getByText("清水未萌_Minamo", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: /Bilibili 原视频/ })).toHaveAttribute(
@@ -121,8 +122,8 @@ test("web app manifest derives the editable author identity", async ({ request }
 
   const manifest = await response.json();
   expect(manifest).toMatchObject({
-    name: "233昭 - 动画、代码与生活碎片",
-    short_name: "233昭",
-    description: "记录动画、开发与日常灵感的个人博客。",
+    name: `${profile.name} - ${profile.siteTitle}`,
+    short_name: profile.name,
+    description: profile.description,
   });
 });

@@ -42,7 +42,15 @@ collections:
       - { label: 更新时间, name: updatedAt, widget: datetime, date_format: YYYY-MM-DD, time_format: false, required: false }
       - { label: 草稿, name: draft, widget: boolean, default: false }
       - { label: 精选, name: featured, widget: boolean, default: false }
-      - { label: 分类, name: category, widget: string }
+      - label: 分类
+        name: category
+        widget: relation
+        collection: taxonomy
+        file: categories
+        search_fields: [categories.*.name]
+        value_field: categories.*.name
+        display_fields: [categories.*.name]
+        hint: 分类选项可在左侧“分类管理”中新增、重命名和排序
       - { label: 标签, name: tags, widget: list, min: 1, max: 8 }
       - { label: 系列, name: series, widget: string, required: false }
       - { label: 封面, name: cover, widget: image, required: false }
@@ -90,8 +98,8 @@ collections:
 
   - name: settings
     label: 站点设置
-    media_folder: mizuki-blog/src/assets/profile
-    public_folder: ../assets/profile
+    media_folder: /mizuki-blog/src/assets/profile
+    public_folder: /src/assets/profile
     files:
       - name: profile
         label: 博主资料
@@ -103,3 +111,20 @@ collections:
           - { label: 网站描述, name: description, widget: text }
           - { label: 个人简介, name: bio, widget: text }
           - { label: 头像, name: avatar, widget: image, hint: 保存后博客会自动热更新 }
+
+  - name: taxonomy
+    label: 分类管理
+    files:
+      - name: categories
+        label: 文章分类
+        file: mizuki-blog/src/data/taxonomy.json
+        format: json
+        fields:
+          - label: 分类列表
+            name: categories
+            widget: list
+            summary: "{{fields.name}}"
+            hint: 可拖动排序；重命名后，请在旧文章中重新选择该分类
+            fields:
+              - { label: 分类名称, name: name, widget: string }
+              - { label: 分类说明, name: description, widget: text, required: false }

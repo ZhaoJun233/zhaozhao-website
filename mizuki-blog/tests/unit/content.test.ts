@@ -4,6 +4,7 @@ import { z } from "astro/zod";
 import { createPostSchema, createProjectSchema } from "../../src/content.config";
 import { validatePostCoverPair } from "../../src/lib/authoring";
 import {
+  buildCategoryIndex,
   buildTaxonomyIndex,
   estimateReadingMinutes,
   getRelatedPosts,
@@ -349,5 +350,23 @@ describe("content domain", () => {
     expect(() => buildTaxonomyIndex(["Astro CSS", "Astro / CSS"])).toThrow(
       /Astro CSS.*Astro \/ CSS/,
     );
+  });
+
+  it("keeps managed category order and includes empty or legacy categories", () => {
+    expect(
+      buildCategoryIndex(
+        [
+          { name: "动画", description: "观看记录" },
+          { name: "开发", description: "代码实践" },
+          { name: "新分类", description: "待发布" },
+        ],
+        ["开发", "开发", "动画", "旧分类"],
+      ),
+    ).toEqual([
+      { label: "动画", slug: "动画", count: 1, description: "观看记录" },
+      { label: "开发", slug: "开发", count: 2, description: "代码实践" },
+      { label: "新分类", slug: "新分类", count: 0, description: "待发布" },
+      { label: "旧分类", slug: "旧分类", count: 1 },
+    ]);
   });
 });

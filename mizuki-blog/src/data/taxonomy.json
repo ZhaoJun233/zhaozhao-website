@@ -1,0 +1,20 @@
+{
+  "categories": [
+    {
+      "name": "开发",
+      "description": "Astro、前端工程与代码实践。"
+    },
+    {
+      "name": "动画",
+      "description": "新番随记、镜头观察与观看记录。"
+    },
+    {
+      "name": "阅读",
+      "description": "长文、书籍与个人摘录工作流。"
+    },
+    {
+      "name": "生活",
+      "description": "日常光影、音乐与生活片段。"
+    }
+  ]
+}

@@ -2,12 +2,17 @@
 import type { GetStaticPaths } from "astro";
 import { getCollection } from "astro:content";
 import PostCard from "../../components/blog/PostCard.astro";
+import taxonomy from "../../data/taxonomy.json";
 import BaseLayout from "../../layouts/BaseLayout.astro";
-import { buildTaxonomyIndex, sortPostEntries } from "../../lib/content";
+import { buildCategoryIndex, sortPostEntries } from "../../lib/content";
+import { taxonomySlug } from "../../lib/slug";
 
 export const getStaticPaths = (async () => {
   const posts = await getCollection("posts", ({ data }) => !data.draft);
-  const categories = buildTaxonomyIndex(posts.map(({ data }) => data.category));
+  const categories = buildCategoryIndex(
+    taxonomy.categories,
+    posts.map(({ data }) => data.category),
+  );
 
   return categories.map((category) => ({
     params: { slug: category.slug },
@@ -16,20 +21,20 @@ export const getStaticPaths = (async () => {
 }) satisfies GetStaticPaths;
 
 interface Props {
-  category: ReturnType<typeof buildTaxonomyIndex>[number];
+  category: ReturnType<typeof buildCategoryIndex>[number];
 }
 
 const { category } = Astro.props;
 const posts = sortPostEntries(
   (await getCollection("posts", ({ data }) => !data.draft)).filter(
-    ({ data }) => data.category === category.label,
+    ({ data }) => taxonomySlug(data.category) === category.slug,
   ),
 );
 ---
 
 <BaseLayout
   title={`分类：${category.label}`}
-  description={`浏览 ${posts.length} 篇归入「${category.label}」分类的文章。`}
+  description={category.description ?? `浏览 ${posts.length} 篇归入「${category.label}」分类的文章。`}
   class="discovery-page"
 >
   <section class="term-page section" aria-labelledby="category-title">
@@ -42,6 +47,7 @@ const posts = sortPostEntries(
         <div>
           <p class="eyebrow">Category · 分类</p>
           <h1 id="category-title">{category.label}</h1>
+          {category.description && <p class="term-heading__description">{category.description}</p>}
         </div>
         <p class="term-heading__count">
           <strong>{String(posts.length).padStart(2, "0")}</strong>
@@ -119,6 +125,13 @@ const posts = sortPostEntries(
     gap: 0.55rem;
     margin: 0 0 0.3rem;
     white-space: nowrap;
+  }
+
+  .term-heading__description {
+    max-width: 36rem;
+    margin: 1rem 0 0;
+    color: var(--color-text-muted, color-mix(in srgb, currentColor 65%, transparent));
+    line-height: 1.8;
   }
 
   .term-heading__count strong {

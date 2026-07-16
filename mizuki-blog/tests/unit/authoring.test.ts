@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, resolve, sep } from "node:path";
+import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
@@ -7,7 +7,16 @@ import { parse } from "yaml";
 import { siteConfig } from "../../src/config/site";
 import profile from "../../src/data/profile.json";
 
-type CmsField = { name: string; pattern?: string[] };
+type CmsField = {
+  name: string;
+  pattern?: string[];
+  widget?: string;
+  collection?: string;
+  file?: string;
+  search_fields?: string[];
+  value_field?: string;
+  display_fields?: string[];
+};
 type CmsCollection = {
   name: string;
   folder?: string;
@@ -61,7 +70,9 @@ function collection(name: string) {
 
 function expectRepositoryPath(relativePath: string) {
   const absolutePath = resolve(repositoryRoot, relativePath);
-  expect(absolutePath.startsWith(`${repositoryRoot}${sep}`)).toBe(true);
+  const pathFromRoot = relative(repositoryRoot, absolutePath);
+  expect(pathFromRoot.startsWith("..")).toBe(false);
+  expect(isAbsolute(pathFromRoot)).toBe(false);
   expect(existsSync(absolutePath), `${relativePath} must exist`).toBe(true);
 }
 
@@ -104,6 +115,14 @@ describe("local authoring", () => {
     ]);
     expect(posts.fields?.find(({ name }) => name === "canonicalUrl")?.pattern?.[0])
       .toBe("^https?://\\S+$");
+    expect(posts.fields?.find(({ name }) => name === "category")).toMatchObject({
+      widget: "relation",
+      collection: "taxonomy",
+      file: "categories",
+      search_fields: ["categories.*.name"],
+      value_field: "categories.*.name",
+      display_fields: ["categories.*.name"],
+    });
     expectRepositoryPath(posts.folder!);
 
     const projects = collection("projects");
@@ -127,8 +146,8 @@ describe("local authoring", () => {
     expectRepositoryPath(projects.folder!);
 
     const settings = collection("settings");
-    expect(settings.media_folder).toBe("mizuki-blog/src/assets/profile");
-    expect(settings.public_folder).toBe("../assets/profile");
+    expect(settings.media_folder).toBe("/mizuki-blog/src/assets/profile");
+    expect(settings.public_folder).toBe("/src/assets/profile");
     expect(settings.files).toHaveLength(1);
     expect(settings.files?.[0]?.file).toBe("mizuki-blog/src/data/profile.json");
     expect(settings.files?.[0]?.fields.map(({ name }) => name)).toEqual([
@@ -139,12 +158,22 @@ describe("local authoring", () => {
       "avatar",
     ]);
     expectRepositoryPath(settings.files![0]!.file);
+
+    const taxonomy = collection("taxonomy");
+    expect(taxonomy.files).toHaveLength(1);
+    expect(taxonomy.files?.[0]).toMatchObject({
+      name: "categories",
+      file: "mizuki-blog/src/data/taxonomy.json",
+    });
+    expect(taxonomy.files?.[0]?.fields.map(({ name }) => name)).toEqual(["categories"]);
+    expectRepositoryPath(taxonomy.files![0]!.file);
   });
 
   it("keeps the editable nickname and avatar in profile data", () => {
-    expect(profile.name).toBe("233昭");
-    expect(profile.avatar).toBe("../assets/profile/avatar.jpg");
-    expectRepositoryPath("mizuki-blog/src/assets/profile/avatar.jpg");
+    expect(profile.name.trim()).not.toBe("");
+    const avatarFilename = profile.avatar.split("/").at(-1);
+    expect(avatarFilename).toMatch(/\.(?:avif|gif|jpe?g|png|webp)$/i);
+    expectRepositoryPath(`mizuki-blog/src/assets/profile/${avatarFilename}`);
 
     expect(siteConfig.name).toBe(profile.name);
     expect(siteConfig.author.name).toBe(profile.name);
@@ -155,7 +184,7 @@ describe("local authoring", () => {
       "utf8",
     );
     expect(siteConfigSource).not.toContain(profile.name);
-    expect(siteConfigSource).not.toContain("avatar.jpg");
+    expect(siteConfigSource).not.toContain(avatarFilename!);
     expect(existsSync(resolve(appRoot, "public/uploads/avatar.jpg"))).toBe(false);
   });
 
@@ -169,6 +198,8 @@ describe("local authoring", () => {
 
     expect(author.profiles).toEqual(["authoring"]);
     expect(author.build).toMatchObject({ context: ".", target: "authoring" });
+    expect(author.command).toContain("rm -f .astro/dev.json");
+    expect(author.command).not.toContain("--force");
     expect(author.ports).toEqual(["127.0.0.1:4322:4321"]);
     expect(author.volumes).toEqual(["./src:/app/src", "./public:/app/public"]);
     expect(author.environment).toMatchObject({
@@ -200,8 +231,10 @@ describe("local authoring", () => {
   it("builds a static runtime image without local credentials", () => {
     expect(dockerfile).toContain("AS authoring");
     expect(dockerfile).toContain("AS production");
+    expect(dockerfile).toContain("rm -f .astro/dev.json");
+    expect(dockerfile).not.toContain('"--force"');
     expect(dockerfile).toContain("RUN npm run build");
-    expect(dockerfile).toContain("ARG PUBLIC_SITE_URL\n");
+    expect(dockerfile).toMatch(/ARG PUBLIC_SITE_URL\r?\n/);
     expect(dockerfile).not.toContain("ARG PUBLIC_SITE_URL=http");
     expect(dockerfile).toContain("USER nginx");
     expect(dockerfile).not.toContain("blog_node_modules");

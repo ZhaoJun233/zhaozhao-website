@@ -1,11 +1,15 @@
 ---
 import { getCollection } from "astro:content";
 import { siteConfig } from "../../config/site";
+import taxonomy from "../../data/taxonomy.json";
 import BaseLayout from "../../layouts/BaseLayout.astro";
-import { buildTaxonomyIndex } from "../../lib/content";
+import { buildCategoryIndex } from "../../lib/content";
 
 const posts = await getCollection("posts", ({ data }) => !data.draft);
-const categories = buildTaxonomyIndex(posts.map(({ data }) => data.category));
+const categories = buildCategoryIndex(
+  taxonomy.categories,
+  posts.map(({ data }) => data.category),
+);
 ---
 
 <BaseLayout
@@ -33,7 +37,12 @@ const categories = buildTaxonomyIndex(posts.map(({ data }) => data.category));
                 <span class="taxonomy-ledger__number" aria-hidden="true">
                   {String(index + 1).padStart(2, "0")}
                 </span>
-                <span class="taxonomy-ledger__name">{category.label}</span>
+                <span class="taxonomy-ledger__copy">
+                  <span class="taxonomy-ledger__name">{category.label}</span>
+                  {category.description && (
+                    <span class="taxonomy-ledger__description">{category.description}</span>
+                  )}
+                </span>
                 <span class="taxonomy-ledger__count">{category.count} 篇文章</span>
                 <span class="taxonomy-ledger__arrow" aria-hidden="true">↗</span>
               </a>
@@ -136,9 +145,19 @@ const categories = buildTaxonomyIndex(posts.map(({ data }) => data.category));
   }
 
   .taxonomy-ledger__name {
+    display: block;
     font-family: var(--font-display, ui-serif, "Noto Serif SC", serif);
     font-size: clamp(1.55rem, 3vw, 2.25rem);
     font-weight: 620;
+  }
+
+  .taxonomy-ledger__description {
+    display: block;
+    max-width: 32ch;
+    margin-top: 0.55rem;
+    color: var(--color-text-muted, color-mix(in srgb, currentColor 62%, transparent));
+    font-size: 0.75rem;
+    line-height: 1.65;
   }
 
   .taxonomy-ledger__count {

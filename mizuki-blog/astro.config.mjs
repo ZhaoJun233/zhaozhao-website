@@ -7,6 +7,7 @@ export default defineConfig({
   site: resolveSiteUrl(process.env),
   base: "/",
   trailingSlash: "always",
+  devToolbar: { enabled: false },
   integrations: [sitemap()],
   markdown: {
     shikiConfig: {
