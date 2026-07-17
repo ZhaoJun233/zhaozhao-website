@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { env } from "cloudflare:workers";
 import { ADMIN_SESSION_COOKIE, createAdminSession } from "../../src/lib/admin/auth";
 import { runMediaCleanup } from "../../src/lib/cloudflare/post-media";
@@ -48,6 +48,21 @@ async function adminRequest(path: string, method: string, body?: BodyInit): Prom
     headers: { cookie: `${ADMIN_SESSION_COOKIE}=${session.token}` },
     body,
   });
+}
+
+const cleanupQueueReadFailure: typeof runMediaCleanup = async () => {
+  throw new Error("cleanup queue read unavailable");
+};
+
+const cleanupFailureAccountingFailure: typeof runMediaCleanup = async () => {
+  throw new Error("cleanup failure accounting unavailable");
+};
+
+async function listUploadKeys(): Promise<string[]> {
+  const store = env.MEDIA as KVNamespace & {
+    list(options: { prefix: string }): Promise<{ keys: Array<{ name: string }> }>;
+  };
+  return (await store.list({ prefix: "uploads/" })).keys.map(({ name }) => name).sort();
 }
 
 function databaseWithBeforeBatch(operation: () => Promise<void>): D1Database {
@@ -108,6 +123,82 @@ describe("article media schema", () => {
       key: expect.stringMatching(/^uploads\//),
     });
     expect(await env.MEDIA.get(payload.data.asset.key, "arrayBuffer")).not.toBeNull();
+  });
+
+  it("keeps a committed upload successful when eager cleanup infrastructure fails", async () => {
+    const { createPostAssetUploadRoute } = await import(
+      "../../src/pages/api/admin/post-assets/index"
+    );
+    const post = await createTestPost("route-upload-cleanup-failure");
+    const stale = await beginMediaUpload(env.DB, {
+      key: "uploads/2026/07/stale-before-route-upload.png",
+      originalName: "stale-before-route-upload.png",
+      contentType: "image/png",
+      sizeBytes: 4,
+    });
+    await failMediaUpload(env.DB, stale.id);
+    const form = new FormData();
+    form.set("file", new File(["image"], "committed-upload.png", { type: "image/png" }));
+    form.set("postId", post.id);
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    try {
+      const response = await createPostAssetUploadRoute(cleanupQueueReadFailure)({
+        request: await adminRequest("/api/admin/post-assets/", "POST", form),
+      } as never);
+
+      expect(response.status).toBe(200);
+      const payload = await response.json() as { data: { asset: { id: string; key: string } } };
+      expect(await env.DB.prepare("SELECT state FROM media_assets WHERE id = ?")
+        .bind(payload.data.asset.id).first()).toEqual({ state: "ready" });
+      expect((await listPostAssets(env.DB, post.id)).map(({ id }) => id))
+        .toContain(payload.data.asset.id);
+      expect(await env.MEDIA.get(payload.data.asset.key, "arrayBuffer")).not.toBeNull();
+      expect((await listMediaCleanupJobs(env.DB)).map(({ asset_id }) => asset_id))
+        .toEqual([stale.id]);
+      expect(log).toHaveBeenCalledWith(expect.objectContaining({
+        message: "cleanup queue read unavailable",
+      }));
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it("returns 404 without storing an object when the upload post owner is missing", async () => {
+    const { POST } = await import("../../src/pages/api/admin/post-assets/index");
+    const beforeKeys = await listUploadKeys();
+    const form = new FormData();
+    form.set("file", new File(["image"], "missing-owner.png", { type: "image/png" }));
+    form.set("postId", "22222222-2222-4222-8222-222222222222");
+
+    const response = await POST({
+      request: await adminRequest("/api/admin/post-assets/", "POST", form),
+    } as never);
+
+    expect(response.status).toBe(404);
+    expect(await env.DB.prepare("SELECT id FROM media_assets WHERE original_name = ?")
+      .bind("missing-owner.png").first()).toBeNull();
+    expect(await listUploadKeys()).toEqual(beforeKeys);
+  });
+
+  it("matches the multipart media type exactly", async () => {
+    const { POST } = await import("../../src/pages/api/admin/post-assets/index");
+    const request = await adminRequest("/api/admin/post-assets/", "POST", "not multipart");
+    request.headers.set("content-type", "text/plain; note=multipart/form-data");
+
+    const response = await POST({ request } as never);
+
+    expect(response.status).toBe(415);
+  });
+
+  it("returns 400 when multipart form parsing fails", async () => {
+    const { POST } = await import("../../src/pages/api/admin/post-assets/index");
+    const request = await adminRequest("/api/admin/post-assets/", "POST", "not multipart");
+    request.headers.set("content-type", "multipart/form-data; boundary=broken-boundary");
+
+    const response = await POST({ request } as never);
+
+    expect(response.status).toBe(400);
   });
 
   it.each([
@@ -171,6 +262,44 @@ describe("article media schema", () => {
       .bind(asset!.id).first()).toBeNull();
   });
 
+  it("keeps a committed removal successful when eager cleanup infrastructure fails", async () => {
+    const { createPostAssetRemovalRoute } = await import(
+      "../../src/pages/api/admin/posts/[id]/assets/[assetId]"
+    );
+    const post = await createTestPost("route-remove-cleanup-failure");
+    const [asset] = await insertReadyAssets(1, "route-remove-cleanup-failure");
+    await syncPostAssetLinks(env.DB, post.id, {
+      retainedAssetIds: [asset!.id],
+      inlineKeys: [],
+    });
+    await env.MEDIA.put(asset!.key, "image");
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    try {
+      const response = await createPostAssetRemovalRoute(cleanupFailureAccountingFailure)({
+        request: await adminRequest(
+          `/api/admin/posts/${post.id}/assets/${asset!.id}/`,
+          "DELETE",
+        ),
+        params: { id: post.id, assetId: asset!.id },
+      } as never);
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ data: { removed: true } });
+      expect(await env.DB.prepare("SELECT state FROM media_assets WHERE id = ?")
+        .bind(asset!.id).first()).toEqual({ state: "pending_delete" });
+      expect(await listPostAssets(env.DB, post.id)).toEqual([]);
+      expect((await listMediaCleanupJobs(env.DB)).map(({ asset_id }) => asset_id))
+        .toEqual([asset!.id]);
+      expect(await env.MEDIA.get(asset!.key, "arrayBuffer")).not.toBeNull();
+      expect(log).toHaveBeenCalledWith(expect.objectContaining({
+        message: "cleanup failure accounting unavailable",
+      }));
+    } finally {
+      log.mockRestore();
+    }
+  });
+
   it("cancels and cleans a draft editing session through the asset API", async () => {
     const { DELETE } = await import("../../src/pages/api/admin/post-assets/drafts/[token]");
     const asset = await beginMediaUpload(env.DB, {
@@ -192,6 +321,42 @@ describe("article media schema", () => {
     expect(await env.MEDIA.get(asset.key, "arrayBuffer")).toBeNull();
     expect(await env.DB.prepare("SELECT id FROM media_assets WHERE id = ?")
       .bind(asset.id).first()).toBeNull();
+  });
+
+  it("keeps a committed draft cancellation successful when eager cleanup infrastructure fails", async () => {
+    const { createDraftCleanupRoute } = await import(
+      "../../src/pages/api/admin/post-assets/drafts/[token]"
+    );
+    const asset = await beginMediaUpload(env.DB, {
+      key: "uploads/2026/07/route-cancel-draft-cleanup-failure.png",
+      originalName: "route-cancel-draft-cleanup-failure.png",
+      contentType: "image/png",
+      sizeBytes: 4,
+      draftToken,
+    });
+    await markMediaReady(env.DB, asset.id);
+    await env.MEDIA.put(asset.key, "image");
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    try {
+      const response = await createDraftCleanupRoute(cleanupQueueReadFailure)({
+        request: await adminRequest(`/api/admin/post-assets/drafts/${draftToken}/`, "DELETE"),
+        params: { token: draftToken },
+      } as never);
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ data: { cancelled: true, cleanupPending: 1 } });
+      expect(await env.DB.prepare("SELECT state FROM media_assets WHERE id = ?")
+        .bind(asset.id).first()).toEqual({ state: "pending_delete" });
+      expect((await listMediaCleanupJobs(env.DB)).map(({ asset_id }) => asset_id))
+        .toEqual([asset.id]);
+      expect(await env.MEDIA.get(asset.key, "arrayBuffer")).not.toBeNull();
+      expect(log).toHaveBeenCalledWith(expect.objectContaining({
+        message: "cleanup queue read unavailable",
+      }));
+    } finally {
+      log.mockRestore();
+    }
   });
 
   it("rejects a non-UUID draft cancellation token", async () => {
@@ -248,6 +413,47 @@ describe("article media schema", () => {
       },
     });
     expect(await env.MEDIA.get(asset!.key, "arrayBuffer")).toBeNull();
+  });
+
+  it("keeps a committed article deletion successful when eager cleanup infrastructure fails", async () => {
+    const { createPostDeleteRoute } = await import("../../src/pages/api/admin/posts/[id]");
+    const post = await createTestPost("route-delete-cleanup-failure");
+    const [asset] = await insertReadyAssets(1, "route-delete-cleanup-failure");
+    await syncPostAssetLinks(env.DB, post.id, {
+      retainedAssetIds: [asset!.id],
+      inlineKeys: [],
+    });
+    await env.MEDIA.put(asset!.key, "image");
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    try {
+      const response = await createPostDeleteRoute(cleanupFailureAccountingFailure)({
+        request: await adminRequest(`/api/admin/posts/${post.id}/`, "DELETE"),
+        params: { id: post.id },
+      } as never);
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({
+        data: {
+          deleted: true,
+          exclusiveImages: 1,
+          sharedImages: 0,
+          cleanupPending: 1,
+        },
+      });
+      expect(await env.DB.prepare("SELECT id FROM posts WHERE id = ?")
+        .bind(post.id).first()).toBeNull();
+      expect(await env.DB.prepare("SELECT state FROM media_assets WHERE id = ?")
+        .bind(asset!.id).first()).toEqual({ state: "pending_delete" });
+      expect((await listMediaCleanupJobs(env.DB)).map(({ asset_id }) => asset_id))
+        .toEqual([asset!.id]);
+      expect(await env.MEDIA.get(asset!.key, "arrayBuffer")).not.toBeNull();
+      expect(log).toHaveBeenCalledWith(expect.objectContaining({
+        message: "cleanup failure accounting unavailable",
+      }));
+    } finally {
+      log.mockRestore();
+    }
   });
 
   it("creates media assets, post links, and cleanup jobs", async () => {

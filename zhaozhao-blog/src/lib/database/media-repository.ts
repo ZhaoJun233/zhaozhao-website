@@ -176,6 +176,16 @@ export async function beginMediaUpload(
   return assetFromRows(await getAssetRows(database, id));
 }
 
+export async function assertPostExists(
+  database: D1Database,
+  postId: string,
+): Promise<void> {
+  const post = await primary(database).prepare(
+    "SELECT id FROM posts WHERE id = ?",
+  ).bind(postId).first<{ id: string }>();
+  if (!post) throw new AdminNotFoundError("文章不存在。");
+}
+
 export async function markMediaReady(
   database: D1Database,
   assetId: string,

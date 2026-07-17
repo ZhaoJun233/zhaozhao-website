@@ -1,4 +1,5 @@
 import {
+  assertPostExists,
   beginMediaUpload,
   completeMediaCleanup,
   discardMediaUpload,
@@ -94,6 +95,21 @@ export async function runMediaCleanup(
   return { completed, failed };
 }
 
+export type MediaCleanupRunner = typeof runMediaCleanup;
+
+export async function runMediaCleanupBestEffort(
+  database: D1Database,
+  store: MediaObjectStore,
+  limit = 10,
+  cleanup: MediaCleanupRunner = runMediaCleanup,
+): Promise<void> {
+  try {
+    await cleanup(database, store, limit);
+  } catch (error) {
+    console.error(error);
+  }
+}
+
 export async function uploadPostImage(
   database: D1Database,
   store: MediaObjectStore,
@@ -101,6 +117,7 @@ export async function uploadPostImage(
   owner: PostImageOwner,
 ): Promise<AdminMediaAsset> {
   const extension = validatedImageExtension(file);
+  if (owner.postId !== undefined) await assertPostExists(database, owner.postId);
   const key = createMediaKey(extension);
   const originalName = file.name.slice(0, 240);
   const contentType = file.type.toLowerCase();

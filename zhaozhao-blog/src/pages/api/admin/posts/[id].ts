@@ -2,7 +2,10 @@ import type { APIRoute } from "astro";
 import { handleAdminRequest, readAdminJson } from "../../../../lib/admin/http";
 import { postInputSchema, postMediaInputSchema } from "../../../../lib/admin/schemas";
 import { getMediaStore } from "../../../../lib/cloudflare/bindings";
-import { runMediaCleanup } from "../../../../lib/cloudflare/post-media";
+import {
+  type MediaCleanupRunner,
+  runMediaCleanupBestEffort,
+} from "../../../../lib/cloudflare/post-media";
 import {
   getPost,
   updatePostWithMedia,
@@ -22,13 +25,17 @@ export const PUT: APIRoute = ({ request, params }) => handleAdminRequest(
     return updatePostWithMedia(database, params.id!, post, media);
   },
 );
-export const DELETE: APIRoute = ({ request, params }) => handleAdminRequest(request, async (database) => {
-  const queued = await queuePostDelete(database, params.id!);
-  await runMediaCleanup(database, getMediaStore(), 5);
-  return {
-    deleted: true,
-    exclusiveImages: queued.exclusiveImages,
-    sharedImages: queued.sharedImages,
-    cleanupPending: queued.cleanupPending,
-  };
-});
+export function createPostDeleteRoute(cleanup?: MediaCleanupRunner): APIRoute {
+  return ({ request, params }) => handleAdminRequest(request, async (database) => {
+    const queued = await queuePostDelete(database, params.id!);
+    await runMediaCleanupBestEffort(database, getMediaStore(), 5, cleanup);
+    return {
+      deleted: true,
+      exclusiveImages: queued.exclusiveImages,
+      sharedImages: queued.sharedImages,
+      cleanupPending: queued.cleanupPending,
+    };
+  });
+}
+
+export const DELETE = createPostDeleteRoute();

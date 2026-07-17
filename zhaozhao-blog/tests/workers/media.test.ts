@@ -105,6 +105,7 @@ describe("KV administrator media", () => {
   });
 
   it("cleans the object when the ready state cannot be persisted", async () => {
+    const post = await createTestPost("ready-state-failure");
     let key = "";
     const store: MediaObjectStore = {
       put: async (nextKey, value, options) => {
@@ -115,10 +116,10 @@ describe("KV administrator media", () => {
     };
 
     await expect(uploadPostImage(
-      env.DB,
+      databaseWithFailedBatchCalls(1),
       store,
       new File(["image"], "missing-post.png", { type: "image/png" }),
-      { postId: "missing-post" },
+      { postId: post.id },
     )).rejects.toThrow();
 
     expect(key).toMatch(/^uploads\//);
@@ -129,6 +130,7 @@ describe("KV administrator media", () => {
   });
 
   it("reports cleanup queue failure after removing the untracked object", async () => {
+    const post = await createTestPost("cleanup-queue-failure");
     let key = "";
     const store: MediaObjectStore = {
       put: async (nextKey, value, options) => {
@@ -137,13 +139,13 @@ describe("KV administrator media", () => {
       },
       delete: (nextKey) => env.MEDIA.delete(nextKey),
     };
-    const database = databaseWithFailedBatchCalls(2);
+    const database = databaseWithFailedBatchCalls(1, 2);
 
     const error = await uploadPostImage(
       database,
       store,
       new File(["image"], "queue-failure.png", { type: "image/png" }),
-      { postId: "missing-post" },
+      { postId: post.id },
     ).catch((uploadError: unknown) => uploadError);
 
     expect(error).toMatchObject({
@@ -169,6 +171,7 @@ describe("KV administrator media", () => {
   });
 
   it("reports an actionable recovery contract when queueing and deletion fail", async () => {
+    const post = await createTestPost("cleanup-queue-delete-failure");
     let key = "";
     const store: MediaObjectStore = {
       put: async (nextKey, value, options) => {
@@ -179,13 +182,13 @@ describe("KV administrator media", () => {
         throw new Error("KV delete unavailable");
       },
     };
-    const database = databaseWithFailedBatchCalls(2);
+    const database = databaseWithFailedBatchCalls(1, 2);
 
     const error = await uploadPostImage(
       database,
       store,
       new File(["image"], "double-failure.png", { type: "image/png" }),
-      { postId: "missing-post" },
+      { postId: post.id },
     ).catch((uploadError: unknown) => uploadError);
 
     expect(error).toBeInstanceOf(MediaUploadRecoveryError);
