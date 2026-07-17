@@ -21,8 +21,15 @@ fileInput?.addEventListener("change", async () => {
     const response = await fetch("/api/admin/posts/import/", { method: "POST", body });
     const result = await response.json();
     if (!response.ok) throw new Error(errorMessage(result));
-    status.textContent = "导入成功，正在刷新文章列表…";
-    window.location.reload();
+    document.dispatchEvent(new CustomEvent("admin:post-imported", {
+      detail: result.data,
+    }));
+    const relativeImageCount = Array.isArray(result.data?.relativeImages)
+      ? result.data.relativeImages.length
+      : 0;
+    status.textContent = relativeImageCount > 0
+      ? `发现 ${relativeImageCount} 个待上传的本地图片`
+      : "Markdown 已填入编辑器。";
   } catch (error) {
     status.textContent = error instanceof Error ? error.message : "导入失败。";
     status.setAttribute("data-error", "");

@@ -6,6 +6,19 @@ import { taxonomySlug } from "../slug";
 
 export const maxMarkdownImportBytes = 2 * 1024 * 1024;
 
+export function findRelativeMarkdownImages(body: string): string[] {
+  const images: string[] = [];
+  const seen = new Set<string>();
+  for (const match of body.matchAll(/!\[[^\]]*\]\((?:<)?([^\s)>]+)(?:>)?(?:\s+['"][^'"]*['"])?\)/g)) {
+    const url = match[1];
+    if (url && !/^(?:\/|https?:\/\/|data:)/i.test(url) && !seen.has(url)) {
+      seen.add(url);
+      images.push(url);
+    }
+  }
+  return images;
+}
+
 function text(value: unknown): string | undefined {
   if (typeof value !== "string" && typeof value !== "number") return undefined;
   return String(value).trim() || undefined;
@@ -70,4 +83,13 @@ export function parseMarkdownPostImport(
       ? { canonicalUrl: text(data.canonicalUrl ?? data.canonical) }
       : {}),
   });
+}
+
+export function buildMarkdownImportPreview(
+  filename: string,
+  source: string,
+  now: Date = new Date(),
+): { post: PostInput; relativeImages: string[] } {
+  const post = parseMarkdownPostImport(filename, source, now);
+  return { post, relativeImages: findRelativeMarkdownImages(post.body) };
 }
