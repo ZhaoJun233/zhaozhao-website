@@ -3,6 +3,7 @@ import { env } from "cloudflare:workers";
 import { ADMIN_SESSION_COOKIE, createAdminSession } from "../../src/lib/admin/auth";
 import { postMediaInputSchema } from "../../src/lib/admin/schemas";
 import { storeAdminMedia } from "../../src/lib/cloudflare/media";
+import { backfillPostMedia } from "../../src/lib/cloudflare/post-media";
 import {
   AdminConflictError,
   AdminNotFoundError,
@@ -31,10 +32,12 @@ import {
 } from "../../src/lib/database/admin-repository";
 import {
   beginMediaUpload,
+  claimMediaCleanupJobs,
   failMediaUpload,
   listMediaCleanupJobs,
   listPostAssets,
   markMediaReady,
+  queueDraftCleanup,
   syncPostAssetLinks,
 } from "../../src/lib/database/media-repository";
 import { POST as createPostRoute } from "../../src/pages/api/admin/posts/index";
@@ -535,7 +538,10 @@ describe("D1 administrator repository", () => {
   });
 
   it("restores schema version 2 links, cancels restored cleanup, and queues stale keys", async () => {
-    const post = await createPost(env.DB, postInput("backup-v2-restore"));
+    const post = await createPost(env.DB, {
+      ...postInput("backup-v2-restore"),
+      body: "![restored](/media/uploads/2026/07/backup-restored.png/)",
+    });
     const restored = await beginMediaUpload(env.DB, {
       key: "uploads/2026/07/backup-restored.png",
       originalName: "backup-restored.png",
@@ -605,6 +611,9 @@ describe("D1 administrator repository", () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ data: { imported: true } });
+    for (let page = 0; page < 10 && (await listPostAssets(env.DB, post.id)).length === 0; page += 1) {
+      await backfillPostMedia(env.DB, env.MEDIA, { batchSize: 3 });
+    }
     expect((await listPostAssets(env.DB, post.id))[0]).toMatchObject({
       key: legacy.key,
       usages: ["inline", "library"],
@@ -699,6 +708,122 @@ describe("D1 administrator repository", () => {
 
     const after = await exportBlogData(env.DB);
     expect({ ...after, exportedAt: before.exportedAt }).toEqual(before);
+  });
+
+  it.each([
+    {
+      label: "missing inline usage",
+      mutate: (backup: Extract<Awaited<ReturnType<typeof exportBlogData>>, { schemaVersion: 2 }>, postId: string) => {
+        backup.postAssetLinks = backup.postAssetLinks.filter(
+          (link) => !(link.postId === postId && link.usage === "inline"),
+        );
+      },
+    },
+    {
+      label: "missing library usage",
+      mutate: (backup: Extract<Awaited<ReturnType<typeof exportBlogData>>, { schemaVersion: 2 }>, postId: string) => {
+        backup.postAssetLinks = backup.postAssetLinks.filter(
+          (link) => !(link.postId === postId && link.usage === "library"),
+        );
+      },
+    },
+    {
+      label: "unreferenced active usage",
+      mutate: (backup: Extract<Awaited<ReturnType<typeof exportBlogData>>, { schemaVersion: 2 }>, postId: string) => {
+        const post = backup.posts.find(({ id }) => id === postId)!;
+        post.body = "正文不再引用图片。";
+      },
+    },
+  ])("rejects a v2 media graph with $label before changing content", async ({ mutate }) => {
+    const key = `uploads/2026/07/backup-graph-${crypto.randomUUID()}.png`;
+    const post = await createPost(env.DB, {
+      ...postInput(`backup-graph-${crypto.randomUUID()}`),
+      body: `![graph](/media/${key}/)`,
+    });
+    const asset = await beginMediaUpload(env.DB, {
+      key,
+      originalName: "graph.png",
+      contentType: "image/png",
+      sizeBytes: 4,
+    });
+    await markMediaReady(env.DB, asset.id);
+    await syncPostAssetLinks(env.DB, post.id, {
+      retainedAssetIds: [asset.id],
+      inlineKeys: [key],
+    });
+    const before = await exportBlogData(env.DB);
+    if (before.schemaVersion !== 2) throw new Error("Expected schema version 2.");
+    const damaged = structuredClone(before);
+    mutate(damaged, post.id);
+
+    await expect(importBlogData(env.DB, damaged)).rejects.toMatchObject({ name: "ZodError" });
+    const after = await exportBlogData(env.DB);
+    expect({ ...after, exportedAt: before.exportedAt }).toEqual(before);
+  });
+
+  it("rejects a v2 cover link that no longer matches the article cover", async () => {
+    const key = "uploads/2026/07/backup-cover-graph.png";
+    const post = await createPost(env.DB, {
+      ...postInput("backup-cover-graph"),
+      cover: `/media/${key}/`,
+      coverAlt: "Backup cover",
+    });
+    const asset = await beginMediaUpload(env.DB, {
+      key,
+      originalName: "cover.png",
+      contentType: "image/png",
+      sizeBytes: 4,
+    });
+    await markMediaReady(env.DB, asset.id);
+    await syncPostAssetLinks(env.DB, post.id, {
+      retainedAssetIds: [asset.id],
+      coverAssetId: asset.id,
+      inlineKeys: [],
+    });
+    const before = await exportBlogData(env.DB);
+    if (before.schemaVersion !== 2) throw new Error("Expected schema version 2.");
+    const damaged = structuredClone(before);
+    damaged.posts.find(({ id }) => id === post.id)!.cover =
+      "/media/uploads/2026/07/different-cover.png/";
+
+    await expect(importBlogData(env.DB, damaged)).rejects.toMatchObject({ name: "ZodError" });
+    const after = await exportBlogData(env.DB);
+    expect({ ...after, exportedAt: before.exportedAt }).toEqual(before);
+  });
+
+  it("does not restore a media key already claimed by cleanup", async () => {
+    const key = "uploads/2026/07/claimed-backup-restore.png";
+    const post = await createPost(env.DB, {
+      ...postInput("claimed-backup-restore"),
+      body: `![claimed](/media/${key}/)`,
+    });
+    const asset = await beginMediaUpload(env.DB, {
+      key,
+      originalName: "claimed.png",
+      contentType: "image/png",
+      sizeBytes: 4,
+      draftToken,
+    });
+    await markMediaReady(env.DB, asset.id);
+    await syncPostAssetLinks(env.DB, post.id, {
+      draftToken,
+      retainedAssetIds: [asset.id],
+      inlineKeys: [key],
+    });
+    const backup = await exportBlogData(env.DB);
+    await env.DB.prepare("DELETE FROM post_asset_links WHERE asset_id = ?").bind(asset.id).run();
+    await env.DB.prepare("UPDATE media_assets SET draft_token = ? WHERE id = ?")
+      .bind(draftToken, asset.id).run();
+    await queueDraftCleanup(env.DB, draftToken, "draft_cancelled");
+    const [claim] = await claimMediaCleanupJobs(env.DB, 1, new Date("2026-07-17T01:00:00.000Z"));
+
+    await expect(importBlogData(env.DB, backup)).rejects.toThrow();
+    expect(await env.DB.prepare("SELECT state FROM media_assets WHERE id = ?")
+      .bind(asset.id).first()).toEqual({ state: "pending_delete" });
+    expect(await listMediaCleanupJobs(env.DB)).toContainEqual(expect.objectContaining({
+      asset_id: asset.id,
+      claim_token: claim!.claim_token,
+    }));
   });
 
   it("round-trips more than eighty linked images within the import statement budget", async () => {

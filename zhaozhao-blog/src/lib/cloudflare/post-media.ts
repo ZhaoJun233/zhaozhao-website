@@ -1,12 +1,13 @@
 import {
   assertPostExists,
   beginMediaUpload,
+  claimMediaCleanupJobs,
   completeMediaCleanup,
   discardMediaUpload,
   failMediaCleanup,
   failMediaUpload,
-  listMediaCleanupJobs,
   markMediaReady,
+  queueExpiredDraftCleanup,
   findRegisteredMediaKeys,
   registerAndLinkBackfilledPostMedia,
   type AdminMediaAsset,
@@ -46,6 +47,18 @@ interface LegacyPostRow {
   id: string;
   cover: string | null;
   body: string;
+  published_at: string;
+}
+
+export interface PostMediaBackfillOptions {
+  batchSize?: number;
+}
+
+export interface PostMediaBackfillResult {
+  registered: number;
+  linked: number;
+  missing: string[];
+  done?: boolean;
 }
 
 const contentTypeByExtension: Record<string, string> = {
@@ -73,20 +86,59 @@ function legacyMediaContentType(key: string): string {
 export async function backfillPostMedia(
   database: D1Database,
   store: PostMediaBackfillStore,
-): Promise<{ registered: number; linked: number; missing: string[] }> {
-  const { results: rows } = await database.prepare(
-    "SELECT id, cover, body FROM posts ORDER BY published_at, id",
-  ).all<LegacyPostRow>();
+  options?: PostMediaBackfillOptions,
+): Promise<PostMediaBackfillResult> {
+  const batchSize = options ? Math.max(1, Math.min(5, Math.floor(options.batchSize ?? 3))) : undefined;
+  const state = batchSize === undefined ? undefined : await database.prepare(
+    `SELECT cursor_published_at, cursor_post_id, completed
+     FROM post_media_backfill_state WHERE id = 1`,
+  ).first<{ cursor_published_at: string | null; cursor_post_id: string | null; completed: number }>();
+  if (state?.completed) {
+    return { registered: 0, linked: 0, missing: [], done: true };
+  }
+  const rowsResult = batchSize === undefined
+    ? await database.prepare(
+      "SELECT id, cover, body, published_at FROM posts ORDER BY published_at, id",
+    ).all<LegacyPostRow>()
+    : await database.prepare(
+      `SELECT id, cover, body, published_at FROM posts
+       WHERE ? IS NULL OR published_at > ? OR (published_at = ? AND id > ?)
+       ORDER BY published_at, id LIMIT ?`,
+    ).bind(
+      state?.cursor_published_at ?? null,
+      state?.cursor_published_at ?? "",
+      state?.cursor_published_at ?? "",
+      state?.cursor_post_id ?? "",
+      batchSize,
+    ).all<LegacyPostRow>();
+  const rows = rowsResult.results;
+  if (batchSize !== undefined && rows.length === 0) {
+    await database.prepare(
+      `UPDATE post_media_backfill_state
+       SET completed = 1, updated_at = ? WHERE id = 1`,
+    ).bind(new Date().toISOString()).run();
+    return { registered: 0, linked: 0, missing: [], done: true };
+  }
   const references = rows.map((post) => ({
     postId: post.id,
     coverKey: post.cover ? mediaKeyFromUrl(post.cover) : undefined,
     inlineKeys: extractManagedImageKeys(post.body),
+    snapshotCover: post.cover,
+    snapshotBody: post.body,
   }));
   const referencedKeys = [...new Set(references.flatMap((post) => [
     ...(post.coverKey ? [post.coverKey] : []),
     ...post.inlineKeys,
   ]))];
   const registeredKeys = await findRegisteredMediaKeys(database, referencedKeys);
+  const claimedKeys = referencedKeys.length === 0
+    ? new Set<string>()
+    : new Set((await database.prepare(
+      `SELECT kv_key FROM media_cleanup_jobs
+       WHERE claim_token IS NOT NULL
+         AND kv_key IN (SELECT value FROM json_each(?))`,
+    ).bind(JSON.stringify(referencedKeys)).all<{ kv_key: string }>()).results
+      .map(({ kv_key }) => kv_key));
   const missing: string[] = [];
   const assets: BackfillMediaAssetInput[] = [];
   for (const key of referencedKeys) {
@@ -104,16 +156,46 @@ export async function backfillPostMedia(
     });
   }
   const availableKeys = new Set([
-    ...registeredKeys,
+    ...[...registeredKeys].filter((key) => !claimedKeys.has(key)),
     ...assets.map(({ key }) => key),
   ]);
   const linkedReferences = references.map((post) => ({
     postId: post.postId,
     ...(post.coverKey && availableKeys.has(post.coverKey) ? { coverKey: post.coverKey } : {}),
     inlineKeys: post.inlineKeys.filter((key) => availableKeys.has(key)),
+    snapshotCover: post.snapshotCover,
+    snapshotBody: post.snapshotBody,
   }));
-  const result = await registerAndLinkBackfilledPostMedia(database, assets, linkedReferences);
-  return { ...result, missing };
+  if (options && claimedKeys.size > 0) {
+    return { registered: 0, linked: 0, missing, done: false };
+  }
+  let result: { registered: number; linked: number };
+  try {
+    result = await registerAndLinkBackfilledPostMedia(database, assets, linkedReferences);
+  } catch (error) {
+    if (
+      options
+      && error instanceof Error
+      && /media_operation_assertions\.value|NOT NULL constraint failed/i.test(error.message)
+    ) {
+      return { registered: 0, linked: 0, missing, done: false };
+    }
+    throw error;
+  }
+  const done = batchSize === undefined ? undefined : rows.length < batchSize;
+  if (batchSize !== undefined) {
+    const last = rows.at(-1)!;
+    await database.prepare(
+      `UPDATE post_media_backfill_state
+       SET cursor_published_at = ?, cursor_post_id = ?, completed = ?, updated_at = ?
+       WHERE id = 1`,
+    ).bind(last.published_at, last.id, done ? 1 : 0, new Date().toISOString()).run();
+  }
+  return {
+    ...result,
+    missing,
+    ...(options ? { done } : {}),
+  };
 }
 
 export interface MediaUploadRecoveryDetails {
@@ -165,19 +247,36 @@ export async function runMediaCleanup(
   database: D1Database,
   store: MediaObjectStore,
   limit = 10,
+  now = new Date(),
 ): Promise<{ completed: number; failed: number }> {
-  const jobs = await listMediaCleanupJobs(database, limit);
+  await queueExpiredDraftCleanup(
+    database,
+    new Date(now.getTime() - 24 * 60 * 60 * 1000),
+    limit,
+  );
+  const jobs = await claimMediaCleanupJobs(database, limit, now);
   let completed = 0;
   let failed = 0;
 
   for (const job of jobs) {
     try {
       await store.delete(job.kv_key);
-      await completeMediaCleanup(database, job.asset_id);
+      await completeMediaCleanup(
+        database,
+        job.asset_id,
+        job.claim_token!,
+        job.claim_generation,
+      );
       completed += 1;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      await failMediaCleanup(database, job.asset_id, message);
+      await failMediaCleanup(
+        database,
+        job.asset_id,
+        job.claim_token!,
+        job.claim_generation,
+        message,
+      );
       failed += 1;
     }
   }

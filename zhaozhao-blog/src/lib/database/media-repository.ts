@@ -53,6 +53,8 @@ export interface BackfillPostMediaInput {
   postId: string;
   coverKey?: string;
   inlineKeys: string[];
+  snapshotCover?: string | null;
+  snapshotBody?: string;
 }
 
 export interface PostDeletePreview {
@@ -74,6 +76,7 @@ interface AssetUsageRow extends MediaAssetRow {
 
 const usageOrder: PostAssetUsage[] = ["cover", "inline", "library"];
 const maxD1BindingsPerStatement = 100;
+const cleanupClaimLeaseMs = 5 * 60 * 1000;
 
 function primary(database: D1Database): D1DatabaseSession {
   return database.withSession("first-primary");
@@ -231,77 +234,125 @@ export async function registerAndLinkBackfilledPostMedia(
     const currentKeys = currentKeysByPost.get(post.postId) ?? new Set<string>();
     linked += desiredKeys.filter((key) => !currentKeys.has(key)).length;
   }
-  const assetIds = new Map(assets.map((asset) => [asset.key, randomUUID()]));
-  const statements: D1PreparedStatement[] = assets.map((asset) => database.prepare(
+  const stagedAssets = assets.map((asset) => ({ ...asset, id: randomUUID() }));
+  const statements: D1PreparedStatement[] = [database.prepare(
     `INSERT INTO media_assets
      (id, kv_key, original_name, content_type, size_bytes, state, draft_token, created_at)
-     VALUES (?, ?, ?, ?, ?, 'ready', NULL, ?)
+     SELECT
+       json_extract(item.value, '$.id'),
+       json_extract(item.value, '$.key'),
+       json_extract(item.value, '$.originalName'),
+       json_extract(item.value, '$.contentType'),
+       json_extract(item.value, '$.sizeBytes'),
+       'ready', NULL, ?
+     FROM json_each(?) item WHERE 1
      ON CONFLICT(kv_key) DO NOTHING`,
-  ).bind(
-    assetIds.get(asset.key)!,
-    asset.key,
-    asset.originalName,
-    asset.contentType,
-    asset.sizeBytes ?? null,
-    timestamp,
-  ));
+  ).bind(timestamp, JSON.stringify(stagedAssets))];
 
   const referencedKeys = unique(posts.flatMap((post) => [
     ...(post.coverKey ? [post.coverKey] : []),
     ...post.inlineKeys,
   ]));
-  for (const key of referencedKeys) {
-    statements.push(database.prepare(
-      "UPDATE media_assets SET state = 'ready', draft_token = NULL WHERE kv_key = ?",
-    ).bind(key));
-  }
+  statements.push(database.prepare(
+    `UPDATE media_assets SET state = 'ready', draft_token = NULL
+     WHERE kv_key IN (SELECT value FROM json_each(?))
+       AND NOT EXISTS (
+         SELECT 1 FROM media_cleanup_jobs job
+         WHERE job.asset_id = media_assets.id AND job.claim_token IS NOT NULL
+       )`,
+  ).bind(JSON.stringify(referencedKeys)));
 
   for (const post of posts) {
     const libraryKeys = unique([
       ...(post.coverKey ? [post.coverKey] : []),
       ...post.inlineKeys,
     ]);
-    statements.push(
-      database.prepare(
-        "DELETE FROM post_asset_links WHERE post_id = ? AND usage IN ('cover', 'inline')",
-      ).bind(post.postId),
-    );
-    for (const [sortOrder, key] of libraryKeys.entries()) {
+    const runToken = `backfill_guard_${randomUUID()}`;
+    if (post.snapshotBody !== undefined) {
       statements.push(database.prepare(
-        `INSERT INTO post_asset_links (post_id, asset_id, usage, sort_order, created_at)
-         SELECT ?, id, 'library', ?, ? FROM media_assets
-         WHERE kv_key = ? AND state = 'ready'
-         ON CONFLICT(post_id, asset_id, usage) DO UPDATE SET sort_order = excluded.sort_order`,
-      ).bind(post.postId, sortOrder, timestamp, key));
+        `INSERT INTO media_operation_assertions (run_token, value)
+         VALUES (?, (
+           SELECT CASE WHEN EXISTS (
+             SELECT 1 FROM posts
+             WHERE id = ? AND COALESCE(cover, '') = ? AND body = ?
+           ) THEN 1 END
+         ))`,
+      ).bind(runToken, post.postId, post.snapshotCover ?? "", post.snapshotBody));
     }
+    statements.push(database.prepare(
+      `DELETE FROM post_asset_links
+       WHERE post_id = ? AND usage IN ('cover', 'inline')
+         AND (? = 0 OR EXISTS (
+           SELECT 1 FROM media_operation_assertions WHERE run_token = ?
+         ))`,
+    ).bind(post.postId, post.snapshotBody === undefined ? 0 : 1, runToken));
+    const libraryJson = JSON.stringify(libraryKeys.map((key, sortOrder) => ({ key, sortOrder })));
+    statements.push(database.prepare(
+      `INSERT INTO post_asset_links (post_id, asset_id, usage, sort_order, created_at)
+       SELECT ?, asset.id, 'library', json_extract(item.value, '$.sortOrder'), ?
+       FROM json_each(?) item
+       JOIN media_assets asset ON asset.kv_key = json_extract(item.value, '$.key')
+       WHERE asset.state = 'ready'
+         AND (? = 0 OR EXISTS (
+           SELECT 1 FROM media_operation_assertions WHERE run_token = ?
+         ))
+       ON CONFLICT(post_id, asset_id, usage) DO UPDATE SET sort_order = excluded.sort_order`,
+    ).bind(
+      post.postId,
+      timestamp,
+      libraryJson,
+      post.snapshotBody === undefined ? 0 : 1,
+      runToken,
+    ));
     if (post.coverKey) {
       statements.push(database.prepare(
         `INSERT INTO post_asset_links (post_id, asset_id, usage, sort_order, created_at)
          SELECT ?, id, 'cover', 0, ? FROM media_assets
-         WHERE kv_key = ? AND state = 'ready'`,
-      ).bind(post.postId, timestamp, post.coverKey));
-    }
-    for (const [sortOrder, key] of post.inlineKeys.entries()) {
-      statements.push(database.prepare(
-        `INSERT INTO post_asset_links (post_id, asset_id, usage, sort_order, created_at)
-         SELECT ?, id, 'inline', ?, ? FROM media_assets
          WHERE kv_key = ? AND state = 'ready'
-         ON CONFLICT(post_id, asset_id, usage) DO UPDATE SET sort_order = excluded.sort_order`,
-      ).bind(post.postId, sortOrder, timestamp, key));
+           AND (? = 0 OR EXISTS (
+             SELECT 1 FROM media_operation_assertions WHERE run_token = ?
+           ))`,
+      ).bind(
+        post.postId,
+        timestamp,
+        post.coverKey,
+        post.snapshotBody === undefined ? 0 : 1,
+        runToken,
+      ));
+    }
+    const inlineJson = JSON.stringify(post.inlineKeys.map((key, sortOrder) => ({ key, sortOrder })));
+    statements.push(database.prepare(
+      `INSERT INTO post_asset_links (post_id, asset_id, usage, sort_order, created_at)
+       SELECT ?, asset.id, 'inline', json_extract(item.value, '$.sortOrder'), ?
+       FROM json_each(?) item
+       JOIN media_assets asset ON asset.kv_key = json_extract(item.value, '$.key')
+       WHERE asset.state = 'ready'
+         AND (? = 0 OR EXISTS (
+           SELECT 1 FROM media_operation_assertions WHERE run_token = ?
+         ))
+       ON CONFLICT(post_id, asset_id, usage) DO UPDATE SET sort_order = excluded.sort_order`,
+    ).bind(
+      post.postId,
+      timestamp,
+      inlineJson,
+      post.snapshotBody === undefined ? 0 : 1,
+      runToken,
+    ));
+    if (post.snapshotBody !== undefined) {
+      statements.push(database.prepare(
+        "DELETE FROM media_operation_assertions WHERE run_token = ?",
+      ).bind(runToken));
     }
   }
-  for (const key of referencedKeys) {
-    statements.push(database.prepare(
-      "DELETE FROM media_cleanup_jobs WHERE kv_key = ?",
-    ).bind(key));
-  }
+  statements.push(database.prepare(
+    `DELETE FROM media_cleanup_jobs
+     WHERE claim_token IS NULL
+       AND kv_key IN (SELECT value FROM json_each(?))`,
+  ).bind(JSON.stringify(referencedKeys)));
 
   const results = statements.length === 0 ? [] : await database.batch(statements);
   return {
-    registered: assets.reduce(
-      (count, _asset, index) => count + Number(results[index]?.meta.changes ?? 0),
-      0,
-    ),
+    registered: Number(results[0]?.meta.changes ?? 0),
     linked,
   };
 }
@@ -396,6 +447,7 @@ export async function listPostAssets(
   database: D1Database,
   postId: string,
 ): Promise<AdminMediaAsset[]> {
+  await assertPostExists(database, postId);
   const { results } = await primary(database).prepare(
     `SELECT asset.*, link.usage,
        (SELECT COUNT(DISTINCT shared.post_id)
@@ -632,6 +684,7 @@ export async function previewPostDelete(
   database: D1Database,
   postId: string,
 ): Promise<PostDeletePreview> {
+  await assertPostExists(database, postId);
   const row = await primary(database).prepare(
     `SELECT
        COUNT(DISTINCT CASE WHEN NOT EXISTS (
@@ -725,27 +778,134 @@ export async function listMediaCleanupJobs(
   return results;
 }
 
+export async function claimMediaCleanupJobs(
+  database: D1Database,
+  limit = 10,
+  now = new Date(),
+): Promise<MediaCleanupJobRow[]> {
+  const normalizedLimit = Math.max(0, Math.floor(limit));
+  if (normalizedLimit === 0) return [];
+  const claimToken = randomUUID();
+  const claimedAt = now.toISOString();
+  const leaseCutoff = new Date(now.getTime() - cleanupClaimLeaseMs).toISOString();
+  const { results } = await database.prepare(
+    `UPDATE media_cleanup_jobs
+     SET claim_token = ?, claimed_at = ?, claim_generation = claim_generation + 1
+     WHERE asset_id IN (
+       SELECT job.asset_id
+       FROM media_cleanup_jobs job
+       JOIN media_assets asset ON asset.id = job.asset_id
+       WHERE (job.claim_token IS NULL OR job.claimed_at <= ?)
+         AND asset.state = 'pending_delete'
+         AND NOT EXISTS (
+           SELECT 1 FROM post_asset_links link WHERE link.asset_id = asset.id
+         )
+       ORDER BY job.queued_at, job.asset_id
+       LIMIT ?
+     )
+     RETURNING *`,
+  ).bind(claimToken, claimedAt, leaseCutoff, normalizedLimit).all<MediaCleanupJobRow>();
+  return results;
+}
+
 export async function completeMediaCleanup(
   database: D1Database,
   assetId: string,
+  claimToken?: string,
+  claimGeneration?: number,
 ): Promise<void> {
-  await database.prepare(
+  const claimed = claimToken !== undefined && claimGeneration !== undefined;
+  const result = await database.prepare(
     `DELETE FROM media_assets
      WHERE id = ?
-       AND NOT EXISTS (SELECT 1 FROM post_asset_links WHERE asset_id = ?)`,
-  ).bind(assetId, assetId).run();
+       AND state = 'pending_delete'
+       AND NOT EXISTS (SELECT 1 FROM post_asset_links WHERE asset_id = ?)
+       AND EXISTS (
+         SELECT 1 FROM media_cleanup_jobs job
+         WHERE job.asset_id = media_assets.id
+           AND ${claimed
+             ? "job.claim_token = ? AND job.claim_generation = ?"
+             : "job.claim_token IS NULL"}
+       )`,
+  ).bind(
+    ...(claimed
+      ? [assetId, assetId, claimToken, claimGeneration]
+      : [assetId, assetId]),
+  ).run();
+  if (claimed && Number(result.meta.changes ?? 0) === 0) {
+    throw new AdminConflictError("清理任务状态已变更。", { assetId });
+  }
 }
 
 export async function failMediaCleanup(
   database: D1Database,
   assetId: string,
-  message: string,
+  claimTokenOrMessage: string,
+  claimGeneration?: number,
+  claimedMessage?: string,
 ): Promise<void> {
-  await database.prepare(
-    `UPDATE media_cleanup_jobs
-     SET attempts = attempts + 1, last_error = ?
-     WHERE asset_id = ?`,
-  ).bind(message, assetId).run();
+  const claimed = claimGeneration !== undefined && claimedMessage !== undefined;
+  const message = claimed ? claimedMessage : claimTokenOrMessage;
+  const result = await database.prepare(
+    claimed
+      ? `UPDATE media_cleanup_jobs
+         SET attempts = attempts + 1, last_error = ?, claim_token = NULL, claimed_at = NULL
+         WHERE asset_id = ? AND claim_token = ? AND claim_generation = ?`
+      : `UPDATE media_cleanup_jobs
+         SET attempts = attempts + 1, last_error = ?
+         WHERE asset_id = ? AND claim_token IS NULL`,
+  ).bind(
+    ...(claimed
+      ? [message, assetId, claimTokenOrMessage, claimGeneration]
+      : [message, assetId]),
+  ).run();
+  if (claimed && Number(result.meta.changes ?? 0) === 0) {
+    throw new AdminConflictError("清理任务 claim 已失效。", { assetId });
+  }
+}
+
+export async function queueExpiredDraftCleanup(
+  database: D1Database,
+  cutoff: Date,
+  limit = 10,
+): Promise<number> {
+  const normalizedLimit = Math.max(0, Math.floor(limit));
+  if (normalizedLimit === 0) return 0;
+  const timestamp = new Date().toISOString();
+  const [, result] = await database.batch([
+    database.prepare(
+      `UPDATE media_assets SET state = 'pending_delete'
+       WHERE id IN (
+         SELECT asset.id FROM media_assets asset
+         WHERE asset.state = 'ready'
+           AND asset.draft_token IS NOT NULL
+           AND asset.created_at < ?
+           AND NOT EXISTS (
+             SELECT 1 FROM post_asset_links link WHERE link.asset_id = asset.id
+           )
+         ORDER BY asset.created_at, asset.id
+         LIMIT ?
+       )`,
+    ).bind(cutoff.toISOString(), normalizedLimit),
+    database.prepare(
+      `INSERT INTO media_cleanup_jobs (asset_id, kv_key, reason, queued_at)
+       SELECT asset.id, asset.kv_key, 'draft_expired', ?
+       FROM media_assets asset
+       WHERE asset.state = 'pending_delete'
+         AND asset.draft_token IS NOT NULL
+         AND asset.created_at < ?
+         AND NOT EXISTS (
+           SELECT 1 FROM post_asset_links link WHERE link.asset_id = asset.id
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM media_cleanup_jobs job WHERE job.asset_id = asset.id
+         )
+       ORDER BY asset.created_at, asset.id
+       LIMIT ?
+       ON CONFLICT(asset_id) DO NOTHING`,
+    ).bind(timestamp, cutoff.toISOString(), normalizedLimit),
+  ]);
+  return Number(result?.meta.changes ?? 0);
 }
 
 export async function queueDraftCleanup(

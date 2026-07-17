@@ -86,4 +86,7 @@ export interface MediaCleanupJobRow {
   queued_at: string;
   attempts: number;
   last_error: string | null;
+  claim_token: string | null;
+  claimed_at: string | null;
+  claim_generation: number;
 }

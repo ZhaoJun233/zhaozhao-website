@@ -10,7 +10,7 @@ import {
 export function createPostAssetBackfillRoute(cleanup?: MediaCleanupRunner): APIRoute {
   return ({ request }) => handleAdminRequest(request, async (database) => {
     const store = getMediaStore();
-    const result = await backfillPostMedia(database, store);
+    const result = await backfillPostMedia(database, store, { batchSize: 3 });
     await runMediaCleanupBestEffort(database, store, 5, cleanup);
     return result;
   });

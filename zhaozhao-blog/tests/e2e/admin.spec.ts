@@ -94,11 +94,8 @@ async function cleanupArticleImageFixtures(
   }
 }
 
-test.beforeEach(({}, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop-1440", "数据库写入流程只执行一次。" );
-});
-
 test("administrator manages friends and moderates guestbook messages", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-1440", "数据库写入流程只执行一次。" );
   const unique = `${Date.now()}-${testInfo.retry}-${Math.random().toString(36).slice(2, 10)}`;
   const friendName = `端到端友链-${unique}`;
   const visitorName = `留言访客-${unique}`;
@@ -191,6 +188,7 @@ tags: 测试, Markdown
 });
 
 test("administrator manages article images", async ({ page, request }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-1440", "数据库写入流程只执行一次。" );
   test.setTimeout(240_000);
   const unique = `${Date.now()}-${testInfo.retry}-${Math.random().toString(36).slice(2, 10)}`;
   const slug = `article-images-${unique}`;
@@ -278,4 +276,41 @@ test("administrator manages article images", async ({ page, request }, testInfo)
       testInfo,
     );
   }
+});
+
+test("article editor stays operable without horizontal overflow", async ({ page }) => {
+  await loginAsAdministrator(page);
+  await page.goto("/admin/posts/");
+  await startNewPost(page);
+
+  const title = page.getByLabel("标题");
+  const markdownBody = page.getByRole("textbox", { name: "Markdown 正文" });
+  await title.fill("响应式编辑器检查");
+  await markdownBody.fill("响应式 smoke 不保存文章，也不重复图片生命周期。\n");
+  await expect(title).toHaveValue("响应式编辑器检查");
+  await expect(markdownBody).toHaveValue(/响应式 smoke/);
+
+  for (const button of [
+    page.getByRole("button", { name: "上传 / 替换" }),
+    page.getByRole("button", { name: "上传并插入图片" }),
+  ]) {
+    await expect(button).toBeVisible();
+    await expect(button).toBeEnabled();
+    const box = await button.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+
+    const fileChooserPromise = page.waitForEvent("filechooser");
+    await button.click();
+    await (await fileChooserPromise).setFiles([]);
+  }
+
+  const viewport = page.viewportSize();
+  expect(viewport).not.toBeNull();
+  const documentWidth = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+  }));
+  expect(documentWidth.clientWidth).toBe(viewport!.width);
+  expect(documentWidth.scrollWidth).toBeLessThanOrEqual(documentWidth.clientWidth);
 });

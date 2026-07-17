@@ -14,7 +14,7 @@ import {
   type SettingKey,
 } from "../admin/schemas";
 import { AdminConflictError, AdminNotFoundError } from "../admin/errors";
-import { extractManagedImageKeys, mediaUrlFromKey } from "../admin/post-images";
+import { extractManagedImageKeys, mediaKeyFromUrl, mediaUrlFromKey } from "../admin/post-images";
 import { taxonomySlug } from "../slug";
 import type { CategoryRow, FriendRow, PostRow, ProjectRow } from "./types";
 import { listAdminMessages, type AdminMessage } from "./message-repository";
@@ -597,6 +597,7 @@ const blogBackupV2MediaSchema = z.object({
   const postIds = new Set(backup.posts.map(({ id }) => id));
   const links = new Set<string>();
   const coverPosts = new Set<string>();
+  const usagesByPostAndKey = new Map<string, Set<"library" | "cover" | "inline">>();
   for (const [index, link] of backup.postAssetLinks.entries()) {
     if (!postIds.has(link.postId)) {
       context.addIssue({
@@ -621,6 +622,10 @@ const blogBackupV2MediaSchema = z.object({
       });
     }
     links.add(identity);
+    const usageKey = `${link.postId}\0${link.kvKey}`;
+    const usages = usagesByPostAndKey.get(usageKey) ?? new Set();
+    usages.add(link.usage);
+    usagesByPostAndKey.set(usageKey, usages);
     if (link.usage === "cover") {
       if (coverPosts.has(link.postId)) {
         context.addIssue({
@@ -630,6 +635,40 @@ const blogBackupV2MediaSchema = z.object({
         });
       }
       coverPosts.add(link.postId);
+    }
+  }
+  for (const [index, rawPost] of backup.posts.entries()) {
+    const post = rawPost as { id: string; cover?: unknown; body?: unknown };
+    const coverKey = typeof post.cover === "string" ? mediaKeyFromUrl(post.cover) : undefined;
+    const inlineKeys = typeof post.body === "string" ? extractManagedImageKeys(post.body) : [];
+    const expectedInline = new Set(inlineKeys);
+    const required = [
+      ...(coverKey ? [{ key: coverKey, usage: "cover" as const }] : []),
+      ...inlineKeys.map((key) => ({ key, usage: "inline" as const })),
+    ];
+    for (const { key, usage } of required) {
+      const usages = usagesByPostAndKey.get(`${post.id}\0${key}`);
+      if (!usages?.has(usage) || !usages.has("library")) {
+        context.addIssue({
+          code: "custom",
+          path: ["posts", index, usage === "cover" ? "cover" : "body"],
+          message: "文章中的托管图片缺少对应的图库和用途链接。",
+        });
+      }
+    }
+    for (const [linkIndex, link] of backup.postAssetLinks.entries()) {
+      if (link.postId !== post.id || link.usage === "library") continue;
+      const referenced = link.usage === "cover"
+        ? coverKey === link.kvKey
+        : expectedInline.has(link.kvKey);
+      const usages = usagesByPostAndKey.get(`${link.postId}\0${link.kvKey}`);
+      if (!referenced || !usages?.has("library")) {
+        context.addIssue({
+          code: "custom",
+          path: ["postAssetLinks", linkIndex],
+          message: "图片用途链接与文章正文或封面不一致。",
+        });
+      }
     }
   }
 });
@@ -739,6 +778,11 @@ export async function importBlogData(database: D1Database, backup: BlogBackup): 
     importedAssetIds.set(asset.kvKey, randomUUID());
   }
   const contentStatements: D1PreparedStatement[] = [
+    database.prepare(
+      `UPDATE post_media_backfill_state
+       SET cursor_published_at = NULL, cursor_post_id = NULL, completed = ?, updated_at = ?
+       WHERE id = 1`,
+    ).bind(schemaVersion === 2 ? 1 : 0, timestamp),
     database.prepare("DELETE FROM guestbook_messages"),
     database.prepare("DELETE FROM posts"),
     database.prepare("DELETE FROM projects"),
@@ -790,9 +834,26 @@ export async function importBlogData(database: D1Database, backup: BlogBackup): 
     const mediaJson = JSON.stringify(stagedAssets);
     const linkJson = JSON.stringify(postAssetLinks);
     const oldMarker = `backup_restore_${randomUUID()}`;
+    const restoreGuard = `backup_guard_${randomUUID()}`;
     statements.unshift(
       database.prepare(
-        "UPDATE media_assets SET draft_token = ?",
+        `INSERT INTO media_operation_assertions (run_token, value)
+         VALUES (?, (
+           SELECT CASE WHEN NOT EXISTS (
+             SELECT 1 FROM media_cleanup_jobs job
+             WHERE job.claim_token IS NOT NULL
+               AND job.kv_key IN (
+                 SELECT json_extract(item.value, '$.kvKey') FROM json_each(?) item
+               )
+           ) THEN 1 END
+         ))`,
+      ).bind(restoreGuard, mediaJson),
+      database.prepare(
+        `UPDATE media_assets SET draft_token = ?
+         WHERE NOT EXISTS (
+           SELECT 1 FROM media_cleanup_jobs job
+           WHERE job.asset_id = media_assets.id AND job.claim_token IS NOT NULL
+         )`,
       ).bind(oldMarker),
     );
     statements.push(
@@ -811,13 +872,14 @@ export async function importBlogData(database: D1Database, backup: BlogBackup): 
            original_name = excluded.original_name,
            content_type = excluded.content_type,
            size_bytes = excluded.size_bytes,
-           state = 'ready'`,
+            state = 'ready',
+            draft_token = NULL`,
       ).bind(timestamp, mediaJson),
       database.prepare(
-        `DELETE FROM media_cleanup_jobs
+         `DELETE FROM media_cleanup_jobs
          WHERE kv_key IN (
            SELECT json_extract(item.value, '$.kvKey') FROM json_each(?) item
-         )`,
+         ) AND claim_token IS NULL`,
       ).bind(mediaJson),
       database.prepare(
         `INSERT INTO post_asset_links (post_id, asset_id, usage, sort_order, created_at)
@@ -853,11 +915,15 @@ export async function importBlogData(database: D1Database, backup: BlogBackup): 
            reason = 'backup_restore',
            queued_at = excluded.queued_at,
            attempts = 0,
-           last_error = NULL`,
+            last_error = NULL
+         WHERE media_cleanup_jobs.claim_token IS NULL`,
       ).bind(timestamp, oldMarker),
       database.prepare(
         "UPDATE media_assets SET draft_token = NULL WHERE draft_token = ?",
       ).bind(oldMarker),
+      database.prepare(
+        "DELETE FROM media_operation_assertions WHERE run_token = ?",
+      ).bind(restoreGuard),
     );
   }
   if (statements.length > maxBackupStatements) {

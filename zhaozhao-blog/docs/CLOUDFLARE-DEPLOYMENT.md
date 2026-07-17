@@ -42,7 +42,7 @@ npm run db:migrate:remote
 npm run deploy
 ```
 
-`wrangler deploy --dry-run` 应列出 D1 绑定 `DB` 和 KV 绑定 `MEDIA`。首次远程迁移会建立结构并导入仓库种子内容；已有环境会应用 `0004_post_media.sql`，创建文章媒体、引用关系和清理队列表。远程迁移与部署都应在本地验证和变更审查通过后执行。
+`wrangler deploy --dry-run` 应列出 D1 绑定 `DB` 和 KV 绑定 `MEDIA`。首次远程迁移会建立结构并导入仓库种子内容；已有环境会依次应用 `0004_post_media.sql` 与 `0005_media_cleanup_claims.sql`，创建文章媒体、引用关系、清理 claim/lease 及可续跑回填状态。远程迁移与部署都应在本地验证和变更审查通过后执行。
 
 部署完成后先做基础烟雾检查：
 
@@ -53,7 +53,7 @@ POST /api/admin/post-assets/ -> 401（无会话）
 GET  /rss.xml                -> 200
 ```
 
-随后登录后台并打开一次 `/admin/posts/`，触发可重复执行的旧文章媒体回填，再按以下顺序验证共享引用与最终清理：
+随后登录后台并打开 `/admin/posts/`，触发一批旧文章媒体回填。历史文章较多时重复打开页面，或重复请求 `POST /api/admin/post-assets/backfill/`，直到响应 `done: true`；每批使用持久游标和文章快照保护，不会用旧正文覆盖并发编辑。然后按以下顺序验证共享引用与最终清理：
 
 1. 创建文章 A，上传一张封面和一张正文图片，保存后确认两个 `/media/uploads/.../` 地址均返回 200。
 2. 创建文章 B，在 Markdown 中复用文章 A 的正文图片 URL 并保存。

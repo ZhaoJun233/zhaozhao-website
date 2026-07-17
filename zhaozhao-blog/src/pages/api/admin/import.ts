@@ -12,7 +12,7 @@ export const POST: APIRoute = ({ request }) => handleAdminRequest(request, async
   await importBlogData(database, backup);
   const store = getMediaStore();
   if (backup.schemaVersion === 1) {
-    await backfillPostMedia(database, store);
+    await backfillPostMedia(database, store, { batchSize: 3 });
   } else {
     await runMediaCleanupBestEffort(database, store, 5);
   }

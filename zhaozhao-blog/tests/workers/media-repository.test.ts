@@ -11,6 +11,7 @@ import {
 import {
   beginMediaUpload,
   buildPostAssetSyncStatements,
+  claimMediaCleanupJobs,
   completeMediaCleanup,
   discardMediaUpload,
   failMediaCleanup,
@@ -19,6 +20,7 @@ import {
   listPostAssets,
   markMediaReady,
   previewPostDelete,
+  queueExpiredDraftCleanup,
   queuePostDelete,
   queueDraftCleanup,
   removePostAsset,
@@ -105,6 +107,31 @@ async function insertReadyAssets(
 }
 
 describe("article media schema", () => {
+  it("returns not found for asset listing and delete preview of a missing post", async () => {
+    const missingId = "99999999-9999-4999-8999-999999999999";
+
+    await expect(listPostAssets(env.DB, missingId)).rejects.toBeInstanceOf(AdminNotFoundError);
+    await expect(previewPostDelete(env.DB, missingId)).rejects.toBeInstanceOf(AdminNotFoundError);
+
+    const { GET: listAssets } = await import(
+      "../../src/pages/api/admin/posts/[id]/assets/index"
+    );
+    const { GET: deletePreview } = await import(
+      "../../src/pages/api/admin/posts/[id]/delete-preview"
+    );
+    const listResponse = await listAssets({
+      request: await adminRequest(`/api/admin/posts/${missingId}/assets/`, "GET"),
+      params: { id: missingId },
+    } as never);
+    const previewResponse = await deletePreview({
+      request: await adminRequest(`/api/admin/posts/${missingId}/delete-preview/`, "GET"),
+      params: { id: missingId },
+    } as never);
+
+    expect(listResponse.status).toBe(404);
+    expect(previewResponse.status).toBe(404);
+  });
+
   it("backfills legacy article images idempotently from KV metadata", async () => {
     const legacy = await storeAdminMedia(
       env.MEDIA,
@@ -170,14 +197,77 @@ describe("article media schema", () => {
     } as never);
     expect(unauthorized.status).toBe(401);
 
-    const response = await POST({
+    let registered = 0;
+    let linked = 0;
+    let done = false;
+    for (let page = 0; page < 10 && !done; page += 1) {
+      const response = await POST({
+        request: await adminRequest("/api/admin/post-assets/backfill/", "POST"),
+      } as never);
+      expect(response.status).toBe(200);
+      const payload = await response.json() as {
+        data: { registered: number; linked: number; missing: string[]; done: boolean };
+      };
+      registered += payload.data.registered;
+      linked += payload.data.linked;
+      done = payload.data.done;
+    }
+    expect({ registered, linked, done }).toEqual({ registered: 1, linked: 1, done: true });
+    expect((await listPostAssets(env.DB, post.id))[0]).toMatchObject({ key: legacy.key });
+
+    const completedResponse = await POST({
       request: await adminRequest("/api/admin/post-assets/backfill/", "POST"),
     } as never);
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
-      data: { registered: 1, linked: 1, missing: [] },
+    expect(await completedResponse.json()).toEqual({
+      data: { registered: 0, linked: 0, missing: [], done: true },
     });
-    expect((await listPostAssets(env.DB, post.id))[0]).toMatchObject({ key: legacy.key });
+  });
+
+  it("retries a paged backfill when the article changes after its snapshot", async () => {
+    const oldMedia = await storeAdminMedia(
+      env.MEDIA,
+      new File(["old"], "backfill-snapshot-old.png", { type: "image/png" }),
+      new Date("2026-07-17T00:00:00.000Z"),
+    );
+    const nextMedia = await storeAdminMedia(
+      env.MEDIA,
+      new File(["next"], "backfill-snapshot-next.png", { type: "image/png" }),
+      new Date("2026-07-17T00:00:01.000Z"),
+    );
+    const post = await createPost(env.DB, {
+      slug: "backfill-snapshot-guard",
+      title: "Backfill snapshot guard",
+      description: "Concurrent article edits must win.",
+      body: `![old](${oldMedia.url})`,
+      publishedAt: "1900-01-01T00:00:00.000Z",
+      draft: true,
+      category: "开发",
+      tags: ["test"],
+      featured: false,
+    });
+    let raced = false;
+    const batchSizes: number[] = [];
+    const racingDatabase = {
+      prepare: (...args: Parameters<D1Database["prepare"]>) => env.DB.prepare(...args),
+      withSession: (...args: Parameters<D1Database["withSession"]>) => env.DB.withSession(...args),
+      batch: async <T>(statements: D1PreparedStatement[]) => {
+        batchSizes.push(statements.length);
+        if (!raced) {
+          raced = true;
+          await env.DB.prepare("UPDATE posts SET body = ? WHERE id = ?")
+            .bind(`![next](${nextMedia.url})`, post.id).run();
+        }
+        return env.DB.batch<T>(statements);
+      },
+    } as D1Database;
+
+    expect(await backfillPostMedia(racingDatabase, env.MEDIA, { batchSize: 3 }))
+      .toMatchObject({ done: false, registered: 0, linked: 0 });
+    expect(await listPostAssets(env.DB, post.id)).toEqual([]);
+    expect(batchSizes.every((size) => size <= 50)).toBe(true);
+
+    await backfillPostMedia(env.DB, env.MEDIA, { batchSize: 3 });
+    expect((await listPostAssets(env.DB, post.id)).map(({ key }) => key)).toEqual([nextMedia.key]);
   });
 
   it("rebuilds every post and removes stale usages for empty or missing references", async () => {
@@ -875,6 +965,162 @@ describe("article media schema", () => {
       "draft_cancelled",
       "upload_failed",
     ]);
+  });
+
+  it("claims cleanup jobs atomically and releases a failed claim for a new generation", async () => {
+    const asset = await beginMediaUpload(env.DB, {
+      key: "uploads/2026/07/claimed-retry.png",
+      originalName: "claimed-retry.png",
+      contentType: "image/png",
+      sizeBytes: 4,
+      draftToken,
+    });
+    await markMediaReady(env.DB, asset.id);
+    await queueDraftCleanup(env.DB, draftToken, "draft_cancelled");
+
+    const first = await claimMediaCleanupJobs(
+      env.DB,
+      5,
+      new Date("2026-07-17T01:00:00.000Z"),
+    );
+    const competing = await claimMediaCleanupJobs(
+      env.DB,
+      5,
+      new Date("2026-07-17T01:00:01.000Z"),
+    );
+    expect(first).toHaveLength(1);
+    expect(first[0]).toMatchObject({ asset_id: asset.id, claim_generation: 1 });
+    expect(competing).toEqual([]);
+
+    await failMediaCleanup(
+      env.DB,
+      asset.id,
+      first[0]!.claim_token!,
+      first[0]!.claim_generation,
+      "temporary failure",
+    );
+    const second = await claimMediaCleanupJobs(
+      env.DB,
+      5,
+      new Date("2026-07-17T01:00:02.000Z"),
+    );
+    expect(second).toHaveLength(1);
+    expect(second[0]).toMatchObject({
+      asset_id: asset.id,
+      attempts: 1,
+      last_error: "temporary failure",
+      claim_generation: 2,
+    });
+  });
+
+  it("does not let backfill restore an asset claimed by an older cleanup runner", async () => {
+    const legacy = await storeAdminMedia(
+      env.MEDIA,
+      new File(["claimed"], "claimed-backfill.png", { type: "image/png" }),
+      new Date("2026-07-17T00:00:00.000Z"),
+    );
+    const post = await createPost(env.DB, {
+      slug: "claimed-backfill",
+      title: "Claimed backfill",
+      description: "Claimed cleanup must win over stale backfill.",
+      body: `![claimed](${legacy.url})`,
+      publishedAt: "2026-07-17T00:00:00.000Z",
+      draft: true,
+      category: "开发",
+      tags: ["test"],
+      featured: false,
+    });
+    const asset = await beginMediaUpload(env.DB, {
+      key: legacy.key,
+      originalName: "claimed-backfill.png",
+      contentType: "image/png",
+      sizeBytes: 7,
+      draftToken,
+    });
+    await markMediaReady(env.DB, asset.id);
+    await queueDraftCleanup(env.DB, draftToken, "draft_cancelled");
+    const [claim] = await claimMediaCleanupJobs(
+      env.DB,
+      1,
+      new Date("2026-07-17T01:00:00.000Z"),
+    );
+
+    const result = await backfillPostMedia(env.DB, env.MEDIA, { batchSize: 10 });
+    expect(result.done).toBe(false);
+    expect(await listPostAssets(env.DB, post.id)).toEqual([]);
+    expect(await env.DB.prepare("SELECT state FROM media_assets WHERE id = ?")
+      .bind(asset.id).first()).toEqual({ state: "pending_delete" });
+
+    await env.MEDIA.delete(asset.key);
+    await completeMediaCleanup(
+      env.DB,
+      asset.id,
+      claim!.claim_token!,
+      claim!.claim_generation,
+    );
+    expect(await env.DB.prepare("SELECT id FROM media_assets WHERE id = ?")
+      .bind(asset.id).first()).toBeNull();
+    expect(await listPostAssets(env.DB, post.id)).toEqual([]);
+  });
+
+  it("queues only expired unlinked drafts in a bounded idempotent batch and cleans KV", async () => {
+    const linkedPost = await createTestPost("expiry-linked");
+    const expired = await beginMediaUpload(env.DB, {
+      key: "uploads/2026/07/expired-draft.png",
+      originalName: "expired-draft.png",
+      contentType: "image/png",
+      sizeBytes: 4,
+      draftToken,
+    });
+    const fresh = await beginMediaUpload(env.DB, {
+      key: "uploads/2026/07/fresh-draft.png",
+      originalName: "fresh-draft.png",
+      contentType: "image/png",
+      sizeBytes: 4,
+      draftToken: "22222222-2222-4222-8222-222222222222",
+    });
+    const linked = await beginMediaUpload(env.DB, {
+      key: "uploads/2026/07/linked-expired-draft.png",
+      originalName: "linked-expired-draft.png",
+      contentType: "image/png",
+      sizeBytes: 4,
+      draftToken: "33333333-3333-4333-8333-333333333333",
+    });
+    await Promise.all([
+      markMediaReady(env.DB, expired.id),
+      markMediaReady(env.DB, fresh.id),
+      markMediaReady(env.DB, linked.id),
+    ]);
+    await env.DB.prepare(
+      "UPDATE media_assets SET created_at = ? WHERE id IN (?, ?)",
+    ).bind("2026-07-15T00:00:00.000Z", expired.id, linked.id).run();
+    await syncPostAssetLinks(env.DB, linkedPost.id, {
+      draftToken: "33333333-3333-4333-8333-333333333333",
+      retainedAssetIds: [linked.id],
+      inlineKeys: [],
+    });
+    await Promise.all([
+      env.MEDIA.put(expired.key, "old"),
+      env.MEDIA.put(fresh.key, "fresh"),
+      env.MEDIA.put(linked.key, "linked"),
+    ]);
+
+    const cutoff = new Date("2026-07-16T00:00:00.000Z");
+    expect(await queueExpiredDraftCleanup(env.DB, cutoff, 1)).toBe(1);
+    expect(await queueExpiredDraftCleanup(env.DB, cutoff, 1)).toBe(0);
+    expect(await listMediaCleanupJobs(env.DB)).toMatchObject([
+      { asset_id: expired.id, reason: "draft_expired" },
+    ]);
+
+    expect(await runMediaCleanup(
+      env.DB,
+      env.MEDIA,
+      5,
+      new Date("2026-07-17T00:00:00.000Z"),
+    )).toEqual({ completed: 1, failed: 0 });
+    expect(await env.MEDIA.get(expired.key, "arrayBuffer")).toBeNull();
+    expect(await env.MEDIA.get(fresh.key, "arrayBuffer")).not.toBeNull();
+    expect(await env.MEDIA.get(linked.key, "arrayBuffer")).not.toBeNull();
   });
 
   it("rejects missing, uploading, pending, and mismatched draft assets", async () => {

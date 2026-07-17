@@ -9,6 +9,9 @@ beforeEach(async () => {
     DROP TABLE IF EXISTS guestbook_messages;
     DROP TABLE IF EXISTS media_cleanup_jobs;
     DROP TABLE IF EXISTS post_asset_links;
+    DROP TABLE IF EXISTS media_operation_assertions;
+    DROP TABLE IF EXISTS post_media_backfill_guards;
+    DROP TABLE IF EXISTS post_media_backfill_state;
     DROP TABLE IF EXISTS media_assets;
     DROP TABLE IF EXISTS friend_page;
     DROP TABLE IF EXISTS friends;
