@@ -107,13 +107,11 @@ export async function backfillPostMedia(
     ...registeredKeys,
     ...assets.map(({ key }) => key),
   ]);
-  const linkedReferences = references
-    .map((post) => ({
-      postId: post.postId,
-      ...(post.coverKey && availableKeys.has(post.coverKey) ? { coverKey: post.coverKey } : {}),
-      inlineKeys: post.inlineKeys.filter((key) => availableKeys.has(key)),
-    }))
-    .filter((post) => Boolean(post.coverKey) || post.inlineKeys.length > 0);
+  const linkedReferences = references.map((post) => ({
+    postId: post.postId,
+    ...(post.coverKey && availableKeys.has(post.coverKey) ? { coverKey: post.coverKey } : {}),
+    inlineKeys: post.inlineKeys.filter((key) => availableKeys.has(key)),
+  }));
   const result = await registerAndLinkBackfilledPostMedia(database, assets, linkedReferences);
   return { ...result, missing };
 }

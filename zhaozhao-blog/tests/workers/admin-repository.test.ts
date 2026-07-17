@@ -31,6 +31,7 @@ import {
 } from "../../src/lib/database/admin-repository";
 import {
   beginMediaUpload,
+  failMediaUpload,
   listMediaCleanupJobs,
   listPostAssets,
   markMediaReady,
@@ -69,6 +70,49 @@ function databaseWithBeforeBatch(operation: () => Promise<void>): D1Database {
       return env.DB.batch<T>(statements);
     },
   } as D1Database;
+}
+
+function databaseWithBatchObserver(
+  batchSizes: number[],
+  beforeBatch?: () => Promise<void>,
+): D1Database {
+  return {
+    prepare: (...args: Parameters<D1Database["prepare"]>) => env.DB.prepare(...args),
+    withSession: (...args: Parameters<D1Database["withSession"]>) => env.DB.withSession(...args),
+    batch: async <T>(statements: D1PreparedStatement[]) => {
+      await beforeBatch?.();
+      batchSizes.push(statements.length);
+      return env.DB.batch<T>(statements);
+    },
+  } as D1Database;
+}
+
+async function insertBackupAssets(postId: string, count: number, prefix: string): Promise<void> {
+  const timestamp = "2026-07-17T00:00:00.000Z";
+  const assets = Array.from({ length: count }, (_, index) => ({
+    id: `90000000-0000-4000-8000-${index.toString().padStart(12, "0")}`,
+    key: `uploads/2026/07/${prefix}-${index}.png`,
+    name: `${prefix}-${index}.png`,
+  }));
+  const statements: D1PreparedStatement[] = [];
+  for (let offset = 0; offset < assets.length; offset += 25) {
+    const chunk = assets.slice(offset, offset + 25);
+    statements.push(env.DB.prepare(
+      `INSERT INTO media_assets
+       (id, kv_key, original_name, content_type, size_bytes, state, draft_token, created_at)
+       VALUES ${chunk.map(() => "(?, ?, ?, 'image/png', 4, 'ready', NULL, ?)").join(", ")}`,
+    ).bind(...chunk.flatMap((asset) => [asset.id, asset.key, asset.name, timestamp])));
+    statements.push(env.DB.prepare(
+      `INSERT INTO post_asset_links (post_id, asset_id, usage, sort_order, created_at)
+       VALUES ${chunk.map(() => "(?, ?, 'library', ?, ?)").join(", ")}`,
+    ).bind(...chunk.flatMap((asset, index) => [
+      postId,
+      asset.id,
+      offset + index,
+      timestamp,
+    ])));
+  }
+  await env.DB.batch(statements);
 }
 
 async function adminJsonRequest(
@@ -565,5 +609,121 @@ describe("D1 administrator repository", () => {
       key: legacy.key,
       usages: ["inline", "library"],
     });
+  });
+
+  it.each([
+    { label: "missing mediaAssets", mutate: (backup: Record<string, unknown>) => {
+      delete backup.mediaAssets;
+    } },
+    { label: "null postAssetLinks", mutate: (backup: Record<string, unknown>) => {
+      backup.postAssetLinks = null;
+    } },
+    { label: "damaged media element", mutate: (backup: Record<string, unknown>) => {
+      backup.mediaAssets = [{ kvKey: 42, originalName: "broken", contentType: "image/png" }];
+    } },
+    { label: "damaged link element", mutate: (backup: Record<string, unknown>) => {
+      backup.postAssetLinks = [{
+        postId: "post",
+        kvKey: "uploads/2026/07/broken.png",
+        usage: "thumbnail",
+        sortOrder: -1,
+      }];
+    } },
+  ])("rejects $label in schema version 2 before database access", async ({ mutate }) => {
+    const exported = await exportBlogData(env.DB);
+    const damaged = structuredClone(exported) as unknown as Record<string, unknown>;
+    mutate(damaged);
+    let databaseOperations = 0;
+    const inaccessibleDatabase = {
+      prepare: () => {
+        databaseOperations += 1;
+        throw new Error("unexpected database access");
+      },
+      withSession: () => {
+        databaseOperations += 1;
+        throw new Error("unexpected database access");
+      },
+      batch: async () => {
+        databaseOperations += 1;
+        throw new Error("unexpected database access");
+      },
+    } as unknown as D1Database;
+
+    await expect(importBlogData(inaccessibleDatabase, damaged as never))
+      .rejects.toMatchObject({ name: "ZodError" });
+    expect(databaseOperations).toBe(0);
+  });
+
+  it("returns a validation error for damaged v2 JSON without restoring or cleaning media", async () => {
+    const pending = await beginMediaUpload(env.DB, {
+      key: "uploads/2026/07/damaged-v2-guard.png",
+      originalName: "damaged-v2-guard.png",
+      contentType: "image/png",
+      sizeBytes: 4,
+    });
+    await env.MEDIA.put(pending.key, "keep");
+    await failMediaUpload(env.DB, pending.id);
+    const backup = await exportBlogData(env.DB);
+    const damaged = { ...backup, mediaAssets: null };
+    const originalPosts = await listPosts(env.DB);
+
+    const response = await importBlogRoute({
+      request: await adminJsonRequest("POST", "/api/admin/import/", damaged),
+    } as never);
+
+    expect(response.status).toBe(422);
+    expect(await response.json()).toMatchObject({ error: "提交内容未通过校验。" });
+    expect(await listPosts(env.DB)).toEqual(originalPosts);
+    expect(await listMediaCleanupJobs(env.DB)).toContainEqual(expect.objectContaining({
+      asset_id: pending.id,
+      kv_key: pending.key,
+      reason: "upload_failed",
+    }));
+    expect(await env.MEDIA.get(pending.key, "arrayBuffer")).not.toBeNull();
+  });
+
+  it("round-trips more than eighty linked images within the import statement budget", async () => {
+    const post = await createPost(env.DB, postInput("large-media-backup"));
+    await insertBackupAssets(post.id, 120, "large-backup");
+    const backup = await exportBlogData(env.DB);
+    if (backup.schemaVersion !== 2) throw new Error("Expected schema version 2.");
+    expect(backup.mediaAssets).toHaveLength(120);
+    const batchSizes: number[] = [];
+
+    await importBlogData(databaseWithBatchObserver(batchSizes), backup);
+
+    expect(batchSizes).toHaveLength(1);
+    expect(batchSizes[0]).toBeLessThanOrEqual(500);
+    const restored = await exportBlogData(env.DB);
+    expect(restored.schemaVersion).toBe(2);
+    if (restored.schemaVersion !== 2) throw new Error("Expected schema version 2.");
+    expect(restored.mediaAssets).toHaveLength(120);
+    expect(restored.postAssetLinks).toHaveLength(120);
+  });
+
+  it("snapshots old assets inside the restore batch before selecting final stale keys", async () => {
+    const backup = await exportBlogData(env.DB);
+    if (backup.schemaVersion !== 2) throw new Error("Expected schema version 2.");
+    const concurrent = {
+      id: "99999999-9999-4999-8999-999999999999",
+      key: "uploads/2026/07/concurrent-before-restore.png",
+    };
+    const batchSizes: number[] = [];
+    const database = databaseWithBatchObserver(batchSizes, async () => {
+      await env.DB.prepare(
+        `INSERT INTO media_assets
+         (id, kv_key, original_name, content_type, size_bytes, state, draft_token, created_at)
+         VALUES (?, ?, 'concurrent.png', 'image/png', 4, 'ready', NULL, ?)`,
+      ).bind(concurrent.id, concurrent.key, "2026-07-17T00:00:00.000Z").run();
+    });
+
+    await importBlogData(database, backup);
+
+    expect(batchSizes).toHaveLength(1);
+    expect(await listMediaCleanupJobs(env.DB)).toContainEqual(expect.objectContaining({
+      asset_id: concurrent.id,
+      kv_key: concurrent.key,
+      reason: "backup_restore",
+    }));
   });
 });

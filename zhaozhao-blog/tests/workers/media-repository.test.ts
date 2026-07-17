@@ -180,6 +180,82 @@ describe("article media schema", () => {
     expect((await listPostAssets(env.DB, post.id))[0]).toMatchObject({ key: legacy.key });
   });
 
+  it("rebuilds every post and removes stale usages for empty or missing references", async () => {
+    const emptyPost = await createPost(env.DB, {
+      slug: "backfill-empty",
+      title: "Empty backfill",
+      description: "Stale image links are removed.",
+      body: "No managed images.",
+      publishedAt: "2026-07-17T00:00:00.000Z",
+      draft: true,
+      category: "开发",
+      tags: ["test"],
+      featured: false,
+    });
+    const sharedPost = await createPost(env.DB, {
+      slug: "backfill-shared",
+      title: "Shared backfill",
+      description: "Shared image remains on the referencing article.",
+      body: "![shared](/media/uploads/2026/07/backfill-shared.png)",
+      publishedAt: "2026-07-17T00:00:00.000Z",
+      draft: true,
+      category: "开发",
+      tags: ["test"],
+      featured: false,
+    });
+    const missingPost = await createPost(env.DB, {
+      slug: "backfill-missing",
+      title: "Missing backfill",
+      description: "Missing image removes stale links.",
+      body: "![missing](/media/uploads/2026/07/backfill-missing.png)",
+      publishedAt: "2026-07-17T00:00:00.000Z",
+      draft: true,
+      category: "开发",
+      tags: ["test"],
+      featured: false,
+    });
+    const shared = await beginMediaUpload(env.DB, {
+      key: "uploads/2026/07/backfill-shared.png",
+      originalName: "backfill-shared.png",
+      contentType: "image/png",
+      sizeBytes: 4,
+    });
+    const stale = await beginMediaUpload(env.DB, {
+      key: "uploads/2026/07/backfill-stale.png",
+      originalName: "backfill-stale.png",
+      contentType: "image/png",
+      sizeBytes: 4,
+    });
+    await markMediaReady(env.DB, shared.id);
+    await markMediaReady(env.DB, stale.id);
+    await syncPostAssetLinks(env.DB, emptyPost.id, {
+      retainedAssetIds: [shared.id],
+      coverAssetId: shared.id,
+      inlineKeys: [shared.key],
+    });
+    await syncPostAssetLinks(env.DB, sharedPost.id, {
+      retainedAssetIds: [shared.id],
+      inlineKeys: [shared.key],
+    });
+    await syncPostAssetLinks(env.DB, missingPost.id, {
+      retainedAssetIds: [stale.id],
+      coverAssetId: stale.id,
+      inlineKeys: [stale.key],
+    });
+
+    expect(await backfillPostMedia(env.DB, env.MEDIA)).toEqual({
+      registered: 0,
+      linked: 0,
+      missing: ["uploads/2026/07/backfill-missing.png"],
+    });
+    expect(await listPostAssets(env.DB, emptyPost.id)).toEqual([]);
+    expect(await listPostAssets(env.DB, missingPost.id)).toEqual([]);
+    expect((await listPostAssets(env.DB, sharedPost.id))[0]).toMatchObject({
+      id: shared.id,
+      usages: ["inline", "library"],
+    });
+  });
+
   it("uploads an article image through the authenticated asset API", async () => {
     const { POST } = await import("../../src/pages/api/admin/post-assets/index");
     const form = new FormData();
