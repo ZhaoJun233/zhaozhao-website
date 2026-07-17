@@ -15,8 +15,13 @@ export class MediaUploadError extends Error {
   }
 }
 
+interface AdminMediaMetadata {
+  contentType: string;
+  originalName: string;
+}
+
 export async function storeAdminMedia(
-  bucket: R2Bucket,
+  store: KVNamespace,
   file: File,
   now = new Date(),
 ): Promise<{ key: string; url: string }> {
@@ -29,25 +34,28 @@ export async function storeAdminMedia(
   const year = String(now.getUTCFullYear());
   const month = String(now.getUTCMonth() + 1).padStart(2, "0");
   const key = `uploads/${year}/${month}/${randomUUID()}.${extension}`;
-  await bucket.put(key, await file.arrayBuffer(), {
-    httpMetadata: { contentType: file.type.toLowerCase() },
-    customMetadata: { originalName: file.name.slice(0, 240) },
+  await store.put(key, await file.arrayBuffer(), {
+    metadata: {
+      contentType: file.type.toLowerCase(),
+      originalName: file.name.slice(0, 240),
+    } satisfies AdminMediaMetadata,
   });
   return { key, url: `/media/${key}` };
 }
 
-export async function readAdminMedia(bucket: R2Bucket, key: string): Promise<Response> {
+export async function readAdminMedia(store: KVNamespace, key: string): Promise<Response> {
   if (!key.startsWith("uploads/") || key.includes("..") || key.includes("\\")) {
     return new Response("Not found", { status: 404 });
   }
-  const object = await bucket.get(key);
-  if (!object) return new Response("Not found", { status: 404 });
-  return new Response(object.body, {
+  const object = await store.getWithMetadata<AdminMediaMetadata>(key, "arrayBuffer");
+  if (!object.value) return new Response("Not found", { status: 404 });
+  const immutableId = key.slice(key.lastIndexOf("/") + 1);
+  return new Response(object.value, {
     headers: {
-      ...(object.httpMetadata?.contentType
-        ? { "content-type": object.httpMetadata.contentType }
+      ...(object.metadata?.contentType
+        ? { "content-type": object.metadata.contentType }
         : {}),
-      etag: object.httpEtag,
+      etag: `"${immutableId}"`,
       "cache-control": "public, max-age=31536000, immutable",
       "x-content-type-options": "nosniff",
     },

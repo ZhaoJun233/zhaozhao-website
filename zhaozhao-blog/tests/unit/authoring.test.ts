@@ -28,7 +28,7 @@ describe("database-backed authoring", () => {
     expect(existsSync(resolve(appRoot, "scripts/start-cms.mjs"))).toBe(false);
   });
 
-  it("uses the Cloudflare Worker adapter with D1 and R2 bindings", () => {
+  it("uses the Cloudflare Worker adapter with D1 and KV bindings", () => {
     expect(packageJson.dependencies).toHaveProperty("@astrojs/cloudflare", "14.1.3");
     expect(packageJson.dependencies).not.toHaveProperty("@astrojs/node");
     const wrangler = JSON.parse(readFileSync(resolve(appRoot, "wrangler.jsonc"), "utf8"));
@@ -37,7 +37,7 @@ describe("database-backed authoring", () => {
       compatibility_date: "2026-07-17",
       compatibility_flags: ["nodejs_compat"],
       d1_databases: [{ binding: "DB", database_name: "zhaozhao-blog" }],
-      r2_buckets: [{ binding: "MEDIA", bucket_name: "zhaozhao-media" }],
+      kv_namespaces: [{ binding: "MEDIA" }],
     });
     expect(wrangler.assets.directory).toBe("./dist");
   });
@@ -62,7 +62,7 @@ describe("database-backed authoring", () => {
     const deployment = readFileSync(deploymentPath, "utf8");
     for (const command of [
       "npx wrangler d1 create zhaozhao-blog",
-      "npx wrangler r2 bucket create zhaozhao-media",
+      "npx wrangler kv namespace create zhaozhao-media",
       "npx wrangler secret put ADMIN_PASSWORD",
       "npx wrangler secret put ADMIN_SESSION_SECRET",
       "npm run db:migrate:remote",

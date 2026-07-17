@@ -4,6 +4,6 @@ export function getDatabase(): D1Database {
   return env.DB;
 }
 
-export function getMediaBucket(): R2Bucket {
+export function getMediaStore(): KVNamespace {
   return env.MEDIA;
 }

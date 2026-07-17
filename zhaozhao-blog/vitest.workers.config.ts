@@ -8,7 +8,7 @@ export default defineConfig(async () => ({
         compatibilityDate: "2026-07-17",
         compatibilityFlags: ["nodejs_compat"],
         d1Databases: ["DB"],
-        r2Buckets: ["MEDIA"],
+        kvNamespaces: ["MEDIA"],
         bindings: {
           TEST_MIGRATIONS: await readD1Migrations("./migrations"),
           ADMIN_PASSWORD: "test-admin-password",

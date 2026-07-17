@@ -5,7 +5,7 @@ import {
   storeAdminMedia,
 } from "../../src/lib/cloudflare/media";
 
-describe("R2 administrator media", () => {
+describe("KV administrator media", () => {
   it.each([
     ["image/jpeg", "jpg"],
     ["image/png", "png"],
@@ -17,9 +17,12 @@ describe("R2 administrator media", () => {
 
     expect(stored.key).toMatch(new RegExp(`^uploads/2026/07/[0-9a-f-]+\\.${extension}$`));
     expect(stored.url).toBe(`/media/${stored.key}`);
-    const object = await env.MEDIA.get(stored.key);
-    expect(object?.httpMetadata?.contentType).toBe(type);
-    expect(object?.customMetadata?.originalName).toBe(`avatar.${extension}`);
+    const object = await env.MEDIA.getWithMetadata<{
+      contentType: string;
+      originalName: string;
+    }>(stored.key, "arrayBuffer");
+    expect(object.metadata?.contentType).toBe(type);
+    expect(object.metadata?.originalName).toBe(`avatar.${extension}`);
   });
 
   it("rejects unsupported and oversized files", async () => {

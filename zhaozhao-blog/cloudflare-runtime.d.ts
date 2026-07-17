@@ -25,20 +25,23 @@ interface D1Database extends D1DatabaseSession {
   withSession(constraint?: "first-primary" | "first-unconstrained"): D1DatabaseSession;
 }
 
-interface R2ObjectBody {
-  body: ReadableStream;
-  httpEtag: string;
-  httpMetadata?: { contentType?: string };
-  customMetadata?: Record<string, string>;
+interface KVNamespaceGetWithMetadataResult<Value, Metadata> {
+  value: Value | null;
+  metadata: Metadata | null;
+  cacheStatus: string | null;
 }
 
-interface R2Bucket {
-  get(key: string): Promise<R2ObjectBody | null>;
+interface KVNamespace {
+  get(key: string, type: "arrayBuffer"): Promise<ArrayBuffer | null>;
+  getWithMetadata<Metadata = unknown>(
+    key: string,
+    type: "arrayBuffer",
+  ): Promise<KVNamespaceGetWithMetadataResult<ArrayBuffer, Metadata>>;
   put(
     key: string,
     value: ReadableStream | ArrayBuffer | ArrayBufferView | string | Blob,
-    options?: Record<string, unknown>,
-  ): Promise<unknown>;
+    options?: { metadata?: unknown; expiration?: number; expirationTtl?: number },
+  ): Promise<void>;
   delete(key: string): Promise<void>;
 }
 

@@ -17,10 +17,10 @@
       "database_id": "100ad1c7-cd51-4bbf-aa52-e7ca7d1ec438"
     }
   ],
-  "r2_buckets": [
+  "kv_namespaces": [
     {
       "binding": "MEDIA",
-      "bucket_name": "zhaozhao-media"
+      "id": "c721f0cb45d148ad95dca84c4f83ef0e"
     }
   ],
   "vars": {
