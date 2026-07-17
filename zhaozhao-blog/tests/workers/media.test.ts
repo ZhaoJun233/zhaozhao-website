@@ -151,13 +151,59 @@ describe("KV administrator media", () => {
       message: expect.stringContaining("清理任务"),
     });
     expect(error).toBeInstanceOf(MediaUploadRecoveryError);
-    expect((error as MediaUploadRecoveryError).errors).toEqual(expect.arrayContaining([
+    const recoveryError = error as MediaUploadRecoveryError;
+    expect(recoveryError).toMatchObject({
+      cleanupQueued: false,
+      objectDeleted: true,
+      queueError: expect.objectContaining({ message: "cleanup queue unavailable" }),
+    });
+    expect(recoveryError.errors).toEqual(expect.arrayContaining([
       expect.objectContaining({ message: "cleanup queue unavailable" }),
     ]));
+    expect(recoveryError.message).toContain(recoveryError.assetId);
+    expect(recoveryError.message).toContain(recoveryError.key);
     expect(await env.MEDIA.get(key, "arrayBuffer")).toBeNull();
     expect(await env.DB.prepare("SELECT id FROM media_assets WHERE kv_key = ?")
       .bind(key).first()).toBeNull();
     expect(await listMediaCleanupJobs(env.DB)).toEqual([]);
+  });
+
+  it("reports an actionable recovery contract when queueing and deletion fail", async () => {
+    let key = "";
+    const store: MediaObjectStore = {
+      put: async (nextKey, value, options) => {
+        key = nextKey;
+        await env.MEDIA.put(nextKey, value, options);
+      },
+      delete: async () => {
+        throw new Error("KV delete unavailable");
+      },
+    };
+    const database = databaseWithFailedBatchCalls(2);
+
+    const error = await uploadPostImage(
+      database,
+      store,
+      new File(["image"], "double-failure.png", { type: "image/png" }),
+      { postId: "missing-post" },
+    ).catch((uploadError: unknown) => uploadError);
+
+    expect(error).toBeInstanceOf(MediaUploadRecoveryError);
+    const recoveryError = error as MediaUploadRecoveryError;
+    expect(recoveryError).toMatchObject({
+      key,
+      cleanupQueued: false,
+      objectDeleted: false,
+      cause: expect.any(Error),
+      queueError: expect.objectContaining({ message: "cleanup queue unavailable" }),
+      deleteError: expect.objectContaining({ message: "KV delete unavailable" }),
+    });
+    expect(recoveryError.message).toContain(recoveryError.assetId);
+    expect(recoveryError.message).toContain(key);
+    expect(await env.DB.prepare("SELECT state FROM media_assets WHERE id = ?")
+      .bind(recoveryError.assetId).first()).toEqual({ state: "uploading" });
+    expect(await listMediaCleanupJobs(env.DB)).toEqual([]);
+    expect(await env.MEDIA.get(key, "arrayBuffer")).not.toBeNull();
   });
 
   it("retries cleanup after an object deletion fails", async () => {

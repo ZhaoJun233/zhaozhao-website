@@ -25,10 +25,48 @@ export interface MediaObjectStore {
   delete(key: string): Promise<void>;
 }
 
+export interface MediaUploadRecoveryDetails {
+  assetId: string;
+  key: string;
+  cleanupQueued: boolean;
+  objectDeleted: boolean;
+  cause: unknown;
+  queueError?: unknown;
+  deleteError?: unknown;
+  discardError?: unknown;
+  cleanupError?: unknown;
+}
+
 export class MediaUploadRecoveryError extends AggregateError {
-  constructor(message: string, errors: unknown[]) {
-    super(errors, message);
+  readonly assetId: string;
+  readonly key: string;
+  readonly cleanupQueued: boolean;
+  readonly objectDeleted: boolean;
+  override readonly cause: unknown;
+  readonly queueError?: unknown;
+  readonly deleteError?: unknown;
+  readonly discardError?: unknown;
+  readonly cleanupError?: unknown;
+
+  constructor(message: string, details: MediaUploadRecoveryDetails) {
+    const errors = [
+      details.cause,
+      details.queueError,
+      details.deleteError,
+      details.discardError,
+      details.cleanupError,
+    ].filter((error) => error !== undefined);
+    super(errors, `${message} assetId=${details.assetId}; key=${details.key}`);
     this.name = "MediaUploadRecoveryError";
+    this.assetId = details.assetId;
+    this.key = details.key;
+    this.cleanupQueued = details.cleanupQueued;
+    this.objectDeleted = details.objectDeleted;
+    this.cause = details.cause;
+    this.queueError = details.queueError;
+    this.deleteError = details.deleteError;
+    this.discardError = details.discardError;
+    this.cleanupError = details.cleanupError;
   }
 }
 
@@ -88,7 +126,14 @@ export async function uploadPostImage(
     } catch (discardError) {
       throw new MediaUploadRecoveryError(
         "图片写入失败，且上传记录清理失败。",
-        [putError, discardError],
+        {
+          assetId: asset.id,
+          key,
+          cleanupQueued: false,
+          objectDeleted: false,
+          cause: putError,
+          discardError,
+        },
       );
     }
     throw putError;
@@ -100,24 +145,34 @@ export async function uploadPostImage(
     try {
       await failMediaUpload(database, asset.id);
     } catch (queueError) {
-      const recoveryErrors: unknown[] = [readyError, queueError];
       let objectDeleted = false;
+      let deleteError: unknown;
+      let discardError: unknown;
       try {
         await store.delete(key);
         objectDeleted = true;
-      } catch (deleteError) {
-        recoveryErrors.push(deleteError);
+      } catch (error) {
+        deleteError = error;
       }
       if (objectDeleted) {
         try {
           await discardMediaUpload(database, asset.id);
-        } catch (discardError) {
-          recoveryErrors.push(discardError);
+        } catch (error) {
+          discardError = error;
         }
       }
       throw new MediaUploadRecoveryError(
         "图片状态更新失败，且清理任务入队失败。",
-        recoveryErrors,
+        {
+          assetId: asset.id,
+          key,
+          cleanupQueued: false,
+          objectDeleted,
+          cause: readyError,
+          queueError,
+          deleteError,
+          discardError,
+        },
       );
     }
 
@@ -126,7 +181,14 @@ export async function uploadPostImage(
     } catch (cleanupError) {
       throw new MediaUploadRecoveryError(
         "图片状态更新失败，且即时清理执行失败；清理任务已保留。",
-        [readyError, cleanupError],
+        {
+          assetId: asset.id,
+          key,
+          cleanupQueued: true,
+          objectDeleted: false,
+          cause: readyError,
+          cleanupError,
+        },
       );
     }
     throw readyError;
