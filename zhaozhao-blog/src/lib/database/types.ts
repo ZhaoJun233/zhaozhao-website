@@ -55,3 +55,35 @@ export interface ProjectRow {
   featured: number;
   sort_order: number;
 }
+
+export type MediaAssetState = "uploading" | "ready" | "pending_delete";
+export type PostAssetUsage = "library" | "cover" | "inline";
+
+export interface MediaAssetRow {
+  id: string;
+  kv_key: string;
+  original_name: string;
+  content_type: string;
+  size_bytes: number | null;
+  state: MediaAssetState;
+  draft_token: string | null;
+  created_at: string;
+}
+
+export interface PostAssetLinkRow {
+  post_id: string;
+  asset_id: string;
+  usage: PostAssetUsage;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface MediaCleanupJobRow {
+  asset_id: string;
+  kv_key: string;
+  reason: "article_delete" | "manual_remove" | "draft_cancelled" |
+    "draft_expired" | "upload_failed" | "backup_restore";
+  queued_at: string;
+  attempts: number;
+  last_error: string | null;
+}

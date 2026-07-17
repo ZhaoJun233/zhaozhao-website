@@ -7,6 +7,9 @@ beforeEach(async () => {
     DROP TABLE IF EXISTS d1_migrations;
     DROP TABLE IF EXISTS admin_sessions;
     DROP TABLE IF EXISTS guestbook_messages;
+    DROP TABLE IF EXISTS media_cleanup_jobs;
+    DROP TABLE IF EXISTS post_asset_links;
+    DROP TABLE IF EXISTS media_assets;
     DROP TABLE IF EXISTS friend_page;
     DROP TABLE IF EXISTS friends;
     DROP TABLE IF EXISTS projects;

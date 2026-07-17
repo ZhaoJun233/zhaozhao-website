@@ -44,6 +44,19 @@ describe("database-backed authoring", () => {
     expect(wrangler.assets.directory).toBe("./dist");
   });
 
+  it("ships the article media schema migration", () => {
+    const mediaMigration = readFileSync(
+      resolve(appRoot, "migrations/0004_post_media.sql"),
+      "utf8",
+    );
+    for (const table of ["media_assets", "post_asset_links", "media_cleanup_jobs"]) {
+      expect(mediaMigration).toContain(`CREATE TABLE ${table}`);
+    }
+    expect(mediaMigration).toContain("ON DELETE CASCADE");
+    expect(mediaMigration).toContain("CREATE UNIQUE INDEX idx_post_asset_one_cover");
+    expect(mediaMigration).toContain("WHERE usage = 'cover'");
+  });
+
   it("documents Cloudflare secrets and removes Docker deployment files", () => {
     const environmentExample = readFileSync(resolve(appRoot, ".dev.vars.example"), "utf8");
     expect(environmentExample).toContain("ADMIN_PASSWORD=");
