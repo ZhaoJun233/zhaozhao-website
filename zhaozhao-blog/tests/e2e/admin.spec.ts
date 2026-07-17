@@ -222,12 +222,20 @@ test("administrator manages article images", async ({ page, request }, testInfo)
     if (!inlineUrl || !coverUrl) throw new Error("文章图片 URL 未生成。");
     mediaUrls.push(coverUrl, inlineUrl);
     await page.getByLabel("保存为草稿").uncheck();
+    await page.getByLabel("首页精选").check();
     await page.getByRole("button", { name: "保存文章" }).click();
     const firstRow = postRowBySlug(page, slug);
     await expect(firstRow).toContainText(title);
 
+    await page.goto("/");
+    const homeCover = page.getByAltText(coverAlt);
+    await expect(homeCover).toBeVisible();
+    await expect(homeCover).toHaveCSS("object-fit", "contain");
+
     await page.goto(`/posts/${slug}/`);
-    await expect(page.getByAltText(coverAlt)).toBeVisible();
+    const articleCover = page.getByAltText(coverAlt);
+    await expect(articleCover).toBeVisible();
+    await expect(articleCover).toHaveCSS("object-fit", "contain");
     await expect(page.locator(`img[src^="${inlineUrl}"]`)).toBeVisible();
     expect((await request.get(`${coverUrl}?render=${Date.now()}`)).status()).toBe(200);
     expect((await request.get(`${inlineUrl}?render=${Date.now()}`)).status()).toBe(200);

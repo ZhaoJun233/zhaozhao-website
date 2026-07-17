@@ -356,18 +356,26 @@ const jsonLd = buildBlogPostingJsonLd({
   }
 
   .article-cover {
-    max-inline-size: 74rem;
+    display: grid;
+    max-inline-size: 68rem;
     margin-block: clamp(2rem, 5vw, 4rem) 0;
     overflow: hidden;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-card);
+    background:
+      linear-gradient(135deg, rgb(23 165 181 / 9%), rgb(232 111 152 / 7%)),
+      var(--color-surface-muted);
     box-shadow: var(--shadow-card);
+    place-items: center;
   }
 
   .article-cover :global(img) {
-    inline-size: 100%;
-    max-block-size: 42rem;
-    object-fit: cover;
+    display: block;
+    inline-size: auto;
+    max-inline-size: 100%;
+    block-size: auto;
+    max-block-size: min(70svh, 42rem);
+    object-fit: contain;
   }
 
   .article-shell {

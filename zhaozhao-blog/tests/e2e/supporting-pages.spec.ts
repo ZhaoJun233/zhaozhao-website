@@ -88,6 +88,7 @@ test("credits omits the Giscus environment setup section", async ({ page }) => {
   await page.goto("/credits/");
   await expect(page.getByRole("heading", { name: "用四个环境变量打开讨论区" })).toHaveCount(0);
   await expect(page.locator("#giscus-setup")).toHaveCount(0);
+  await expect(page.getByText("Giscus", { exact: true })).toHaveCount(0);
 });
 
 test("404 page offers direct home and search recovery", async ({ page }) => {
@@ -117,6 +118,10 @@ test("RSS opens as a readable article index in a browser", async ({ page }) => {
   await page.goto("/rss.xml");
   await expect(page.getByRole("heading", { level: 1 })).toContainText("233昭");
   await expect(page.getByText("最近更新", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: /返回博客首页/ })).toHaveAttribute(
+    "href",
+    "https://zhao233.de5.net/",
+  );
   expect(await page.getByRole("listitem").count()).toBeGreaterThanOrEqual(6);
 });
 

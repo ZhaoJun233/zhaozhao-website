@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { resolveSiteUrl } from "../../src/config/build";
@@ -54,6 +54,23 @@ describe("deployment site URL", () => {
       BUILD_MODE: "production",
       PUBLIC_SITE_URL: "https://blog.example.com/",
     })).toBe("https://blog.example.com");
+  });
+
+  it("builds production RSS and canonical links with the public domain", () => {
+    const productionEnvPath = resolve(".env.production");
+    expect(existsSync(productionEnvPath)).toBe(true);
+    expect(readFileSync(productionEnvPath, "utf8")).toContain(
+      "PUBLIC_SITE_URL=https://zhao233.de5.net",
+    );
+
+    const astroConfig = readFileSync(resolve("astro.config.mjs"), "utf8");
+    expect(astroConfig).toContain("loadEnv(process.env.NODE_ENV");
+    expect(astroConfig).toContain("export default defineConfig({");
+
+    const wranglerConfig = readFileSync(resolve("wrangler.jsonc"), "utf8");
+    expect(wranglerConfig).toContain(
+      '"PUBLIC_SITE_URL": "https://zhao233.de5.net"',
+    );
   });
 
   it("rejects non-web deployment URL schemes", () => {

@@ -1,12 +1,16 @@
 import cloudflare from "@astrojs/cloudflare";
 import { defineConfig } from "astro/config";
+import { loadEnv } from "vite";
 import { resolveSiteUrl } from "./src/config/build.ts";
+
+const mode = process.env.NODE_ENV ?? "development";
+const environment = { ...loadEnv(process.env.NODE_ENV ?? mode, process.cwd(), ""), ...process.env };
 
 export default defineConfig({
   output: "server",
   adapter: cloudflare({ imageService: "compile", persistState: true }),
-  outDir: process.env.BUILD_OUTPUT_DIR ?? "./dist",
-  site: resolveSiteUrl(process.env),
+  outDir: environment.BUILD_OUTPUT_DIR ?? "./dist",
+  site: resolveSiteUrl({ ...environment, BUILD_MODE: mode }),
   base: "/",
   trailingSlash: "always",
   devToolbar: { enabled: false },
@@ -26,5 +30,5 @@ export default defineConfig({
         dark: "github-dark"
       }
     }
-  }
+  },
 });

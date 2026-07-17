@@ -1,10 +1,10 @@
 {
   "title": "作品与鸣谢",
-  "description": "查看本站插画来源、开源依赖与讨论区配置说明。",
+  "description": "查看本站插画来源与实际使用的开源依赖。",
   "hero": {
     "eyebrow": "Credits · 来源与感谢",
     "heading": "认真记录每一束照进本站的光",
-    "introduction": "插画、开源工具与社区服务共同构成这间网络小屋。这里保留可核对的来源、用途和配置入口，方便后来维护与替换。"
+    "introduction": "插画与开源工具共同构成这间网络小屋。这里保留可核对的来源和用途，方便后来维护与替换。"
   },
   "artwork": {
     "eyebrow": "Artwork · 画面来源",
@@ -19,8 +19,7 @@
     "items": [
       { "name": "Astro", "role": "服务端渲染与页面框架", "license": "MIT", "url": "https://github.com/withastro/astro" },
       { "name": "Lucide", "role": "界面图标", "license": "ISC", "url": "https://github.com/lucide-icons/lucide" },
-      { "name": "Marked", "role": "运行时 Markdown 渲染", "license": "MIT", "url": "https://github.com/markedjs/marked" },
-      { "name": "Giscus", "role": "基于 Discussions 的留言与评论", "license": "MIT", "url": "https://github.com/giscus/giscus" }
+      { "name": "Marked", "role": "运行时 Markdown 渲染", "license": "MIT", "url": "https://github.com/markedjs/marked" }
     ]
   }
 }
