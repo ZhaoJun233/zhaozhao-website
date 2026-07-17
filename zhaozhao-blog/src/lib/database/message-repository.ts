@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { z } from "astro/zod";
-import { AdminNotFoundError } from "./admin-repository";
+import { AdminNotFoundError } from "../admin/errors";
 
 const optionalText = z.string().trim().transform((value) => value || undefined).optional();
 export const messageInputSchema = z.object({

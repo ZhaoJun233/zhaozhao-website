@@ -1,8 +1,8 @@
 import { env } from "cloudflare:workers";
 import { z } from "astro/zod";
 import { authenticateAdminSession, readAdminSessionToken } from "./auth";
+import { AdminConflictError, AdminNotFoundError } from "./errors";
 import { getDatabase } from "../cloudflare/bindings";
-import { AdminConflictError, AdminNotFoundError } from "../database/admin-repository";
 
 const maxBodyBytes = 1024 * 1024;
 

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { mediaUrlFromKey } from "../admin/post-images";
-import { AdminConflictError, AdminNotFoundError } from "./admin-repository";
+import { AdminConflictError, AdminNotFoundError } from "../admin/errors";
 import type {
   MediaAssetRow,
   MediaCleanupJobRow,

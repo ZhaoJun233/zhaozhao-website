@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { env } from "cloudflare:workers";
+import { ADMIN_SESSION_COOKIE, createAdminSession } from "../../src/lib/admin/auth";
+import { postMediaInputSchema } from "../../src/lib/admin/schemas";
 import {
   AdminConflictError,
+  AdminNotFoundError,
   createCategory,
   createFriend,
   createPost,
@@ -13,6 +16,7 @@ import {
   deleteProject,
   exportBlogData,
   getAdminOverview,
+  getPost,
   importBlogData,
   listCategories,
   listFriends,
@@ -28,7 +32,10 @@ import {
   beginMediaUpload,
   listPostAssets,
   markMediaReady,
+  syncPostAssetLinks,
 } from "../../src/lib/database/media-repository";
+import { POST as createPostRoute } from "../../src/pages/api/admin/posts/index";
+import { PUT as updatePostRoute } from "../../src/pages/api/admin/posts/[id]";
 
 const draftToken = "11111111-1111-4111-8111-111111111111";
 
@@ -44,6 +51,37 @@ function postInput(slug: string) {
     tags: ["Astro"],
     featured: false,
   };
+}
+
+function databaseWithBeforeBatch(operation: () => Promise<void>): D1Database {
+  let raced = false;
+  return {
+    prepare: (...args: Parameters<D1Database["prepare"]>) => env.DB.prepare(...args),
+    withSession: (...args: Parameters<D1Database["withSession"]>) => env.DB.withSession(...args),
+    batch: async <T>(statements: D1PreparedStatement[]) => {
+      if (!raced) {
+        raced = true;
+        await operation();
+      }
+      return env.DB.batch<T>(statements);
+    },
+  } as D1Database;
+}
+
+async function adminJsonRequest(
+  method: "POST" | "PUT",
+  path: string,
+  body: unknown,
+): Promise<Request> {
+  const session = await createAdminSession(env.DB, undefined, undefined, env.ADMIN_SESSION_SECRET);
+  return new Request(`https://example.test${path}`, {
+    method,
+    headers: {
+      "content-type": "application/json",
+      cookie: `${ADMIN_SESSION_COOKIE}=${session.token}`,
+    },
+    body: JSON.stringify(body),
+  });
 }
 
 describe("D1 administrator repository", () => {
@@ -201,6 +239,185 @@ describe("D1 administrator repository", () => {
       coverAlt: "外部封面",
     });
     expect(await listPostAssets(env.DB, created.id)).toEqual([]);
+  });
+
+  it("does not insert a post when a requested asset is missing", async () => {
+    await expect(createPostWithMedia(env.DB, postInput("post-missing-asset"), {
+      retainedAssetIds: ["33333333-3333-4333-8333-333333333333"],
+    })).rejects.toBeInstanceOf(AdminNotFoundError);
+
+    expect((await listPosts(env.DB)).some(({ slug }) => slug === "post-missing-asset")).toBe(false);
+  });
+
+  it("reports not found when an article is deleted after the update precheck", async () => {
+    const post = await createPost(env.DB, postInput("post-concurrent-delete"));
+    const asset = await beginMediaUpload(env.DB, {
+      key: "uploads/2026/07/post-concurrent-delete.png",
+      originalName: "post-concurrent-delete.png",
+      contentType: "image/png",
+      sizeBytes: 4,
+    });
+    await markMediaReady(env.DB, asset.id);
+    const racingDatabase = databaseWithBeforeBatch(async () => {
+      await env.DB.prepare("DELETE FROM posts WHERE id = ?").bind(post.id).run();
+    });
+
+    await expect(updatePostWithMedia(racingDatabase, post.id, {
+      ...post,
+      title: "不应保存的标题",
+    }, { retainedAssetIds: [asset.id] })).rejects.toBeInstanceOf(AdminNotFoundError);
+    await expect(getPost(env.DB, post.id)).rejects.toBeInstanceOf(AdminNotFoundError);
+  });
+
+  it.each(["state", "draft"] as const)(
+    "rolls back the article and links when asset %s changes after resolution",
+    async (race) => {
+      const post = await createPost(env.DB, postInput(`post-${race}-race`));
+      const current = await beginMediaUpload(env.DB, {
+        key: `uploads/2026/07/post-${race}-current.png`,
+        originalName: `post-${race}-current.png`,
+        contentType: "image/png",
+        sizeBytes: 4,
+      });
+      const replacement = await beginMediaUpload(env.DB, {
+        key: `uploads/2026/07/post-${race}-replacement.png`,
+        originalName: `post-${race}-replacement.png`,
+        contentType: "image/png",
+        sizeBytes: 4,
+        draftToken,
+      });
+      await markMediaReady(env.DB, current.id);
+      await markMediaReady(env.DB, replacement.id);
+      await syncPostAssetLinks(env.DB, post.id, {
+        retainedAssetIds: [current.id],
+        inlineKeys: [],
+      });
+      const racingDatabase = databaseWithBeforeBatch(async () => {
+        if (race === "state") {
+          await env.DB.prepare("UPDATE media_assets SET state = 'pending_delete' WHERE id = ?")
+            .bind(replacement.id).run();
+        } else {
+          await env.DB.prepare("UPDATE media_assets SET draft_token = ? WHERE id = ?")
+            .bind("22222222-2222-4222-8222-222222222222", replacement.id).run();
+        }
+      });
+
+      await expect(updatePostWithMedia(racingDatabase, post.id, {
+        ...post,
+        title: "不应保存的标题",
+      }, {
+        draftToken,
+        retainedAssetIds: [replacement.id],
+      })).rejects.toBeInstanceOf(AdminConflictError);
+
+      expect(await getPost(env.DB, post.id)).toMatchObject({ title: post.title });
+      expect((await listPostAssets(env.DB, post.id)).map(({ id }) => id)).toEqual([current.id]);
+    },
+  );
+
+  it("removes one post's old links without disturbing another post's shared link", async () => {
+    const first = await createPost(env.DB, postInput("post-remove-old-links"));
+    const second = await createPost(env.DB, postInput("post-keep-shared-link"));
+    const exclusive = await beginMediaUpload(env.DB, {
+      key: "uploads/2026/07/post-exclusive.png",
+      originalName: "post-exclusive.png",
+      contentType: "image/png",
+      sizeBytes: 4,
+    });
+    const shared = await beginMediaUpload(env.DB, {
+      key: "uploads/2026/07/post-shared.png",
+      originalName: "post-shared.png",
+      contentType: "image/png",
+      sizeBytes: 4,
+    });
+    await markMediaReady(env.DB, exclusive.id);
+    await markMediaReady(env.DB, shared.id);
+    await syncPostAssetLinks(env.DB, first.id, {
+      retainedAssetIds: [exclusive.id, shared.id],
+      inlineKeys: [],
+    });
+    await syncPostAssetLinks(env.DB, second.id, {
+      retainedAssetIds: [shared.id],
+      inlineKeys: [],
+    });
+
+    await updatePostWithMedia(env.DB, first.id, { ...first, title: "已移除旧图片" }, {
+      retainedAssetIds: [],
+    });
+
+    expect(await listPostAssets(env.DB, first.id)).toEqual([]);
+    expect((await listPostAssets(env.DB, second.id)).map(({ id }) => id)).toEqual([shared.id]);
+  });
+
+  it("accepts 100 retained asset ids and rejects 101", () => {
+    const assetId = "44444444-4444-4444-8444-444444444444";
+    expect(postMediaInputSchema.parse({
+      retainedAssetIds: Array(100).fill(assetId),
+    }).retainedAssetIds).toHaveLength(100);
+    expect(() => postMediaInputSchema.parse({ retainedAssetIds: Array(101).fill(assetId) }))
+      .toThrow();
+  });
+
+  it("updates an article without images through the media-aware save path", async () => {
+    const post = await createPost(env.DB, {
+      ...postInput("post-update-without-images"),
+      cover: "https://images.example/unchanged.png",
+      coverAlt: "外部封面",
+    });
+
+    const updated = await updatePostWithMedia(env.DB, post.id, {
+      ...post,
+      title: "无图片更新",
+    }, { retainedAssetIds: [] });
+
+    expect(updated).toMatchObject({
+      title: "无图片更新",
+      cover: "https://images.example/unchanged.png",
+      coverAlt: "外部封面",
+    });
+    expect(await listPostAssets(env.DB, post.id)).toEqual([]);
+  });
+
+  it("maps a missing article update to HTTP 404", async () => {
+    const request = await adminJsonRequest("PUT", "/api/admin/posts/missing", {
+      ...postInput("route-missing-post"),
+      retainedAssetIds: [],
+    });
+    const response = await updatePostRoute({
+      request,
+      params: { id: "55555555-5555-4555-8555-555555555555" },
+    } as never);
+
+    expect(response.status).toBe(404);
+  });
+
+  it("maps a mismatched draft asset to HTTP 409", async () => {
+    const asset = await beginMediaUpload(env.DB, {
+      key: "uploads/2026/07/route-draft-conflict.png",
+      originalName: "route-draft-conflict.png",
+      contentType: "image/png",
+      sizeBytes: 4,
+      draftToken,
+    });
+    await markMediaReady(env.DB, asset.id);
+    const request = await adminJsonRequest("POST", "/api/admin/posts", {
+      ...postInput("route-draft-conflict"),
+      draftToken: "22222222-2222-4222-8222-222222222222",
+      retainedAssetIds: [asset.id],
+    });
+    const response = await createPostRoute({ request } as never);
+
+    expect(response.status).toBe(409);
+  });
+
+  it("maps invalid post media input to HTTP 422", async () => {
+    const request = await adminJsonRequest("POST", "/api/admin/posts", {
+      ...postInput("route-invalid-media"),
+      draftToken: "not-a-uuid",
+    });
+    const response = await createPostRoute({ request } as never);
+
+    expect(response.status).toBe(422);
   });
 
   it("updates settings and round-trips the complete JSON backup", async () => {

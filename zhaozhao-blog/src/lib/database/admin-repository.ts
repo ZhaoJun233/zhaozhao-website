@@ -12,6 +12,7 @@ import {
   type ProjectInput,
   type SettingKey,
 } from "../admin/schemas";
+import { AdminConflictError, AdminNotFoundError } from "../admin/errors";
 import { extractManagedImageKeys } from "../admin/post-images";
 import { taxonomySlug } from "../slug";
 import type { CategoryRow, FriendRow, PostRow, ProjectRow } from "./types";
@@ -22,19 +23,7 @@ import {
   type ResolvedPostAssetSync,
 } from "./media-repository";
 
-export class AdminConflictError extends Error {
-  constructor(message: string, public readonly details?: Record<string, unknown>) {
-    super(message);
-    this.name = "AdminConflictError";
-  }
-}
-
-export class AdminNotFoundError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "AdminNotFoundError";
-  }
-}
+export { AdminConflictError, AdminNotFoundError } from "../admin/errors";
 
 export interface AdminCategory {
   id: string;
@@ -370,10 +359,12 @@ function managedCover(resolved: ResolvedPostAssetSync): string | undefined {
   return resolved.assets.find(({ id }) => id === resolved.coverAssetId)?.url;
 }
 
-function isPostAssetConstraintError(error: unknown): boolean {
-  return error instanceof Error
-    && /constraint failed|SQLITE_CONSTRAINT/i.test(error.message)
-    && /post_asset_links|media_assets/i.test(error.message);
+function isConstraintError(error: unknown): boolean {
+  return error instanceof Error && /constraint failed|SQLITE_CONSTRAINT/i.test(error.message);
+}
+
+function isPostUniqueConstraintError(error: unknown): boolean {
+  return error instanceof Error && /UNIQUE constraint failed: posts\./i.test(error.message);
 }
 
 async function savePostWithMedia(
@@ -399,7 +390,14 @@ async function savePostWithMedia(
       ...buildPostAssetSyncStatements(database, id, resolved, new Date()),
     ]);
   } catch (error) {
-    if (!isPostAssetConstraintError(error)) throw error;
+    if (!isConstraintError(error)) throw error;
+    if (!create) {
+      const current = await primary(database).prepare(
+        "SELECT id FROM posts WHERE id = ?",
+      ).bind(id).first<{ id: string }>();
+      if (!current) throw new AdminNotFoundError("文章不存在。");
+    }
+    if (isPostUniqueConstraintError(error)) throw error;
     throw new AdminConflictError("图片状态或归属已变更，请重新保存。", {
       assetIds: resolved.libraryAssetIds,
     });
