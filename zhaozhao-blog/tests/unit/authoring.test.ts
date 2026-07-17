@@ -59,6 +59,7 @@ describe("database-backed authoring", () => {
 
   it("ships the article-specific editor and image manager", () => {
     const postsPage = readFileSync(resolve(appRoot, "src/pages/admin/posts.astro"), "utf8");
+    const importScript = readFileSync(resolve(appRoot, "src/scripts/admin-post-import.ts"), "utf8");
     expect(postsPage).toContain("data-post-page");
     expect(postsPage).toContain("data-post-cover-upload");
     expect(postsPage).toContain("data-post-inline-upload");
@@ -66,6 +67,8 @@ describe("database-backed authoring", () => {
     expect(postsPage).not.toContain('name="cover" /></div>');
     expect(existsSync(resolve(appRoot, "src/scripts/admin-post-editor.ts"))).toBe(true);
     expect(existsSync(resolve(appRoot, "src/scripts/admin-post-media.ts"))).toBe(true);
+    expect(importScript).toContain("admin:post-import-started");
+    expect(importScript).toContain("admin:post-import-finished");
   });
 
   it("documents Cloudflare secrets and removes Docker deployment files", () => {

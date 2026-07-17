@@ -90,6 +90,62 @@ export class PostUploadCoordinator {
   }
 }
 
+export class ContextActionQueue {
+  private externalLocks = 0;
+  private queuedActions = 0;
+  private running = false;
+  private tail: Promise<void> = Promise.resolve();
+  private readonly listeners = new Set<() => void>();
+
+  isLocked(): boolean {
+    return this.externalLocks > 0 || this.queuedActions > 0 || this.running;
+  }
+
+  acquire(): () => void {
+    this.externalLocks += 1;
+    this.notify();
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      this.externalLocks = Math.max(0, this.externalLocks - 1);
+      this.notify();
+    };
+  }
+
+  enqueue<T>(action: () => T | Promise<T>): Promise<T> {
+    this.queuedActions += 1;
+    this.notify();
+    const run = async () => {
+      this.queuedActions -= 1;
+      this.running = true;
+      this.notify();
+      try {
+        return await action();
+      } finally {
+        this.running = false;
+        this.notify();
+      }
+    };
+    const result = this.tail.then(run, run);
+    this.tail = result.then(() => undefined, () => undefined);
+    return result;
+  }
+
+  enqueueIfUnlocked<T>(action: () => T | Promise<T>): Promise<T> | undefined {
+    return this.isLocked() ? undefined : this.enqueue(action);
+  }
+
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  private notify(): void {
+    for (const listener of this.listeners) listener();
+  }
+}
+
 export type TargetRequest<T> = Readonly<{ version: number; target: T }>;
 
 export class LatestTargetRequest<T> {
@@ -105,11 +161,8 @@ export class LatestTargetRequest<T> {
     return this.current?.version === request.version ? this.current.target : undefined;
   }
 
-  confirm(request: TargetRequest<T>): T | undefined {
-    const target = this.target(request);
-    if (target === undefined) return undefined;
-    this.invalidate();
-    return target;
+  complete(request: TargetRequest<T>): void {
+    if (this.target(request) !== undefined) this.invalidate();
   }
 
   invalidate(): void {

@@ -1,4 +1,5 @@
 import {
+  ContextActionQueue,
   LatestTargetRequest,
   buildPostMediaPayload,
   nextSlugValue,
@@ -43,7 +44,8 @@ if (page) {
   const confirmDeleteButton = page.querySelector<HTMLButtonElement>("[data-post-delete-confirm]")!;
   let slugEditedManually = false;
   let editRequestId = 0;
-  let contextChangeBusy = false;
+  const contextActionQueue = new ContextActionQueue();
+  let releaseImportLock: (() => void) | undefined;
   const deleteRequests = new LatestTargetRequest<string>();
   let activeDeleteRequest: TargetRequest<string> | undefined;
 
@@ -135,7 +137,7 @@ if (page) {
     form.querySelector<HTMLButtonElement>("button[type='submit']"),
   ].filter((button): button is HTMLButtonElement => Boolean(button));
 
-  const contextActionsLocked = () => contextChangeBusy || postUploadCoordinator.isPending();
+  const contextActionsLocked = () => contextActionQueue.isLocked() || postUploadCoordinator.isPending();
 
   const updateContextActionState = () => {
     const locked = contextActionsLocked();
@@ -152,6 +154,7 @@ if (page) {
   };
 
   postUploadCoordinator.subscribe(updateContextActionState);
+  contextActionQueue.subscribe(updateContextActionState);
 
   document.addEventListener("click", (event) => {
     if (!contextActionsLocked()) return;
@@ -159,22 +162,18 @@ if (page) {
     if (!target.closest("[data-create-record], [data-import-post], [data-edit-record], [data-cancel-edit]")) return;
     event.preventDefault();
     event.stopImmediatePropagation();
-    setStatus("请等待当前图片上传完成。", true);
+    setStatus(postUploadCoordinator.isPending()
+      ? "请等待当前图片上传完成。"
+      : "请等待当前导入或编辑操作完成。", true);
   }, true);
 
   const changeContext = async (operation: () => void | Promise<void>) => {
-    if (contextChangeBusy) return;
-    const version = postUploadCoordinator.currentVersion();
-    const context = currentContext();
-    contextChangeBusy = true;
-    updateContextActionState();
-    try {
+    return contextActionQueue.enqueue(async () => {
+      const version = postUploadCoordinator.currentVersion();
+      const context = currentContext();
       await preparePostContextChange(postUploadCoordinator, version, context, cleanupDraft);
       await operation();
-    } finally {
-      contextChangeBusy = false;
-      updateContextActionState();
-    }
+    });
   };
 
   const populatePost = (post: PostRecord) => {
@@ -274,8 +273,18 @@ if (page) {
     }
   });
 
+  document.addEventListener("admin:post-import-started", () => {
+    releaseImportLock?.();
+    releaseImportLock = contextActionQueue.acquire();
+  });
+
+  document.addEventListener("admin:post-import-finished", () => {
+    releaseImportLock?.();
+    releaseImportLock = undefined;
+  });
+
   document.addEventListener("admin:post-imported", (event) => {
-    const detail = (event as CustomEvent<{ post?: PostRecord }>).detail;
+    const detail = (event as CustomEvent<{ post?: PostRecord; relativeImages?: string[] }>).detail;
     if (!detail?.post) return;
     void changeContext(() => {
       resetNewPost();
@@ -283,6 +292,11 @@ if (page) {
       slugEditedManually = true;
       if (editorTitle) editorTitle.textContent = "检查导入内容";
       titleInput.focus();
+    }).then(() => {
+      const relativeImageCount = Array.isArray(detail.relativeImages) ? detail.relativeImages.length : 0;
+      setStatus(relativeImageCount > 0
+        ? `发现 ${relativeImageCount} 个待上传的本地图片`
+        : "Markdown 已填入编辑器。");
     }).catch((error: unknown) => {
       setStatus(error instanceof Error ? error.message : "导入内容切换失败。", true);
     });
@@ -332,9 +346,9 @@ if (page) {
   });
 
   confirmDeleteButton.addEventListener("click", async (event) => {
-    const postId = activeDeleteRequest ? deleteRequests.confirm(activeDeleteRequest) : undefined;
-    activeDeleteRequest = undefined;
-    if (!postId) return;
+    const request = activeDeleteRequest;
+    const postId = request ? deleteRequests.target(request) : undefined;
+    if (!request || !postId) return;
     const button = event.currentTarget as HTMLButtonElement;
     button.disabled = true;
     deleteStatus.textContent = "正在删除文章并整理图片…";
@@ -342,6 +356,8 @@ if (page) {
       const response = await fetch(`/api/admin/posts/${postId}/`, { method: "DELETE" });
       const result = await response.json() as ApiResult<unknown>;
       if (!response.ok) throw new Error(messageFrom(result, "文章删除失败。"));
+      deleteRequests.complete(request);
+      activeDeleteRequest = undefined;
       deleteStatus.textContent = "已删除，正在刷新…";
       window.location.reload();
     } catch (error) {
@@ -360,28 +376,29 @@ if (page) {
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const version = postUploadCoordinator.currentVersion();
-    contextChangeBusy = true;
-    updateContextActionState();
-    setStatus(postUploadCoordinator.isPending(version) ? "正在等待图片上传完成…" : "正在保存文章与图片关系…");
+    if (contextActionQueue.isLocked()) {
+      setStatus("请等待当前导入或编辑操作完成。", true);
+      return;
+    }
     try {
-      await postUploadCoordinator.waitForReady(version);
-      setStatus("正在保存文章与图片关系…");
-      const postId = idInput.value;
-      const response = await fetch(postId ? `/api/admin/posts/${postId}/` : "/api/admin/posts/", {
-        method: postId ? "PUT" : "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(serializePost()),
+      await contextActionQueue.enqueue(async () => {
+        const version = postUploadCoordinator.currentVersion();
+        setStatus(postUploadCoordinator.isPending(version) ? "正在等待图片上传完成…" : "正在保存文章与图片关系…");
+        await postUploadCoordinator.waitForReady(version);
+        setStatus("正在保存文章与图片关系…");
+        const postId = idInput.value;
+        const response = await fetch(postId ? `/api/admin/posts/${postId}/` : "/api/admin/posts/", {
+          method: postId ? "PUT" : "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(serializePost()),
+        });
+        const result = await response.json() as ApiResult<unknown>;
+        if (!response.ok) throw new Error(messageFrom(result, "文章保存失败。"));
+        setStatus("已保存，正在刷新…");
+        window.location.reload();
       });
-      const result = await response.json() as ApiResult<unknown>;
-      if (!response.ok) throw new Error(messageFrom(result, "文章保存失败。"));
-      setStatus("已保存，正在刷新…");
-      window.location.reload();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "文章保存失败。", true);
-    } finally {
-      contextChangeBusy = false;
-      updateContextActionState();
     }
   });
 

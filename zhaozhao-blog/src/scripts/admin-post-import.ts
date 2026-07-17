@@ -12,9 +12,13 @@ importButton?.addEventListener("click", () => fileInput?.click());
 fileInput?.addEventListener("change", async () => {
   const file = fileInput.files?.[0];
   if (!file || !importButton || !status) return;
+  document.dispatchEvent(new CustomEvent("admin:post-import-started", {
+    detail: { fileName: file.name },
+  }));
   importButton.disabled = true;
   status.textContent = `正在导入 ${file.name}…`;
   status.removeAttribute("data-error");
+  let succeeded = false;
   try {
     const body = new FormData();
     body.append("file", file);
@@ -24,16 +28,15 @@ fileInput?.addEventListener("change", async () => {
     document.dispatchEvent(new CustomEvent("admin:post-imported", {
       detail: result.data,
     }));
-    const relativeImageCount = Array.isArray(result.data?.relativeImages)
-      ? result.data.relativeImages.length
-      : 0;
-    status.textContent = relativeImageCount > 0
-      ? `发现 ${relativeImageCount} 个待上传的本地图片`
-      : "Markdown 已填入编辑器。";
+    succeeded = true;
+    status.textContent = "Markdown 已读取，正在更新编辑器…";
   } catch (error) {
     status.textContent = error instanceof Error ? error.message : "导入失败。";
     status.setAttribute("data-error", "");
   } finally {
+    document.dispatchEvent(new CustomEvent("admin:post-import-finished", {
+      detail: { success: succeeded },
+    }));
     importButton.disabled = false;
     fileInput.value = "";
   }

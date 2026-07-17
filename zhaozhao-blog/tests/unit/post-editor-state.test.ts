@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  ContextActionQueue,
   LatestTargetRequest,
   PostUploadCoordinator,
   buildPostMediaPayload,
@@ -107,8 +108,49 @@ describe("article editor client state", () => {
     expect(shown).toEqual(["post-b"]);
     expect(requests.target(first)).toBeUndefined();
     expect(requests.target(second)).toBe("post-b");
-    expect(requests.confirm(second)).toBe("post-b");
-    expect(requests.confirm(first)).toBeUndefined();
+    requests.complete(second);
+    expect(requests.target(second)).toBeUndefined();
+  });
+
+  it("keeps the confirmed delete target active after failure so it can retry", () => {
+    const requests = new LatestTargetRequest<string>();
+    const request = requests.begin("post-retry");
+
+    expect(requests.target(request)).toBe("post-retry");
+    expect(requests.target(request)).toBe("post-retry");
+    requests.complete(request);
+    expect(requests.target(request)).toBeUndefined();
+  });
+
+  it("locks context actions for a pending import and releases after failure", () => {
+    const actions = new ContextActionQueue();
+    const releaseImport = actions.acquire();
+    const edit = vi.fn();
+
+    const attemptedEdit = actions.enqueueIfUnlocked(edit);
+    expect(attemptedEdit).toBeUndefined();
+    expect(edit).not.toHaveBeenCalled();
+    releaseImport();
+    expect(actions.isLocked()).toBe(false);
+  });
+
+  it("queues an imported result until the current context action finishes", async () => {
+    const actions = new ContextActionQueue();
+    const current = deferred<void>();
+    const populated: string[] = [];
+    const first = actions.enqueue(async () => {
+      await current.promise;
+      populated.push("edit");
+    });
+    const imported = actions.enqueue(async () => {
+      populated.push("import");
+    });
+
+    expect(actions.isLocked()).toBe(true);
+    current.resolve();
+    await Promise.all([first, imported]);
+    expect(populated).toEqual(["edit", "import"]);
+    expect(actions.isLocked()).toBe(false);
   });
 
   it("preserves a manually edited slug and serializes retained cover state", () => {
