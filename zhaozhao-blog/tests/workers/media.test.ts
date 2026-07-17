@@ -4,8 +4,73 @@ import {
   readAdminMedia,
   storeAdminMedia,
 } from "../../src/lib/cloudflare/media";
+import {
+  runMediaCleanup,
+  uploadPostImage,
+  type MediaObjectStore,
+} from "../../src/lib/cloudflare/post-media";
+import {
+  listMediaCleanupJobs,
+  queueDraftCleanup,
+} from "../../src/lib/database/media-repository";
 
 describe("KV administrator media", () => {
+  it("uploads a draft article image and returns its asset", async () => {
+    const file = new File([new Uint8Array([1, 2, 3, 4, 5])], "hero.png", {
+      type: "image/png",
+    });
+
+    const asset = await uploadPostImage(env.DB, env.MEDIA, file, {
+      draftToken: "22222222-2222-4222-8222-222222222222",
+    });
+
+    expect(asset).toMatchObject({
+      originalName: "hero.png",
+      contentType: "image/png",
+      sizeBytes: 5,
+      usages: [],
+    });
+    expect(await env.MEDIA.get(asset.key, "arrayBuffer")).not.toBeNull();
+  });
+
+  it("retries cleanup after an object deletion fails", async () => {
+    const draftToken = "33333333-3333-4333-8333-333333333333";
+    const asset = await uploadPostImage(
+      env.DB,
+      env.MEDIA,
+      new File(["image"], "cleanup.png", { type: "image/png" }),
+      { draftToken },
+    );
+    await queueDraftCleanup(env.DB, draftToken, "draft_cancelled");
+
+    let shouldFail = true;
+    const store: MediaObjectStore = {
+      put: (key, value, options) => env.MEDIA.put(key, value, options),
+      delete: async (key) => {
+        if (shouldFail) {
+          shouldFail = false;
+          throw new Error("temporary KV failure");
+        }
+        await env.MEDIA.delete(key);
+      },
+    };
+
+    await expect(runMediaCleanup(env.DB, store)).resolves.toEqual({
+      completed: 0,
+      failed: 1,
+    });
+    expect(await listMediaCleanupJobs(env.DB)).toMatchObject([
+      { asset_id: asset.id, attempts: 1, last_error: "temporary KV failure" },
+    ]);
+
+    await expect(runMediaCleanup(env.DB, store)).resolves.toEqual({
+      completed: 1,
+      failed: 0,
+    });
+    expect(await listMediaCleanupJobs(env.DB)).toEqual([]);
+    expect(await env.MEDIA.get(asset.key, "arrayBuffer")).toBeNull();
+  });
+
   it.each([
     ["image/jpeg", "jpg"],
     ["image/png", "png"],

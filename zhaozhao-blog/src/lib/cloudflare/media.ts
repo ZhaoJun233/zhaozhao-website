@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-const maxMediaBytes = 5 * 1024 * 1024;
+export const maxMediaBytes = 5 * 1024 * 1024;
 const extensionByType = new Map([
   ["image/jpeg", "jpg"],
   ["image/png", "png"],
@@ -20,20 +20,29 @@ interface AdminMediaMetadata {
   originalName: string;
 }
 
-export async function storeAdminMedia(
-  store: KVNamespace,
-  file: File,
-  now = new Date(),
-): Promise<{ key: string; url: string }> {
+export function validatedImageExtension(file: File): "jpg" | "png" | "webp" | "gif" {
   const extension = extensionByType.get(file.type.toLowerCase());
   if (!extension) {
     throw new MediaUploadError(415, "图片格式必须是 JPEG、PNG、WebP 或 GIF。");
   }
   if (file.size === 0) throw new MediaUploadError(422, "图片文件是空的。");
   if (file.size > maxMediaBytes) throw new MediaUploadError(413, "图片不能超过 5 MiB。");
+  return extension as "jpg" | "png" | "webp" | "gif";
+}
+
+export function createMediaKey(extension: string, now = new Date()): string {
   const year = String(now.getUTCFullYear());
   const month = String(now.getUTCMonth() + 1).padStart(2, "0");
-  const key = `uploads/${year}/${month}/${randomUUID()}.${extension}`;
+  return `uploads/${year}/${month}/${randomUUID()}.${extension}`;
+}
+
+export async function storeAdminMedia(
+  store: KVNamespace,
+  file: File,
+  now = new Date(),
+): Promise<{ key: string; url: string }> {
+  const extension = validatedImageExtension(file);
+  const key = createMediaKey(extension, now);
   await store.put(key, await file.arrayBuffer(), {
     metadata: {
       contentType: file.type.toLowerCase(),
