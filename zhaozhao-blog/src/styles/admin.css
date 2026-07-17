@@ -121,6 +121,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .admin-post-cover__controls { display: grid; align-content: start; gap: .75rem; }
 .admin-post-dropzone { display: grid; min-block-size: 6rem; place-content: center; gap: .2rem; padding: 1rem; border: 1px dashed var(--cyan-300); border-radius: var(--radius-control); background: var(--cyan-50); color: var(--color-accent-strong); text-align: center; cursor: pointer; transition: border-color var(--transition-fast), background var(--transition-fast), transform var(--transition-fast); }
 .admin-post-dropzone:hover, .admin-post-dropzone[data-dragging] { border-color: var(--cyan-650); background: var(--cyan-100); transform: translateY(-1px); }
+.admin-post-dropzone[aria-disabled="true"] { opacity: .55; pointer-events: none; transform: none; }
 .admin-post-dropzone strong { font-size: .76rem; }
 .admin-post-dropzone span { color: var(--color-text-muted); font-size: .64rem; }
 .admin-post-cover__actions { display: flex; flex-wrap: wrap; gap: .5rem; }
@@ -155,6 +156,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .admin-post-delete-dialog h2 { margin: 1rem 0 .45rem; font-family: var(--font-serif); }
 .admin-post-delete-dialog p { color: var(--color-text-muted); font-size: .76rem; }
 .admin-post-delete-dialog p strong { color: var(--color-pink-strong); }
+.admin-post-editor[data-post-action-locked] [aria-disabled="true"] { cursor: wait; opacity: .58; }
 
 @keyframes admin-post-spin { to { transform: rotate(1turn); } }
 

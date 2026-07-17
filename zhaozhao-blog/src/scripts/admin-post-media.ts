@@ -1,3 +1,5 @@
+import { postUploadCoordinator } from "../lib/admin/post-editor-state";
+
 type PostContext = { postId?: string; draftToken: string };
 type MediaAsset = {
   id: string;
@@ -33,6 +35,9 @@ if (page) {
   const mediaList = page.querySelector<HTMLElement>("[data-post-media-list]")!;
   const mediaEmpty = page.querySelector<HTMLElement>("[data-post-media-empty]")!;
   const mediaStatus = page.querySelector<HTMLElement>("[data-post-media-status]")!;
+  const coverBrowseButton = page.querySelector<HTMLButtonElement>("[data-post-cover-browse]")!;
+  const inlineBrowseButton = page.querySelector<HTMLButtonElement>("[data-post-inline-browse]")!;
+  const coverRemoveButton = page.querySelector<HTMLButtonElement>("[data-post-cover-remove]")!;
   const assets = new Map<string, MediaAsset>();
   let context: PostContext = { draftToken: "" };
   let contextVersion = 0;
@@ -48,6 +53,22 @@ if (page) {
     mediaStatus.toggleAttribute("data-error", error);
     mediaStatus.toggleAttribute("data-progress", Boolean(message) && !error && progress);
   };
+
+  const updateUploadActionState = () => {
+    const locked = postUploadCoordinator.isPending() || page.hasAttribute("data-post-action-locked");
+    coverBrowseButton.disabled = locked;
+    inlineBrowseButton.disabled = locked;
+    coverRemoveButton.disabled = locked;
+    coverFileInput.disabled = locked;
+    inlineFileInput.disabled = locked;
+    dropzone.setAttribute("aria-disabled", String(locked));
+    for (const button of page.querySelectorAll<HTMLButtonElement>("[data-post-media-action]")) {
+      const isCurrentCover = button.matches("[data-post-set-cover][data-current-cover]");
+      button.disabled = locked || isCurrentCover;
+    }
+  };
+
+  postUploadCoordinator.subscribe(updateUploadActionState);
 
   const usageLabel = (usage: MediaAsset["usages"][number]) => ({
     cover: "封面",
@@ -128,6 +149,7 @@ if (page) {
   };
 
   const removeAsset = async (asset: MediaAsset) => {
+    const removalVersion = contextVersion;
     setMediaStatus(`正在从本文移除 ${asset.originalName}…`, false, true);
     try {
       if (context.postId) {
@@ -137,6 +159,7 @@ if (page) {
         const result = await response.json() as ApiResult<unknown>;
         if (!response.ok) throw new Error(messageFrom(result, "图片移除失败。"));
       }
+      if (removalVersion !== contextVersion || !postUploadCoordinator.isCurrent(removalVersion)) return;
       assets.delete(asset.id);
       if (coverAssetInput.value === asset.id) {
         coverAssetInput.value = "";
@@ -149,7 +172,9 @@ if (page) {
       setMediaStatus("");
       emitChanged();
     } catch (error) {
-      setMediaStatus(error instanceof Error ? error.message : "图片移除失败。", true);
+      if (removalVersion === contextVersion) {
+        setMediaStatus(error instanceof Error ? error.message : "图片移除失败。", true);
+      }
     }
   };
 
@@ -195,13 +220,21 @@ if (page) {
       const coverButton = document.createElement("button");
       coverButton.type = "button";
       coverButton.className = "admin-button admin-button--small";
+      coverButton.dataset.postMediaAction = "";
+      coverButton.dataset.postSetCover = "";
       coverButton.textContent = coverAssetInput.value === asset.id ? "当前封面" : "设为封面";
-      coverButton.disabled = coverAssetInput.value === asset.id;
+      coverButton.toggleAttribute("data-current-cover", coverAssetInput.value === asset.id);
+      coverButton.disabled = coverAssetInput.value === asset.id
+        || postUploadCoordinator.isPending()
+        || page!.hasAttribute("data-post-action-locked");
       coverButton.addEventListener("click", () => setCover(asset));
       const removeButton = document.createElement("button");
       removeButton.type = "button";
       removeButton.className = "admin-button admin-button--small admin-button--danger";
+      removeButton.dataset.postMediaAction = "";
       removeButton.textContent = "从本文移除";
+      removeButton.disabled = postUploadCoordinator.isPending()
+        || page!.hasAttribute("data-post-action-locked");
       removeButton.addEventListener("click", () => void removeAsset(asset));
       actions.append(coverButton, removeButton);
       body.append(actions);
@@ -244,7 +277,7 @@ if (page) {
     if (!response.ok) throw new Error(messageFrom(result, `${file.name} 上传失败。`));
     const asset = result.data?.asset;
     if (!asset) throw new Error(`${file.name} 上传结果不完整。`);
-    if (uploadVersion !== contextVersion) {
+    if (uploadVersion !== contextVersion || !postUploadCoordinator.isCurrent(uploadVersion)) {
       throw new Error("文章已切换，刚上传的图片不会附加到当前文章。");
     }
     addUsage(asset, "library");
@@ -263,6 +296,7 @@ if (page) {
       setMediaStatus("封面已上传，保存文章后生效。");
     } catch (error) {
       setMediaStatus(error instanceof Error ? error.message : "封面上传失败。", true);
+      throw error;
     } finally {
       coverFileInput.value = "";
     }
@@ -278,6 +312,7 @@ if (page) {
       setMediaStatus(`已插入 ${files.length} 张图片，保存文章后生效。`);
     } catch (error) {
       setMediaStatus(error instanceof Error ? error.message : "正文图片上传失败。", true);
+      throw error;
     } finally {
       inlineFileInput.value = "";
     }
@@ -295,10 +330,11 @@ if (page) {
   };
 
   const refreshAssets = async (postId: string) => {
+    const refreshVersion = contextVersion;
     const response = await fetch(`/api/admin/posts/${postId}/assets/`);
     const result = await response.json() as ApiResult<MediaAsset[]>;
     if (!response.ok) throw new Error(messageFrom(result, "文章图库读取失败。"));
-    if (context.postId !== postId) return;
+    if (context.postId !== postId || refreshVersion !== contextVersion) return;
     replaceAssets(result.data ?? []);
   };
 
@@ -319,7 +355,7 @@ if (page) {
 
   document.addEventListener("admin:post-context", (event) => {
     const detail = (event as CustomEvent<PostContextDetail>).detail;
-    contextVersion += 1;
+    contextVersion = postUploadCoordinator.currentVersion();
     context = { ...(detail.postId ? { postId: detail.postId } : {}), draftToken: detail.draftToken };
     setMediaStatus("");
     if (detail.assets) {
@@ -333,11 +369,23 @@ if (page) {
     }
   });
 
-  page.querySelector<HTMLButtonElement>("[data-post-cover-browse]")?.addEventListener("click", () => coverFileInput.click());
-  page.querySelector<HTMLButtonElement>("[data-post-inline-browse]")?.addEventListener("click", () => inlineFileInput.click());
-  page.querySelector<HTMLButtonElement>("[data-post-cover-remove]")?.addEventListener("click", clearCover);
-  coverFileInput.addEventListener("change", () => void uploadCover(coverFileInput.files?.[0]));
-  inlineFileInput.addEventListener("change", () => void uploadInline([...inlineFileInput.files ?? []]));
+  const trackUpload = (operation: () => Promise<void>) => {
+    const version = contextVersion;
+    postUploadCoordinator.beginAttempt(version);
+    void postUploadCoordinator.track(operation(), version).catch(() => undefined);
+  };
+
+  coverBrowseButton.addEventListener("click", () => coverFileInput.click());
+  inlineBrowseButton.addEventListener("click", () => inlineFileInput.click());
+  coverRemoveButton.addEventListener("click", clearCover);
+  coverFileInput.addEventListener("change", () => {
+    const file = coverFileInput.files?.[0];
+    if (file) trackUpload(() => uploadCover(file));
+  });
+  inlineFileInput.addEventListener("change", () => {
+    const files = [...inlineFileInput.files ?? []];
+    if (files.length > 0) trackUpload(() => uploadInline(files));
+  });
   coverAltInput.addEventListener("input", renderCover);
 
   for (const eventName of ["dragenter", "dragover"]) {
@@ -352,10 +400,16 @@ if (page) {
       dropzone.removeAttribute("data-dragging");
     });
   }
-  dropzone.addEventListener("drop", (event) => void uploadCover(event.dataTransfer?.files[0]));
+  dropzone.addEventListener("drop", (event) => {
+    const file = event.dataTransfer?.files[0];
+    if (file && !postUploadCoordinator.isPending() && !page.hasAttribute("data-post-action-locked")) {
+      trackUpload(() => uploadCover(file));
+    }
+  });
 
   renderCover();
   renderGallery();
+  updateUploadActionState();
   void runBackfill();
 }
 

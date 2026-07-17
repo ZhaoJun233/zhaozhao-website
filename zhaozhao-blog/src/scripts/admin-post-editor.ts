@@ -1,6 +1,15 @@
-import { taxonomySlug } from "../lib/slug";
+import {
+  LatestTargetRequest,
+  buildPostMediaPayload,
+  nextSlugValue,
+  postContextKey,
+  postUploadCoordinator,
+  preparePostContextChange,
+  type ClientPostContext,
+  type TargetRequest,
+} from "../lib/admin/post-editor-state";
 
-type PostContext = { postId?: string; draftToken: string };
+type PostContext = ClientPostContext;
 type PostAsset = {
   id: string;
   url: string;
@@ -31,9 +40,12 @@ if (page) {
   const retainedAssetsInput = form.elements.namedItem("retainedAssetIds") as HTMLInputElement;
   const titleInput = form.elements.namedItem("title") as HTMLInputElement;
   const slugInput = form.elements.namedItem("slug") as HTMLInputElement;
+  const confirmDeleteButton = page.querySelector<HTMLButtonElement>("[data-post-delete-confirm]")!;
   let slugEditedManually = false;
-  let pendingDeleteId = "";
   let editRequestId = 0;
+  let contextChangeBusy = false;
+  const deleteRequests = new LatestTargetRequest<string>();
+  let activeDeleteRequest: TargetRequest<string> | undefined;
 
   const messageFrom = (result: ApiResult<unknown>, fallback: string) => {
     const detail = Object.values(result.fieldErrors ?? {}).flat().filter(Boolean).join(" ");
@@ -70,6 +82,7 @@ if (page) {
   };
 
   const emitContext = (context: PostContext, assets?: PostAsset[]) => {
+    postUploadCoordinator.activate(postContextKey(context));
     document.dispatchEvent(new CustomEvent("admin:post-context", {
       detail: { ...context, ...(assets ? { assets } : {}) },
     }));
@@ -102,13 +115,66 @@ if (page) {
     emitContext(currentContext(), []);
   };
 
-  const cleanupUnsavedDraft = async () => {
-    if (idInput.value || !draftTokenInput.value) return;
-    const response = await fetch(`/api/admin/post-assets/drafts/${draftTokenInput.value}/`, {
+  const cleanupDraft = async (draftToken: string) => {
+    const response = await fetch(`/api/admin/post-assets/drafts/${draftToken}/`, {
       method: "DELETE",
     });
     const result = await response.json() as ApiResult<unknown>;
     if (!response.ok) throw new Error(messageFrom(result, "草稿图片清理失败。"));
+  };
+
+  const contextActions = () => [
+    document.querySelector<HTMLButtonElement>("[data-create-record]"),
+    document.querySelector<HTMLButtonElement>("[data-import-post]"),
+    ...page.querySelectorAll<HTMLButtonElement>("[data-edit-record]"),
+    page.querySelector<HTMLButtonElement>("[data-cancel-edit]"),
+    page.querySelector<HTMLButtonElement>("[data-post-cover-browse]"),
+    page.querySelector<HTMLButtonElement>("[data-post-inline-browse]"),
+    page.querySelector<HTMLButtonElement>("[data-post-cover-remove]"),
+    ...page.querySelectorAll<HTMLButtonElement>("[data-post-media-action]"),
+    form.querySelector<HTMLButtonElement>("button[type='submit']"),
+  ].filter((button): button is HTMLButtonElement => Boolean(button));
+
+  const contextActionsLocked = () => contextChangeBusy || postUploadCoordinator.isPending();
+
+  const updateContextActionState = () => {
+    const locked = contextActionsLocked();
+    for (const button of contextActions()) {
+      button.setAttribute("aria-disabled", String(locked));
+      if (!button.matches("[data-import-post]")) button.disabled = locked;
+    }
+    for (const input of page.querySelectorAll<HTMLInputElement>("[data-post-cover-upload], [data-post-inline-upload]")) {
+      input.disabled = locked;
+    }
+    page.querySelector<HTMLElement>("[data-post-cover-dropzone]")
+      ?.setAttribute("aria-disabled", String(locked));
+    page.toggleAttribute("data-post-action-locked", locked);
+  };
+
+  postUploadCoordinator.subscribe(updateContextActionState);
+
+  document.addEventListener("click", (event) => {
+    if (!contextActionsLocked()) return;
+    const target = event.target as HTMLElement;
+    if (!target.closest("[data-create-record], [data-import-post], [data-edit-record], [data-cancel-edit]")) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    setStatus("请等待当前图片上传完成。", true);
+  }, true);
+
+  const changeContext = async (operation: () => void | Promise<void>) => {
+    if (contextChangeBusy) return;
+    const version = postUploadCoordinator.currentVersion();
+    const context = currentContext();
+    contextChangeBusy = true;
+    updateContextActionState();
+    try {
+      await preparePostContextChange(postUploadCoordinator, version, context, cleanupDraft);
+      await operation();
+    } finally {
+      contextChangeBusy = false;
+      updateContextActionState();
+    }
   };
 
   const populatePost = (post: PostRecord) => {
@@ -154,13 +220,11 @@ if (page) {
       .split(/[,，\n]/)
       .map((tag) => tag.trim())
       .filter(Boolean);
-    let retainedAssetIds: string[] = [];
-    try {
-      const value = JSON.parse(retainedAssetsInput.value || "[]") as unknown;
-      retainedAssetIds = Array.isArray(value) ? value.filter((id): id is string => typeof id === "string") : [];
-    } catch {
-      retainedAssetIds = [];
-    }
+    const media = buildPostMediaPayload({
+      draftToken: draftTokenInput.value,
+      coverAssetId: coverAssetInput.value,
+      retainedAssetIds: retainedAssetsInput.value,
+    });
     return {
       slug: slugInput.value.trim(),
       title: titleInput.value.trim(),
@@ -176,14 +240,12 @@ if (page) {
       featured: (control("featured") as HTMLInputElement).checked,
       ...(optionalValue("series") ? { series: optionalValue("series") } : {}),
       ...(optionalValue("canonicalUrl") ? { canonicalUrl: optionalValue("canonicalUrl") } : {}),
-      draftToken: draftTokenInput.value,
-      ...(coverAssetInput.value ? { coverAssetId: coverAssetInput.value } : {}),
-      retainedAssetIds,
+      ...media,
     };
   };
 
   titleInput.addEventListener("input", () => {
-    if (!slugEditedManually) slugInput.value = taxonomySlug(titleInput.value);
+    slugInput.value = nextSlugValue(slugInput.value, titleInput.value, slugEditedManually);
   });
   slugInput.addEventListener("input", () => {
     slugEditedManually = true;
@@ -191,9 +253,10 @@ if (page) {
 
   document.querySelector<HTMLElement>("[data-create-record]")?.addEventListener("click", async () => {
     try {
-      await cleanupUnsavedDraft();
-      resetNewPost();
-      titleInput.focus();
+      await changeContext(() => {
+        resetNewPost();
+        titleInput.focus();
+      });
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "新建文章失败。", true);
     }
@@ -201,12 +264,11 @@ if (page) {
 
   page.querySelector<HTMLElement>("[data-cancel-edit]")?.addEventListener("click", async () => {
     try {
-      if (!idInput.value) {
-        setStatus("正在清理未保存图片…");
-        await cleanupUnsavedDraft();
-      }
-      resetNewPost();
-      titleInput.focus();
+      setStatus("正在清理未保存图片…");
+      await changeContext(() => {
+        resetNewPost();
+        titleInput.focus();
+      });
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "草稿清理失败。", true);
     }
@@ -215,10 +277,15 @@ if (page) {
   document.addEventListener("admin:post-imported", (event) => {
     const detail = (event as CustomEvent<{ post?: PostRecord }>).detail;
     if (!detail?.post) return;
-    populatePost(detail.post);
-    slugEditedManually = true;
-    if (editorTitle) editorTitle.textContent = idInput.value ? "编辑导入内容" : "检查导入内容";
-    titleInput.focus();
+    void changeContext(() => {
+      resetNewPost();
+      populatePost(detail.post!);
+      slugEditedManually = true;
+      if (editorTitle) editorTitle.textContent = "检查导入内容";
+      titleInput.focus();
+    }).catch((error: unknown) => {
+      setStatus(error instanceof Error ? error.message : "导入内容切换失败。", true);
+    });
   });
 
   page.addEventListener("click", async (event) => {
@@ -227,38 +294,52 @@ if (page) {
     const deleteButton = target.closest<HTMLButtonElement>("[data-delete-record]");
     if (editButton?.dataset.editRecord) {
       try {
-        await editPost(editButton.dataset.editRecord);
+        await changeContext(() => editPost(editButton.dataset.editRecord!));
       } catch (error) {
         setStatus(error instanceof Error ? error.message : "文章读取失败。", true);
       }
     }
     if (deleteButton?.dataset.deleteRecord) {
-      pendingDeleteId = deleteButton.dataset.deleteRecord;
+      const request = deleteRequests.begin(deleteButton.dataset.deleteRecord);
+      activeDeleteRequest = undefined;
+      confirmDeleteButton.disabled = true;
+      deleteButton.disabled = true;
+      deleteButton.setAttribute("aria-busy", "true");
       deleteStatus.textContent = "正在计算图片影响…";
       deleteStatus.removeAttribute("data-error");
       try {
-        const response = await fetch(`/api/admin/posts/${pendingDeleteId}/delete-preview/`);
+        const response = await fetch(`/api/admin/posts/${request.target}/delete-preview/`);
         const result = await response.json() as ApiResult<{ exclusive: number; shared: number }>;
         if (!response.ok) throw new Error(messageFrom(result, "删除预览读取失败。"));
+        if (deleteRequests.target(request) === undefined) return;
         const preview = result.data ?? { exclusive: 0, shared: 0 };
         page.querySelector<HTMLElement>("[data-post-delete-exclusive]")!.textContent = String(preview.exclusive);
         page.querySelector<HTMLElement>("[data-post-delete-shared]")!.textContent = String(preview.shared);
         deleteStatus.textContent = "";
+        activeDeleteRequest = request;
+        confirmDeleteButton.disabled = false;
         deleteDialog.showModal();
       } catch (error) {
-        pendingDeleteId = "";
-        setStatus(error instanceof Error ? error.message : "删除预览读取失败。", true);
+        if (deleteRequests.target(request) !== undefined) {
+          deleteRequests.invalidate();
+          setStatus(error instanceof Error ? error.message : "删除预览读取失败。", true);
+        }
+      } finally {
+        deleteButton.disabled = false;
+        deleteButton.removeAttribute("aria-busy");
       }
     }
   });
 
-  page.querySelector<HTMLButtonElement>("[data-post-delete-confirm]")?.addEventListener("click", async (event) => {
-    if (!pendingDeleteId) return;
+  confirmDeleteButton.addEventListener("click", async (event) => {
+    const postId = activeDeleteRequest ? deleteRequests.confirm(activeDeleteRequest) : undefined;
+    activeDeleteRequest = undefined;
+    if (!postId) return;
     const button = event.currentTarget as HTMLButtonElement;
     button.disabled = true;
     deleteStatus.textContent = "正在删除文章并整理图片…";
     try {
-      const response = await fetch(`/api/admin/posts/${pendingDeleteId}/`, { method: "DELETE" });
+      const response = await fetch(`/api/admin/posts/${postId}/`, { method: "DELETE" });
       const result = await response.json() as ApiResult<unknown>;
       if (!response.ok) throw new Error(messageFrom(result, "文章删除失败。"));
       deleteStatus.textContent = "已删除，正在刷新…";
@@ -270,12 +351,22 @@ if (page) {
     }
   });
 
+  deleteDialog.addEventListener("close", () => {
+    confirmDeleteButton.disabled = true;
+    if (!activeDeleteRequest) return;
+    deleteRequests.invalidate();
+    activeDeleteRequest = undefined;
+  });
+
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const submit = form.querySelector<HTMLButtonElement>("button[type='submit']");
-    if (submit) submit.disabled = true;
-    setStatus("正在保存文章与图片关系…");
+    const version = postUploadCoordinator.currentVersion();
+    contextChangeBusy = true;
+    updateContextActionState();
+    setStatus(postUploadCoordinator.isPending(version) ? "正在等待图片上传完成…" : "正在保存文章与图片关系…");
     try {
+      await postUploadCoordinator.waitForReady(version);
+      setStatus("正在保存文章与图片关系…");
       const postId = idInput.value;
       const response = await fetch(postId ? `/api/admin/posts/${postId}/` : "/api/admin/posts/", {
         method: postId ? "PUT" : "POST",
@@ -288,12 +379,15 @@ if (page) {
       window.location.reload();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "文章保存失败。", true);
-      if (submit) submit.disabled = false;
+    } finally {
+      contextChangeBusy = false;
+      updateContextActionState();
     }
   });
 
   resetNewPost();
   queueMicrotask(() => emitContext(currentContext(), []));
+  updateContextActionState();
 }
 
 export {};
