@@ -20,7 +20,7 @@
   "workbench": {
     "eyebrow": "Workbench · 常用工具",
     "title": "轻量、可读，也方便明天继续整理",
-    "description": "工具的价值在于减少写作和维护之间的摩擦。这个站点使用 Astro SSR、运行时内容校验与少量浏览器脚本，让后台保存后的内容无需重建即可更新。",
+    "description": "工具的价值在于减少写作和维护之间的摩擦。这个站点保持轻量、可读与稳定，让后台保存后的内容及时更新。",
     "tools": ["Astro", "TypeScript", "原生 CSS", "Markdown", "Content Collections", "Playwright"]
   },
   "timeline": {
@@ -30,7 +30,7 @@
     "entries": [
       { "date": "2026-07-15", "title": "开始搭建个人博客", "description": "创建 Astro 项目，确定 233昭 的站点身份与个人博客的基础页面结构。" },
       { "date": "2026-07-15", "title": "确定二次元视觉方向", "description": "加入首页人物主视觉、头像、动画交互，并持续调整人物构图与页面比例。" },
-      { "date": "2026-07-16", "title": "接入 SQLite 内容后台", "description": "将文章、项目、分类、页面设置和友链迁移到统一数据库与单管理员后台。" },
+      { "date": "2026-07-16", "title": "接入内容管理后台", "description": "将文章、项目、分类、页面设置和友链迁移到统一管理后台。" },
       { "date": "2026-07-16", "title": "开放友链与数据库留言", "description": "完成友链增删改与排序，并加入访客留言提交、审核、公开和删除流程。" }
     ]
   }

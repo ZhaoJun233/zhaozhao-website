@@ -534,7 +534,7 @@ export async function importBlogData(database: D1Database, backup: BlogBackup): 
   ];
   if (statements.length > maxBackupStatements) {
     throw new AdminConflictError(
-      `备份包含 ${statements.length} 条数据库操作，超过单次导入上限 ${maxBackupStatements}。请使用 Wrangler 迁移流程。`,
+      `备份包含 ${statements.length} 条数据操作，超过单次导入上限 ${maxBackupStatements}。请精简备份内容后重试。`,
     );
   }
   await database.batch(statements);

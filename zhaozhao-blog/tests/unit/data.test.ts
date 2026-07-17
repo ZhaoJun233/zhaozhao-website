@@ -48,7 +48,7 @@ describe("site data", () => {
     expect(aboutContent.timeline.entries.map((entry) => entry.title)).toEqual([
       "开始搭建个人博客",
       "确定二次元视觉方向",
-      "接入 SQLite 内容后台",
+      "接入内容管理后台",
       "开放友链与数据库留言",
     ]);
   });

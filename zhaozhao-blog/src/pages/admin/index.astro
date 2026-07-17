@@ -13,7 +13,7 @@ const stats = [
 ---
 
 <AdminLayout title="后台概览">
-  <AdminShell active="overview" title="后台概览" description="所有内容都由 SQLite 统一管理。">
+  <AdminShell active="overview" title="后台概览" description="集中管理文章、项目、页面与留言。">
     <section class="admin-grid" aria-label="内容统计">
       {stats.map(([label, value]) => <article class="admin-stat"><span>{label}</span><strong>{value}</strong></article>)}
     </section>

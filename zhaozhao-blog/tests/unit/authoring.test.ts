@@ -15,8 +15,10 @@ describe("database-backed authoring", () => {
       expect(existsSync(resolve(appRoot, `src/pages/admin/${page}.astro`))).toBe(true);
     }
     const adminIndex = readFileSync(resolve(appRoot, "src/pages/admin/index.astro"), "utf8");
+    const adminLogin = readFileSync(resolve(appRoot, "src/pages/admin/login.astro"), "utf8");
     expect(adminIndex).toContain("AdminShell");
     expect(adminIndex).not.toContain("decap-cms-app");
+    expect(`${adminIndex}\n${adminLogin}`).not.toMatch(/Docker|SQLite|Wrangler/);
     expect(existsSync(resolve(appRoot, "public/admin/config.yml"))).toBe(false);
   });
 
