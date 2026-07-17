@@ -55,8 +55,11 @@ tags: 测试, Markdown
   await page.getByLabel("昵称 *").fill(visitorName);
   await page.getByLabel("邮箱").fill("e2e@example.com");
   await page.getByLabel("留言 *").fill("这是一条端到端数据库留言。" );
+  const submitted = page.waitForResponse((response) =>
+    response.request().method() === "POST" && response.url().endsWith("/api/messages/"));
   await page.getByRole("button", { name: /提交留言/ }).click();
-  await expect(page.getByText(/审核后/)).toBeVisible();
+  expect((await submitted).status()).toBe(202);
+  await expect(page.locator("[data-guestbook-status]")).toContainText("留言已提交");
 
   await page.goto("/admin/messages/");
   const messageRow = page.locator("tr").filter({ hasText: visitorName });

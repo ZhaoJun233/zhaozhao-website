@@ -10,6 +10,15 @@ export default defineConfig({
   base: "/",
   trailingSlash: "always",
   devToolbar: { enabled: false },
+  vite: {
+    build: {
+      rollupOptions: {
+        output: {
+          chunkFileNames: (chunk) => `chunks/${chunk.name.replace(/^\.+/, "_")}-[hash].mjs`,
+        },
+      },
+    },
+  },
   markdown: {
     shikiConfig: {
       themes: {
