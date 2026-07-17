@@ -52,7 +52,8 @@ const themeBootstrap = `(() => { try { const saved = localStorage.getItem("zhaoz
     <meta name="theme-color" content="#fbfaf8" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#101415" media="(prefers-color-scheme: dark)" />
     <meta name="generator" content={Astro.generator} />
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href={runtimeProfile.avatar} />
+    <link rel="apple-touch-icon" href={runtimeProfile.avatar} />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="alternate" type="application/rss+xml" title={`${runtimeProfile.name} RSS`} href="/rss.xml" />
     <script is:inline set:html={themeBootstrap}></script>

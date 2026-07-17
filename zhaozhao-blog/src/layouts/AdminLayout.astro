@@ -1,6 +1,7 @@
 ---
 import "../styles/tokens.css";
 import "../styles/admin.css";
+import { loadRuntimeProfile } from "../lib/runtime-content";
 
 interface Props {
   title: string;
@@ -9,6 +10,7 @@ interface Props {
 }
 
 const { title, description = "233昭博客内容管理后台", login = false } = Astro.props;
+const runtimeProfile = await loadRuntimeProfile();
 ---
 
 <!doctype html>
@@ -18,6 +20,8 @@ const { title, description = "233昭博客内容管理后台", login = false } =
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex, nofollow" />
     <meta name="description" content={description} />
+    <link rel="icon" href={runtimeProfile.avatar} />
+    <link rel="apple-touch-icon" href={runtimeProfile.avatar} />
     <title>{title} · 233昭后台</title>
   </head>
   <body class:list={["admin-body", { "admin-body--login": login }]}>

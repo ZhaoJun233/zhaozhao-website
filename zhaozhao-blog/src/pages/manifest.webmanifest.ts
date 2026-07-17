@@ -14,10 +14,8 @@ export async function GET() {
     background_color: "#fbfaf8",
     theme_color: "#117f89",
     icons: [{
-      src: "/favicon.svg",
-      sizes: "any",
-      type: "image/svg+xml",
-      purpose: "any maskable",
+      src: profile.avatar,
+      purpose: "any",
     }],
   }), {
     headers: { "content-type": "application/manifest+json; charset=utf-8", "cache-control": "no-store" },

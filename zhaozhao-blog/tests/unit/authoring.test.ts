@@ -71,6 +71,18 @@ describe("database-backed authoring", () => {
     expect(importScript).toContain("admin:post-import-finished");
   });
 
+  it("uses the blogger avatar as the browser and app icon", () => {
+    const baseLayout = readFileSync(resolve(appRoot, "src/layouts/BaseLayout.astro"), "utf8");
+    const adminLayout = readFileSync(resolve(appRoot, "src/layouts/AdminLayout.astro"), "utf8");
+    const manifest = readFileSync(resolve(appRoot, "src/pages/manifest.webmanifest.ts"), "utf8");
+
+    expect(baseLayout).toContain('rel="icon" href={runtimeProfile.avatar}');
+    expect(baseLayout).toContain('rel="apple-touch-icon" href={runtimeProfile.avatar}');
+    expect(adminLayout).toContain('rel="icon" href={runtimeProfile.avatar}');
+    expect(manifest).toContain("src: profile.avatar");
+    expect(`${baseLayout}\n${adminLayout}\n${manifest}`).not.toContain("/favicon.svg");
+  });
+
   it("documents Cloudflare secrets and removes Docker deployment files", () => {
     const environmentExample = readFileSync(resolve(appRoot, ".dev.vars.example"), "utf8");
     expect(environmentExample).toContain("ADMIN_PASSWORD=");
