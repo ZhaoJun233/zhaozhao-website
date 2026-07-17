@@ -15,11 +15,14 @@ test("desktop hero keeps the complete source image visible", async ({ page }) =>
 test("mobile moves copy below the artwork", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
+  const headerBox = await page.locator("[data-site-header]").boundingBox();
   const imageBox = await page.getByTestId("home-hero-image").boundingBox();
   const copyBox = await page.getByTestId("hero-copy").boundingBox();
 
+  expect(headerBox).not.toBeNull();
   expect(imageBox).not.toBeNull();
   expect(copyBox).not.toBeNull();
+  expect(imageBox!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height - 1);
   expect(copyBox!.y).toBeGreaterThanOrEqual(imageBox!.y + imageBox!.height - 1);
 });
 

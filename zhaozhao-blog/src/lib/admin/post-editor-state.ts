@@ -182,7 +182,12 @@ export async function preparePostContextChange(
 }
 
 export function nextSlugValue(currentSlug: string, title: string, manuallyEdited: boolean): string {
-  return manuallyEdited ? currentSlug : taxonomySlug(title);
+  if (manuallyEdited) return currentSlug;
+  const generated = taxonomySlug(title)
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/-{2,}/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return generated || currentSlug;
 }
 
 export function buildPostMediaPayload(input: {

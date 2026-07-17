@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   categoryInputSchema,
   postInputSchema,
+  postMediaInputSchema,
   profileSettingSchema,
 } from "../../src/lib/admin/schemas";
 import { AdminConflictError } from "../../src/lib/database/admin-repository";
@@ -25,6 +26,23 @@ describe("administrator payload contracts", () => {
       tags: ["测试"],
       cover: "/media/cover.jpg",
     })).toThrow("封面与说明必须同时填写");
+  });
+
+  it("explains invalid canonical links and expired draft identifiers", () => {
+    expect(() => postInputSchema.parse({
+      slug: "url-test",
+      title: "链接测试",
+      description: "验证链接提示。",
+      body: "正文",
+      publishedAt: "2026-07-18",
+      category: "开发",
+      tags: ["测试"],
+      canonicalUrl: "example.com/article",
+    })).toThrow("链接必须以 http:// 或 https:// 开头");
+    expect(() => postMediaInputSchema.parse({
+      draftToken: "",
+      retainedAssetIds: [],
+    })).toThrow("草稿标识失效");
   });
 
   it("accepts the complete long-term profile shape", () => {

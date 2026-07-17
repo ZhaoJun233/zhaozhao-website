@@ -106,6 +106,7 @@ if (page) {
     form.reset();
     idInput.value = "";
     draftTokenInput.value = crypto.randomUUID();
+    slugInput.value = `post-${defaultDate().replaceAll("-", "")}-${draftTokenInput.value.slice(0, 8)}`;
     coverAssetInput.value = "";
     retainedAssetsInput.value = "[]";
     setValue("publishedAt", defaultDate());

@@ -291,8 +291,8 @@ test("article editor stays operable without horizontal overflow", async ({ page 
   await expect(markdownBody).toHaveValue(/响应式 smoke/);
 
   for (const button of [
-    page.getByRole("button", { name: "上传 / 替换" }),
-    page.getByRole("button", { name: "上传并插入图片" }),
+    page.locator("[data-post-cover-browse]"),
+    page.locator("[data-post-inline-browse]"),
   ]) {
     await expect(button).toBeVisible();
     await expect(button).toBeEnabled();
@@ -313,4 +313,41 @@ test("article editor stays operable without horizontal overflow", async ({ page 
   }));
   expect(documentWidth.clientWidth).toBe(viewport!.width);
   expect(documentWidth.scrollWidth).toBeLessThanOrEqual(documentWidth.clientWidth);
+});
+
+test("mobile cover picker shows upload feedback and a preview", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-390", "手机上传流程只在一个窄屏尺寸执行。" );
+  await loginAsAdministrator(page);
+  await page.goto("/admin/posts/");
+  await startNewPost(page);
+  const draftToken = await page.locator('input[name="draftToken"]').inputValue();
+  let slug = "";
+
+  try {
+    await page.getByLabel("标题").fill("手机图片保存测试");
+    slug = await page.getByLabel("Slug").inputValue();
+    await page.getByLabel("摘要").fill("验证手机选择封面、预览与保存流程。");
+    await page.getByLabel("分类").selectOption({ index: 1 });
+    await page.getByLabel("标签").fill("测试, 手机");
+    await page.getByRole("textbox", { name: "Markdown 正文" }).fill("手机图片保存测试正文。");
+    const chooserPromise = page.waitForEvent("filechooser");
+    await page.locator("[data-post-cover-browse]").click();
+    await (await chooserPromise).setFiles("tests/fixtures/post-cover.png");
+
+    await expect(page.locator("[data-post-cover-image]")).toBeVisible();
+    await expect(page.locator("[data-post-cover-status]")).toContainText(/正在上传|封面已上传/);
+    await expect(page.locator("[data-post-cover-status]")).toBeVisible();
+    await page.getByRole("button", { name: "保存文章" }).click();
+    await expect(postRowBySlug(page, slug)).toContainText("手机图片保存测试");
+  } finally {
+    const warnings: string[] = [];
+    if (slug) await cleanupPostsBySlug(page, [slug], warnings);
+    await page.request.delete(`/api/admin/post-assets/drafts/${draftToken}/`);
+    if (warnings.length > 0) {
+      await testInfo.attach("mobile-cover-cleanup-warnings", {
+        body: warnings.join("\n"),
+        contentType: "text/plain",
+      });
+    }
+  }
 });

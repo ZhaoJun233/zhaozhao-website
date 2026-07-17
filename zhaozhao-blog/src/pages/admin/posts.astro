@@ -70,7 +70,7 @@ const categories = categoryRows.filter(({ enabled }) => enabled);
             <div class="admin-field"><label for="post-published">发布日期</label><input id="post-published" name="publishedAt" type="date" required /></div>
             <div class="admin-field"><label for="post-updated">更新日期</label><input id="post-updated" name="updatedAt" type="date" /></div>
             <div class="admin-field"><label for="post-series">系列</label><input id="post-series" name="series" /></div>
-            <div class="admin-field admin-post-field--wide"><label for="post-canonical">规范链接</label><input id="post-canonical" name="canonicalUrl" type="url" inputmode="url" /></div>
+            <div class="admin-field admin-post-field--wide"><label for="post-canonical">规范链接（可选）</label><input id="post-canonical" name="canonicalUrl" type="url" inputmode="url" placeholder="https://example.com/article" /><span>没有转载来源或独立原文地址时请留空。</span></div>
           </div>
 
           <section class="admin-post-cover" aria-labelledby="post-cover-heading">
@@ -88,11 +88,14 @@ const categories = categoryRows.filter(({ enabled }) => enabled);
                   <strong>拖放封面到这里</strong>
                   <span>支持 JPEG、PNG、WebP 与 GIF</span>
                 </label>
-                <input id="post-cover-upload" type="file" accept="image/jpeg,image/png,image/webp,image/gif" data-post-cover-upload hidden />
                 <div class="admin-post-cover__actions">
-                  <button class="admin-button" type="button" data-post-cover-browse><FileUp size={15} />上传 / 替换</button>
+                  <label class="admin-button admin-post-file-button" for="post-cover-upload" role="button" data-post-cover-browse>
+                    <FileUp size={15} /><span>上传 / 替换</span>
+                  </label>
+                  <input id="post-cover-upload" class="admin-post-file-input" type="file" accept="image/*" aria-label="上传 / 替换" data-post-cover-upload />
                   <button class="admin-button admin-button--danger" type="button" data-post-cover-remove><Trash2 size={15} />移除封面</button>
                 </div>
+                <p class="admin-post-media__status admin-post-cover__status" data-post-media-status data-post-cover-status aria-live="polite"></p>
                 <div class="admin-field"><label for="post-cover-alt">封面说明</label><input id="post-cover-alt" name="coverAlt" placeholder="描述画面内容，方便读屏用户理解" /></div>
                 <details class="admin-post-advanced">
                   <summary>兼容路径（高级）</summary>
@@ -108,10 +111,13 @@ const categories = categoryRows.filter(({ enabled }) => enabled);
               <p>图片会插入到当前光标位置，并自动进入本文图库。</p>
             </div>
             <div class="admin-post-toolbar" role="toolbar" aria-label="Markdown 图片工具">
-              <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple data-post-inline-upload hidden />
-              <button class="admin-button" type="button" data-post-inline-browse><FileUp size={15} />上传并插入图片</button>
+              <label class="admin-button admin-post-file-button" for="post-inline-upload" role="button" data-post-inline-browse>
+                <FileUp size={15} /><span>上传并插入图片</span>
+              </label>
+              <input id="post-inline-upload" class="admin-post-file-input" type="file" accept="image/*" aria-label="上传并插入图片" multiple data-post-inline-upload />
               <span data-post-upload-hint>可一次选择多张</span>
             </div>
+            <p class="admin-post-media__status admin-post-inline__status" data-post-media-status data-post-inline-status aria-live="polite"></p>
             <div class="admin-field"><label class="sr-only" for="post-body">Markdown 正文</label><textarea id="post-body" name="body" data-body spellcheck="true" required></textarea></div>
           </section>
 

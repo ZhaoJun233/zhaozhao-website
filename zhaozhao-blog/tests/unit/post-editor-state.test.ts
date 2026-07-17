@@ -156,6 +156,8 @@ describe("article editor client state", () => {
   it("preserves a manually edited slug and serializes retained cover state", () => {
     expect(nextSlugValue("hello-world", "新的标题", true)).toBe("hello-world");
     expect(nextSlugValue("", "Hello World", false)).toBe("hello-world");
+    expect(nextSlugValue("post-20260718-a1b2c3d4", "新的标题", false))
+      .toBe("post-20260718-a1b2c3d4");
     expect(buildPostMediaPayload({
       draftToken: "11111111-1111-4111-8111-111111111111",
       coverAssetId: "22222222-2222-4222-8222-222222222222",

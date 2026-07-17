@@ -10,7 +10,17 @@ import {
 
 const text = z.string().trim().min(1);
 const optionalText = z.string().trim().transform((value) => value || undefined).optional();
-const httpUrl = z.url({ protocol: /^https?$/ });
+const httpUrl = z.string().trim().refine((value) => {
+  try {
+    return /^https?:$/.test(new URL(value).protocol);
+  } catch {
+    return false;
+  }
+}, "链接必须以 http:// 或 https:// 开头，并填写完整地址。");
+const uuid = z.string().trim().regex(
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+  "草稿标识失效，请刷新文章管理页面后重试。",
+);
 const blankText = z.string().trim().max(160);
 const blankEmail = z.union([z.literal(""), z.email()]);
 const blankHttpUrl = z.union([z.literal(""), httpUrl]);
@@ -60,9 +70,9 @@ export const postInputSchema = z.object({
 });
 
 export const postMediaInputSchema = z.object({
-  draftToken: z.uuid().optional(),
-  coverAssetId: z.uuid().optional(),
-  retainedAssetIds: z.array(z.uuid()).max(100).default([]),
+  draftToken: uuid.optional(),
+  coverAssetId: uuid.optional(),
+  retainedAssetIds: z.array(uuid).max(100).default([]),
 });
 
 export const projectInputSchema = z.object({

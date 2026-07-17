@@ -60,6 +60,7 @@ describe("database-backed authoring", () => {
   it("ships the article-specific editor and image manager", () => {
     const postsPage = readFileSync(resolve(appRoot, "src/pages/admin/posts.astro"), "utf8");
     const importScript = readFileSync(resolve(appRoot, "src/scripts/admin-post-import.ts"), "utf8");
+    const mediaScript = readFileSync(resolve(appRoot, "src/scripts/admin-post-media.ts"), "utf8");
     expect(postsPage).toContain("data-post-page");
     expect(postsPage).toContain("data-post-cover-upload");
     expect(postsPage).toContain("data-post-inline-upload");
@@ -69,6 +70,11 @@ describe("database-backed authoring", () => {
     expect(existsSync(resolve(appRoot, "src/scripts/admin-post-media.ts"))).toBe(true);
     expect(importScript).toContain("admin:post-import-started");
     expect(importScript).toContain("admin:post-import-finished");
+    expect(postsPage).toContain("data-post-cover-status");
+    expect(postsPage).toContain('accept="image/*"');
+    expect(mediaScript).toContain('querySelectorAll<HTMLElement>("[data-post-media-status]")');
+    expect(mediaScript).toContain("URL.createObjectURL(file)");
+    expect(mediaScript).not.toContain('coverFileInput.click()');
   });
 
   it("uses the blogger avatar as the browser and app icon", () => {

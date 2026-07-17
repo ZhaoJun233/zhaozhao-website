@@ -34,9 +34,9 @@ if (page) {
   const coverEmpty = page.querySelector<HTMLElement>("[data-post-cover-empty]")!;
   const mediaList = page.querySelector<HTMLElement>("[data-post-media-list]")!;
   const mediaEmpty = page.querySelector<HTMLElement>("[data-post-media-empty]")!;
-  const mediaStatus = page.querySelector<HTMLElement>("[data-post-media-status]")!;
-  const coverBrowseButton = page.querySelector<HTMLButtonElement>("[data-post-cover-browse]")!;
-  const inlineBrowseButton = page.querySelector<HTMLButtonElement>("[data-post-inline-browse]")!;
+  const mediaStatuses = [...page.querySelectorAll<HTMLElement>("[data-post-media-status]")];
+  const coverBrowseButton = page.querySelector<HTMLElement>("[data-post-cover-browse]")!;
+  const inlineBrowseButton = page.querySelector<HTMLElement>("[data-post-inline-browse]")!;
   const coverRemoveButton = page.querySelector<HTMLButtonElement>("[data-post-cover-remove]")!;
   const assets = new Map<string, MediaAsset>();
   let context: PostContext = { draftToken: "" };
@@ -49,15 +49,17 @@ if (page) {
   };
 
   const setMediaStatus = (message: string, error = false, progress = false) => {
-    mediaStatus.textContent = message;
-    mediaStatus.toggleAttribute("data-error", error);
-    mediaStatus.toggleAttribute("data-progress", Boolean(message) && !error && progress);
+    for (const mediaStatus of mediaStatuses) {
+      mediaStatus.textContent = message;
+      mediaStatus.toggleAttribute("data-error", error);
+      mediaStatus.toggleAttribute("data-progress", Boolean(message) && !error && progress);
+    }
   };
 
   const updateUploadActionState = () => {
     const locked = postUploadCoordinator.isPending() || page.hasAttribute("data-post-action-locked");
-    coverBrowseButton.disabled = locked;
-    inlineBrowseButton.disabled = locked;
+    coverBrowseButton.setAttribute("aria-disabled", String(locked));
+    inlineBrowseButton.setAttribute("aria-disabled", String(locked));
     coverRemoveButton.disabled = locked;
     coverFileInput.disabled = locked;
     inlineFileInput.disabled = locked;
@@ -290,14 +292,21 @@ if (page) {
 
   const uploadCover = async (file?: File) => {
     if (!file) return;
+    const localPreviewUrl = URL.createObjectURL(file);
+    coverImage.src = localPreviewUrl;
+    coverImage.alt = coverAltInput.value.trim() || file.name.replace(/\.[^.]+$/, "");
+    coverImage.hidden = false;
+    coverEmpty.hidden = true;
     setMediaStatus(`正在上传封面 ${file.name}…`, false, true);
     try {
       setCover(await uploadFile(file));
       setMediaStatus("封面已上传，保存文章后生效。");
     } catch (error) {
+      renderCover();
       setMediaStatus(error instanceof Error ? error.message : "封面上传失败。", true);
       throw error;
     } finally {
+      URL.revokeObjectURL(localPreviewUrl);
       coverFileInput.value = "";
     }
   };
@@ -375,8 +384,6 @@ if (page) {
     void postUploadCoordinator.track(operation(), version).catch(() => undefined);
   };
 
-  coverBrowseButton.addEventListener("click", () => coverFileInput.click());
-  inlineBrowseButton.addEventListener("click", () => inlineFileInput.click());
   coverRemoveButton.addEventListener("click", clearCover);
   coverFileInput.addEventListener("change", () => {
     const file = coverFileInput.files?.[0];
