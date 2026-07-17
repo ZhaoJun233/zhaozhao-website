@@ -1,11 +1,13 @@
 import type { APIRoute } from "astro";
 import { handleAdminRequest, readAdminJson } from "../../../../lib/admin/http";
 import { postInputSchema, postMediaInputSchema } from "../../../../lib/admin/schemas";
+import { getMediaStore } from "../../../../lib/cloudflare/bindings";
+import { runMediaCleanup } from "../../../../lib/cloudflare/post-media";
 import {
-  deletePost,
   getPost,
   updatePostWithMedia,
 } from "../../../../lib/database/admin-repository";
+import { queuePostDelete } from "../../../../lib/database/media-repository";
 
 export const GET: APIRoute = ({ request, params }) => handleAdminRequest(
   request,
@@ -21,6 +23,12 @@ export const PUT: APIRoute = ({ request, params }) => handleAdminRequest(
   },
 );
 export const DELETE: APIRoute = ({ request, params }) => handleAdminRequest(request, async (database) => {
-  await deletePost(database, params.id!);
-  return { deleted: true };
+  const queued = await queuePostDelete(database, params.id!);
+  await runMediaCleanup(database, getMediaStore(), 5);
+  return {
+    deleted: true,
+    exclusiveImages: queued.exclusiveImages,
+    sharedImages: queued.sharedImages,
+    cleanupPending: queued.cleanupPending,
+  };
 });

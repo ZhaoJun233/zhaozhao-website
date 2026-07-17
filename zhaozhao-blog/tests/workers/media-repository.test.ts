@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { env } from "cloudflare:workers";
+import { ADMIN_SESSION_COOKIE, createAdminSession } from "../../src/lib/admin/auth";
+import { runMediaCleanup } from "../../src/lib/cloudflare/post-media";
 import {
   AdminConflictError,
   AdminNotFoundError,
@@ -16,6 +18,7 @@ import {
   listPostAssets,
   markMediaReady,
   previewPostDelete,
+  queuePostDelete,
   queueDraftCleanup,
   removePostAsset,
   resolvePostAssetSync,
@@ -36,6 +39,30 @@ async function createTestPost(slug: string) {
     tags: ["test"],
     featured: false,
   });
+}
+
+async function adminRequest(path: string, method: string, body?: BodyInit): Promise<Request> {
+  const session = await createAdminSession(env.DB, undefined, undefined, env.ADMIN_SESSION_SECRET);
+  return new Request(`https://example.test${path}`, {
+    method,
+    headers: { cookie: `${ADMIN_SESSION_COOKIE}=${session.token}` },
+    body,
+  });
+}
+
+function databaseWithBeforeBatch(operation: () => Promise<void>): D1Database {
+  let raced = false;
+  return {
+    prepare: (...args: Parameters<D1Database["prepare"]>) => env.DB.prepare(...args),
+    withSession: (...args: Parameters<D1Database["withSession"]>) => env.DB.withSession(...args),
+    batch: async <T>(statements: D1PreparedStatement[]) => {
+      if (!raced) {
+        raced = true;
+        await operation();
+      }
+      return env.DB.batch<T>(statements);
+    },
+  } as D1Database;
 }
 
 async function insertReadyAssets(
@@ -62,6 +89,167 @@ async function insertReadyAssets(
 }
 
 describe("article media schema", () => {
+  it("uploads an article image through the authenticated asset API", async () => {
+    const { POST } = await import("../../src/pages/api/admin/post-assets/index");
+    const form = new FormData();
+    form.set("file", new File(["image"], "route-upload.png", { type: "image/png" }));
+    form.set("draftToken", draftToken);
+
+    const response = await POST({
+      request: await adminRequest("/api/admin/post-assets/", "POST", form),
+    } as never);
+
+    expect(response.status).toBe(200);
+    const payload = await response.json() as {
+      data: { asset: { id: string; key: string } };
+    };
+    expect(payload.data.asset).toMatchObject({
+      id: expect.any(String),
+      key: expect.stringMatching(/^uploads\//),
+    });
+    expect(await env.MEDIA.get(payload.data.asset.key, "arrayBuffer")).not.toBeNull();
+  });
+
+  it.each([
+    ["neither owner", {}],
+    ["both owners", { draftToken, postId: "22222222-2222-4222-8222-222222222222" }],
+  ])("rejects an upload with %s", async (_case, owner) => {
+    const { POST } = await import("../../src/pages/api/admin/post-assets/index");
+    const form = new FormData();
+    form.set("file", new File(["image"], "invalid-owner.png", { type: "image/png" }));
+    for (const [key, value] of Object.entries(owner)) form.set(key, value);
+
+    const response = await POST({
+      request: await adminRequest("/api/admin/post-assets/", "POST", form),
+    } as never);
+
+    expect(response.status).toBe(422);
+  });
+
+  it("lists the images attached to an article through the asset API", async () => {
+    const { GET } = await import("../../src/pages/api/admin/posts/[id]/assets/index");
+    const post = await createTestPost("route-list-assets");
+    const [asset] = await insertReadyAssets(1, "route-list-assets");
+    await syncPostAssetLinks(env.DB, post.id, {
+      retainedAssetIds: [asset!.id],
+      inlineKeys: [],
+    });
+
+    const response = await GET({
+      request: await adminRequest(`/api/admin/posts/${post.id}/assets/`, "GET"),
+      params: { id: post.id },
+    } as never);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      data: [{ id: asset!.id, usages: ["library"] }],
+    });
+  });
+
+  it("removes and cleans an article library image through the asset API", async () => {
+    const { DELETE } = await import("../../src/pages/api/admin/posts/[id]/assets/[assetId]");
+    const post = await createTestPost("route-remove-asset");
+    const [asset] = await insertReadyAssets(1, "route-remove-asset");
+    await syncPostAssetLinks(env.DB, post.id, {
+      retainedAssetIds: [asset!.id],
+      inlineKeys: [],
+    });
+    await env.MEDIA.put(asset!.key, "image");
+
+    const response = await DELETE({
+      request: await adminRequest(
+        `/api/admin/posts/${post.id}/assets/${asset!.id}/`,
+        "DELETE",
+      ),
+      params: { id: post.id, assetId: asset!.id },
+    } as never);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ data: { removed: true } });
+    expect(await env.MEDIA.get(asset!.key, "arrayBuffer")).toBeNull();
+    expect(await env.DB.prepare("SELECT id FROM media_assets WHERE id = ?")
+      .bind(asset!.id).first()).toBeNull();
+  });
+
+  it("cancels and cleans a draft editing session through the asset API", async () => {
+    const { DELETE } = await import("../../src/pages/api/admin/post-assets/drafts/[token]");
+    const asset = await beginMediaUpload(env.DB, {
+      key: "uploads/2026/07/route-cancel-draft.png",
+      originalName: "route-cancel-draft.png",
+      contentType: "image/png",
+      sizeBytes: 4,
+      draftToken,
+    });
+    await markMediaReady(env.DB, asset.id);
+    await env.MEDIA.put(asset.key, "image");
+
+    const response = await DELETE({
+      request: await adminRequest(`/api/admin/post-assets/drafts/${draftToken}/`, "DELETE"),
+      params: { token: draftToken },
+    } as never);
+
+    expect(response.status).toBe(200);
+    expect(await env.MEDIA.get(asset.key, "arrayBuffer")).toBeNull();
+    expect(await env.DB.prepare("SELECT id FROM media_assets WHERE id = ?")
+      .bind(asset.id).first()).toBeNull();
+  });
+
+  it("rejects a non-UUID draft cancellation token", async () => {
+    const { DELETE } = await import("../../src/pages/api/admin/post-assets/drafts/[token]");
+    const response = await DELETE({
+      request: await adminRequest("/api/admin/post-assets/drafts/not-a-uuid/", "DELETE"),
+      params: { token: "not-a-uuid" },
+    } as never);
+
+    expect(response.status).toBe(422);
+  });
+
+  it("previews distinct exclusive images through the article delete API", async () => {
+    const { GET } = await import("../../src/pages/api/admin/posts/[id]/delete-preview");
+    const post = await createTestPost("route-delete-preview");
+    const [asset] = await insertReadyAssets(1, "route-delete-preview");
+    await syncPostAssetLinks(env.DB, post.id, {
+      retainedAssetIds: [asset!.id],
+      coverAssetId: asset!.id,
+      inlineKeys: [asset!.key],
+    });
+
+    const response = await GET({
+      request: await adminRequest(`/api/admin/posts/${post.id}/delete-preview/`, "GET"),
+      params: { id: post.id },
+    } as never);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ data: { exclusive: 1, shared: 0 } });
+  });
+
+  it("deletes an article with transaction counts and media cleanup", async () => {
+    const { DELETE } = await import("../../src/pages/api/admin/posts/[id]");
+    const post = await createTestPost("route-delete-with-media");
+    const [asset] = await insertReadyAssets(1, "route-delete-with-media");
+    await syncPostAssetLinks(env.DB, post.id, {
+      retainedAssetIds: [asset!.id],
+      inlineKeys: [],
+    });
+    await env.MEDIA.put(asset!.key, "image");
+
+    const response = await DELETE({
+      request: await adminRequest(`/api/admin/posts/${post.id}/`, "DELETE"),
+      params: { id: post.id },
+    } as never);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      data: {
+        deleted: true,
+        exclusiveImages: 1,
+        sharedImages: 0,
+        cleanupPending: 1,
+      },
+    });
+    expect(await env.MEDIA.get(asset!.key, "arrayBuffer")).toBeNull();
+  });
+
   it("creates media assets, post links, and cleanup jobs", async () => {
     const tables = await env.DB.prepare(
       "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name",
@@ -164,7 +352,7 @@ describe("article media schema", () => {
     await expect(removal).rejects.toBeInstanceOf(AdminConflictError);
   });
 
-  it("previews exclusive and shared assets without counting usages twice", async () => {
+  it("deletes a post and cleans only its exclusive assets", async () => {
     const first = await createTestPost("delete-preview-first");
     const second = await createTestPost("delete-preview-second");
     const shared = await beginMediaUpload(env.DB, {
@@ -183,6 +371,8 @@ describe("article media schema", () => {
     });
     await markMediaReady(env.DB, shared.id);
     await markMediaReady(env.DB, exclusive.id);
+    await env.MEDIA.put(shared.key, "shared");
+    await env.MEDIA.put(exclusive.key, "exclusive");
     await syncPostAssetLinks(env.DB, first.id, {
       draftToken,
       retainedAssetIds: [shared.id, exclusive.id],
@@ -198,6 +388,57 @@ describe("article media schema", () => {
       exclusive: 1,
       shared: 1,
     });
+    expect(await queuePostDelete(env.DB, first.id)).toEqual({
+      deleted: true,
+      exclusiveImages: 1,
+      sharedImages: 1,
+      cleanupPending: 1,
+    });
+    expect(await env.MEDIA.get(shared.key, "arrayBuffer")).not.toBeNull();
+
+    expect(await runMediaCleanup(env.DB, env.MEDIA)).toEqual({
+      completed: 1,
+      failed: 0,
+    });
+    expect(await env.MEDIA.get(exclusive.key, "arrayBuffer")).toBeNull();
+    expect(await env.DB.prepare("SELECT id FROM media_assets WHERE id = ?")
+      .bind(exclusive.id).first()).toBeNull();
+    expect(await env.MEDIA.get(shared.key, "arrayBuffer")).not.toBeNull();
+    expect(await env.DB.prepare("SELECT state FROM media_assets WHERE id = ?")
+      .bind(shared.id).first()).toEqual({ state: "ready" });
+    expect((await listPostAssets(env.DB, second.id)).map(({ id }) => id)).toEqual([shared.id]);
+  });
+
+  it("recomputes exclusivity inside the article deletion batch", async () => {
+    const first = await createTestPost("delete-race-first");
+    const second = await createTestPost("delete-race-second");
+    const [asset] = await insertReadyAssets(1, "delete-race");
+    await syncPostAssetLinks(env.DB, first.id, {
+      retainedAssetIds: [asset!.id],
+      inlineKeys: [],
+    });
+    expect(await previewPostDelete(env.DB, first.id)).toEqual({ exclusive: 1, shared: 0 });
+
+    const database = databaseWithBeforeBatch(async () => {
+      await env.DB.prepare(
+        `INSERT INTO post_asset_links (post_id, asset_id, usage, sort_order, created_at)
+         VALUES (?, ?, 'library', 0, ?)`,
+      ).bind(second.id, asset!.id, new Date().toISOString()).run();
+    });
+
+    expect(await queuePostDelete(database, first.id)).toEqual({
+      deleted: true,
+      exclusiveImages: 0,
+      sharedImages: 1,
+      cleanupPending: 0,
+    });
+    expect(await listMediaCleanupJobs(env.DB)).toEqual([]);
+    expect((await listPostAssets(env.DB, second.id))[0]).toMatchObject({
+      id: asset!.id,
+      sharedBy: 0,
+    });
+    expect(await env.DB.prepare("SELECT state FROM media_assets WHERE id = ?")
+      .bind(asset!.id).first()).toEqual({ state: "ready" });
   });
 
   it("queues and advances cleanup after the final library link is removed", async () => {

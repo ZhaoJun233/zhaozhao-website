@@ -511,6 +511,67 @@ export async function previewPostDelete(
   };
 }
 
+export async function queuePostDelete(
+  database: D1Database,
+  postId: string,
+): Promise<PostDeleteQueueResult> {
+  const timestamp = new Date().toISOString();
+  const [countResult, , cleanupResult, deleteResult] = await database.batch<{
+    exclusive: number;
+    shared: number;
+  }>([
+    database.prepare(
+      `SELECT
+         COUNT(DISTINCT CASE WHEN NOT EXISTS (
+           SELECT 1 FROM post_asset_links other
+           WHERE other.asset_id = link.asset_id AND other.post_id <> ?
+         ) THEN link.asset_id END) AS exclusive,
+         COUNT(DISTINCT CASE WHEN EXISTS (
+           SELECT 1 FROM post_asset_links other
+           WHERE other.asset_id = link.asset_id AND other.post_id <> ?
+         ) THEN link.asset_id END) AS shared
+       FROM post_asset_links link
+       WHERE link.post_id = ?`,
+    ).bind(postId, postId, postId),
+    database.prepare(
+      `UPDATE media_assets SET state = 'pending_delete'
+       WHERE id IN (
+         SELECT link.asset_id FROM post_asset_links link
+         WHERE link.post_id = ?
+           AND NOT EXISTS (
+             SELECT 1 FROM post_asset_links other
+             WHERE other.asset_id = link.asset_id
+               AND other.post_id <> ?
+           )
+       )`,
+    ).bind(postId, postId),
+    database.prepare(
+      `INSERT INTO media_cleanup_jobs (asset_id, kv_key, reason, queued_at)
+       SELECT DISTINCT asset.id, asset.kv_key, 'article_delete', ?
+       FROM post_asset_links link
+       JOIN media_assets asset ON asset.id = link.asset_id
+       WHERE link.post_id = ?
+         AND NOT EXISTS (
+           SELECT 1 FROM post_asset_links other
+           WHERE other.asset_id = link.asset_id
+             AND other.post_id <> ?
+         )
+       ON CONFLICT(asset_id) DO NOTHING`,
+    ).bind(timestamp, postId, postId),
+    database.prepare("DELETE FROM posts WHERE id = ?").bind(postId),
+  ]);
+  if (Number(deleteResult?.meta.changes ?? 0) === 0) {
+    throw new AdminNotFoundError("文章不存在。");
+  }
+  const counts = countResult?.results[0];
+  return {
+    deleted: true,
+    exclusiveImages: Number(counts?.exclusive ?? 0),
+    sharedImages: Number(counts?.shared ?? 0),
+    cleanupPending: Number(cleanupResult?.meta.changes ?? 0),
+  };
+}
+
 export async function listMediaCleanupJobs(
   database: D1Database,
   limit = 10,
