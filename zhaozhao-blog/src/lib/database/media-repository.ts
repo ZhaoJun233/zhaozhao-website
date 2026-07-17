@@ -415,12 +415,42 @@ export async function removePostAsset(
   assetId: string,
 ): Promise<void> {
   const timestamp = new Date().toISOString();
-  const [usageResult, removeResult] = await database.batch<{ usage: PostAssetUsage }>([
+  const [usageResult, , , removeResult] = await database.batch<{ usage: PostAssetUsage }>([
     database.prepare(
       `SELECT usage FROM post_asset_links
        WHERE post_id = ? AND asset_id = ?
        ORDER BY CASE usage WHEN 'cover' THEN 0 WHEN 'inline' THEN 1 ELSE 2 END`,
     ).bind(postId, assetId),
+    database.prepare(
+      `INSERT INTO media_cleanup_jobs (asset_id, kv_key, reason, queued_at)
+       SELECT asset.id, asset.kv_key, 'manual_remove', ?
+       FROM media_assets asset
+       WHERE asset.id = ?
+         AND EXISTS (
+           SELECT 1 FROM post_asset_links target
+           WHERE target.post_id = ? AND target.asset_id = asset.id
+             AND target.usage = 'library'
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM post_asset_links other
+           WHERE other.asset_id = asset.id
+             AND (other.post_id <> ? OR other.usage <> 'library')
+         )
+       ON CONFLICT(asset_id) DO NOTHING`,
+    ).bind(timestamp, assetId, postId, postId),
+    database.prepare(
+      `UPDATE media_assets SET state = 'pending_delete'
+       WHERE id = ?
+         AND EXISTS (
+           SELECT 1 FROM post_asset_links target
+           WHERE target.post_id = ? AND target.asset_id = ? AND target.usage = 'library'
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM post_asset_links other
+           WHERE other.asset_id = ?
+             AND (other.post_id <> ? OR other.usage <> 'library')
+         )`,
+    ).bind(assetId, postId, assetId, assetId, postId),
     database.prepare(
       `DELETE FROM post_asset_links
        WHERE post_id = ? AND asset_id = ? AND usage = 'library'
@@ -430,19 +460,6 @@ export async function removePostAsset(
              AND active.usage IN ('cover', 'inline')
          )`,
     ).bind(postId, assetId, postId, assetId),
-    database.prepare(
-      `UPDATE media_assets SET state = 'pending_delete'
-       WHERE id = ?
-         AND NOT EXISTS (SELECT 1 FROM post_asset_links WHERE asset_id = ?)`,
-    ).bind(assetId, assetId),
-    database.prepare(
-      `INSERT INTO media_cleanup_jobs (asset_id, kv_key, reason, queued_at)
-       SELECT asset.id, asset.kv_key, 'manual_remove', ?
-       FROM media_assets asset
-       WHERE asset.id = ? AND asset.state = 'pending_delete'
-         AND NOT EXISTS (SELECT 1 FROM post_asset_links WHERE asset_id = asset.id)
-       ON CONFLICT(asset_id) DO NOTHING`,
-    ).bind(timestamp, assetId),
   ]);
   const usages = usageResult?.results.map(({ usage }) => usage) ?? [];
   if (usages.length === 0) throw new AdminNotFoundError("图片不属于当前文章。");

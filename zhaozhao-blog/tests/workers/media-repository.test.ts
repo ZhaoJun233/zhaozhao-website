@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { env } from "cloudflare:workers";
 import {
   AdminConflictError,
+  AdminNotFoundError,
   createPost,
 } from "../../src/lib/database/admin-repository";
 import {
@@ -425,6 +426,27 @@ describe("article media schema", () => {
     expect(await listMediaCleanupJobs(env.DB)).toEqual([]);
     expect(await env.DB.prepare("SELECT state FROM media_assets WHERE id = ?")
       .bind(asset!.id).first()).toEqual({ state: "ready" });
+  });
+
+  it("leaves an unlinked draft upload unchanged when removal returns not found", async () => {
+    const post = await createTestPost("unlinked-remove");
+    const asset = await beginMediaUpload(env.DB, {
+      key: "uploads/2026/07/unlinked-remove.png",
+      originalName: "unlinked-remove.png",
+      contentType: "image/png",
+      sizeBytes: 4,
+      draftToken,
+    });
+
+    await expect(removePostAsset(env.DB, post.id, asset.id))
+      .rejects.toBeInstanceOf(AdminNotFoundError);
+    expect(await env.DB.prepare(
+      "SELECT state, draft_token FROM media_assets WHERE id = ?",
+    ).bind(asset.id).first()).toEqual({
+      state: "uploading",
+      draft_token: draftToken,
+    });
+    expect(await listMediaCleanupJobs(env.DB)).toEqual([]);
   });
 
   it.each(["cover", "inline"] as const)(
