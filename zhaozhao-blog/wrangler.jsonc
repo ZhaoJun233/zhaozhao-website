@@ -14,7 +14,7 @@
     {
       "binding": "DB",
       "database_name": "zhaozhao-blog",
-      "database_id": "local"
+      "database_id": "100ad1c7-cd51-4bbf-aa52-e7ca7d1ec438"
     }
   ],
   "r2_buckets": [
