@@ -13,7 +13,7 @@ import {
   type SettingKey,
 } from "../admin/schemas";
 import { AdminConflictError, AdminNotFoundError } from "../admin/errors";
-import { extractManagedImageKeys } from "../admin/post-images";
+import { extractManagedImageKeys, mediaUrlFromKey } from "../admin/post-images";
 import { taxonomySlug } from "../slug";
 import type { CategoryRow, FriendRow, PostRow, ProjectRow } from "./types";
 import { listAdminMessages, type AdminMessage } from "./message-repository";
@@ -517,7 +517,7 @@ export async function updateSetting(
   return parsed;
 }
 
-export interface BlogBackup {
+export interface BlogBackupV1 {
   schemaVersion: 1;
   exportedAt: string;
   settings: Record<string, unknown>;
@@ -529,8 +529,36 @@ export interface BlogBackup {
   messages: AdminMessage[];
 }
 
+export interface BlogBackupV2 extends Omit<BlogBackupV1, "schemaVersion"> {
+  schemaVersion: 2;
+  mediaAssets: Array<{
+    kvKey: string;
+    originalName: string;
+    contentType: string;
+    sizeBytes?: number;
+  }>;
+  postAssetLinks: Array<{
+    postId: string;
+    kvKey: string;
+    usage: "library" | "cover" | "inline";
+    sortOrder: number;
+  }>;
+}
+
+export type BlogBackup = BlogBackupV1 | BlogBackupV2;
+
 export async function exportBlogData(database: D1Database): Promise<BlogBackup> {
-  const [settingResult, categories, posts, projects, friends, friendPage, messages] = await Promise.all([
+  const [
+    settingResult,
+    categories,
+    posts,
+    projects,
+    friends,
+    friendPage,
+    messages,
+    mediaAssetResult,
+    postAssetLinkResult,
+  ] = await Promise.all([
     primary(database).prepare("SELECT key, value_json FROM site_settings ORDER BY key")
       .all<{ key: string; value_json: string }>(),
     listCategories(database),
@@ -539,9 +567,35 @@ export async function exportBlogData(database: D1Database): Promise<BlogBackup> 
     listFriends(database),
     getSetting(database, "friend_page"),
     listAdminMessages(database),
+    primary(database).prepare(
+      `SELECT DISTINCT asset.kv_key, asset.original_name, asset.content_type, asset.size_bytes
+       FROM media_assets asset
+       JOIN post_asset_links link ON link.asset_id = asset.id
+       WHERE asset.state = 'ready'
+       ORDER BY asset.kv_key`,
+    ).all<{
+      kv_key: string;
+      original_name: string;
+      content_type: string;
+      size_bytes: number | null;
+    }>(),
+    primary(database).prepare(
+      `SELECT link.post_id, asset.kv_key, link.usage, link.sort_order
+       FROM post_asset_links link
+       JOIN media_assets asset ON asset.id = link.asset_id
+       WHERE asset.state = 'ready'
+       ORDER BY link.post_id,
+         CASE link.usage WHEN 'library' THEN 0 WHEN 'cover' THEN 1 ELSE 2 END,
+         link.sort_order, asset.kv_key`,
+    ).all<{
+      post_id: string;
+      kv_key: string;
+      usage: "library" | "cover" | "inline";
+      sort_order: number;
+    }>(),
   ]);
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     exportedAt: new Date().toISOString(),
     settings: Object.fromEntries(
       settingResult.results.map(({ key, value_json }) => [key, JSON.parse(value_json)]),
@@ -552,13 +606,28 @@ export async function exportBlogData(database: D1Database): Promise<BlogBackup> 
     friends,
     friendPage,
     messages,
+    mediaAssets: mediaAssetResult.results.map((asset) => ({
+      kvKey: asset.kv_key,
+      originalName: asset.original_name,
+      contentType: asset.content_type,
+      ...(asset.size_bytes === null ? {} : { sizeBytes: Number(asset.size_bytes) }),
+    })),
+    postAssetLinks: postAssetLinkResult.results.map((link) => ({
+      postId: link.post_id,
+      kvKey: link.kv_key,
+      usage: link.usage,
+      sortOrder: Number(link.sort_order),
+    })),
   };
 }
 
 const maxBackupStatements = 500;
 
 export async function importBlogData(database: D1Database, backup: BlogBackup): Promise<void> {
-  if (backup.schemaVersion !== 1) throw new Error("备份版本不受支持。");
+  const schemaVersion = (backup as { schemaVersion?: unknown }).schemaVersion;
+  if (schemaVersion !== 1 && schemaVersion !== 2) {
+    throw new Error("备份版本不受支持。");
+  }
   const settings = Object.entries(backup.settings).map(([key, value]) => {
     if (!(key in settingSchemas) || key === "friend_page") throw new Error(`未知设置：${key}`);
     return [key, settingSchemas[key as Exclude<SettingKey, "friend_page">].parse(value)] as const;
@@ -570,6 +639,38 @@ export async function importBlogData(database: D1Database, backup: BlogBackup): 
   const projects = backup.projects.map((value) => ({ ...value, ...projectInputSchema.parse(value) }));
   const messages = backup.messages ?? [];
   const timestamp = new Date().toISOString();
+  const backupV2 = schemaVersion === 2 ? backup as BlogBackupV2 : undefined;
+  const currentMedia = schemaVersion === 2
+    ? (await primary(database).prepare("SELECT id, kv_key FROM media_assets")
+      .all<{ id: string; kv_key: string }>()).results
+    : [];
+  const mediaAssets = backupV2?.mediaAssets ?? [];
+  const postAssetLinks = backupV2?.postAssetLinks ?? [];
+  const mediaByKey = new Map<string, { id: string; kv_key: string }>();
+  for (const asset of currentMedia) mediaByKey.set(asset.kv_key, asset);
+  const importedAssetIds = new Map<string, string>();
+  for (const asset of mediaAssets) {
+    mediaUrlFromKey(asset.kvKey);
+    if (importedAssetIds.has(asset.kvKey)) {
+      throw new Error(`备份图片键重复：${asset.kvKey}`);
+    }
+    importedAssetIds.set(asset.kvKey, mediaByKey.get(asset.kvKey)?.id ?? randomUUID());
+  }
+  const importedPostIds = new Set(posts.map(({ id }) => id));
+  const seenLinks = new Set<string>();
+  for (const link of postAssetLinks) {
+    if (!importedPostIds.has(link.postId)) throw new Error(`备份图片文章不存在：${link.postId}`);
+    if (!importedAssetIds.has(link.kvKey)) throw new Error(`备份图片不存在：${link.kvKey}`);
+    if (!["library", "cover", "inline"].includes(link.usage)) {
+      throw new Error(`备份图片用途不正确：${link.usage}`);
+    }
+    if (!Number.isInteger(link.sortOrder) || link.sortOrder < 0) {
+      throw new Error("备份图片顺序不正确。");
+    }
+    const identity = `${link.postId}\0${link.kvKey}\0${link.usage}`;
+    if (seenLinks.has(identity)) throw new Error("备份图片链接重复。");
+    seenLinks.add(identity);
+  }
   const statements: D1PreparedStatement[] = [
     database.prepare("DELETE FROM guestbook_messages"),
     database.prepare("DELETE FROM posts"),
@@ -612,6 +713,52 @@ export async function importBlogData(database: D1Database, backup: BlogBackup): 
        VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
     ).bind(value.id, value.name, value.email ?? null, value.website ?? null,
       value.content, value.status, value.createdAt, value.updatedAt)),
+    ...mediaAssets.map((asset) => database.prepare(
+      `INSERT INTO media_assets
+       (id, kv_key, original_name, content_type, size_bytes, state, draft_token, created_at)
+       VALUES (?, ?, ?, ?, ?, 'ready', NULL, ?)
+       ON CONFLICT(kv_key) DO UPDATE SET
+         original_name = excluded.original_name,
+         content_type = excluded.content_type,
+         size_bytes = excluded.size_bytes,
+         state = 'ready',
+         draft_token = NULL`,
+    ).bind(
+      importedAssetIds.get(asset.kvKey)!,
+      asset.kvKey,
+      asset.originalName,
+      asset.contentType,
+      asset.sizeBytes ?? null,
+      timestamp,
+    )),
+    ...mediaAssets.map((asset) => database.prepare(
+      "DELETE FROM media_cleanup_jobs WHERE kv_key = ?",
+    ).bind(asset.kvKey)),
+    ...postAssetLinks.map((link) => database.prepare(
+      `INSERT INTO post_asset_links (post_id, asset_id, usage, sort_order, created_at)
+       SELECT ?, id, ?, ?, ? FROM media_assets WHERE kv_key = ? AND state = 'ready'`,
+    ).bind(link.postId, link.usage, link.sortOrder, timestamp, link.kvKey)),
+    ...currentMedia.flatMap((asset) => [
+      database.prepare(
+        `UPDATE media_assets SET state = 'pending_delete', draft_token = NULL
+         WHERE id = ?
+           AND NOT EXISTS (SELECT 1 FROM post_asset_links WHERE asset_id = ?)`,
+      ).bind(asset.id, asset.id),
+      database.prepare(
+        `INSERT INTO media_cleanup_jobs
+         (asset_id, kv_key, reason, queued_at, attempts, last_error)
+         SELECT id, kv_key, 'backup_restore', ?, 0, NULL
+         FROM media_assets
+         WHERE id = ? AND state = 'pending_delete'
+           AND NOT EXISTS (SELECT 1 FROM post_asset_links WHERE asset_id = ?)
+         ON CONFLICT(asset_id) DO UPDATE SET
+           kv_key = excluded.kv_key,
+           reason = 'backup_restore',
+           queued_at = excluded.queued_at,
+           attempts = 0,
+           last_error = NULL`,
+      ).bind(timestamp, asset.id, asset.id),
+    ]),
   ];
   if (statements.length > maxBackupStatements) {
     throw new AdminConflictError(

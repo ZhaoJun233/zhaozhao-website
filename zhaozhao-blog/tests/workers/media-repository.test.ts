@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { env } from "cloudflare:workers";
 import { ADMIN_SESSION_COOKIE, createAdminSession } from "../../src/lib/admin/auth";
-import { runMediaCleanup } from "../../src/lib/cloudflare/post-media";
+import { storeAdminMedia } from "../../src/lib/cloudflare/media";
+import { backfillPostMedia, runMediaCleanup } from "../../src/lib/cloudflare/post-media";
 import {
   AdminConflictError,
   AdminNotFoundError,
@@ -104,6 +105,81 @@ async function insertReadyAssets(
 }
 
 describe("article media schema", () => {
+  it("backfills legacy article images idempotently from KV metadata", async () => {
+    const legacy = await storeAdminMedia(
+      env.MEDIA,
+      new File(["legacy"], "legacy-inline.png", { type: "image/png" }),
+      new Date("2026-07-17T00:00:00.000Z"),
+    );
+    const post = await createPost(env.DB, {
+      slug: "backfill-source",
+      title: "Legacy backfill",
+      description: "Legacy image metadata backfill.",
+      body: `![legacy](${legacy.url})`,
+      publishedAt: "2026-07-17T00:00:00.000Z",
+      draft: true,
+      category: "开发",
+      tags: ["test"],
+      featured: false,
+    });
+
+    expect(await backfillPostMedia(env.DB, env.MEDIA)).toEqual({
+      registered: 1,
+      linked: 1,
+      missing: [],
+    });
+    expect((await listPostAssets(env.DB, post.id))[0]).toMatchObject({
+      key: legacy.key,
+      originalName: "legacy-inline.png",
+      contentType: "image/png",
+      sizeBytes: 6,
+      usages: ["inline", "library"],
+    });
+
+    expect(await backfillPostMedia(env.DB, env.MEDIA)).toEqual({
+      registered: 0,
+      linked: 0,
+      missing: [],
+    });
+    expect(await listPostAssets(env.DB, post.id)).toHaveLength(1);
+  });
+
+  it("runs the administrator-only backfill endpoint", async () => {
+    const legacy = await storeAdminMedia(
+      env.MEDIA,
+      new File(["route"], "route-backfill.webp", { type: "image/webp" }),
+      new Date("2026-07-17T00:00:00.000Z"),
+    );
+    const post = await createPost(env.DB, {
+      slug: "route-backfill",
+      title: "Route backfill",
+      description: "Backfill route test.",
+      body: `<img src="${legacy.url}">`,
+      publishedAt: "2026-07-17T00:00:00.000Z",
+      draft: true,
+      category: "开发",
+      tags: ["test"],
+      featured: false,
+    });
+    const { POST } = await import("../../src/pages/api/admin/post-assets/backfill");
+
+    const unauthorized = await POST({
+      request: new Request("https://example.test/api/admin/post-assets/backfill/", {
+        method: "POST",
+      }),
+    } as never);
+    expect(unauthorized.status).toBe(401);
+
+    const response = await POST({
+      request: await adminRequest("/api/admin/post-assets/backfill/", "POST"),
+    } as never);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      data: { registered: 1, linked: 1, missing: [] },
+    });
+    expect((await listPostAssets(env.DB, post.id))[0]).toMatchObject({ key: legacy.key });
+  });
+
   it("uploads an article image through the authenticated asset API", async () => {
     const { POST } = await import("../../src/pages/api/admin/post-assets/index");
     const form = new FormData();

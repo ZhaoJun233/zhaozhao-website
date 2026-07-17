@@ -7,8 +7,12 @@ import {
   failMediaUpload,
   listMediaCleanupJobs,
   markMediaReady,
+  findRegisteredMediaKeys,
+  registerAndLinkBackfilledPostMedia,
   type AdminMediaAsset,
+  type BackfillMediaAssetInput,
 } from "../database/media-repository";
+import { extractManagedImageKeys, mediaKeyFromUrl } from "../admin/post-images";
 import { createMediaKey, validatedImageExtension } from "./media";
 
 export type PostImageOwner =
@@ -24,6 +28,94 @@ interface PostMediaMetadata {
 export interface MediaObjectStore {
   put(key: string, value: ArrayBuffer, options?: { metadata?: unknown }): Promise<void>;
   delete(key: string): Promise<void>;
+}
+
+export interface PostMediaBackfillStore extends MediaObjectStore {
+  getWithMetadata<Metadata>(
+    key: string,
+    type: "arrayBuffer",
+  ): Promise<{ value: ArrayBuffer | null; metadata: Metadata | null }>;
+}
+
+interface LegacyPostMediaMetadata {
+  contentType?: string;
+  originalName?: string;
+}
+
+interface LegacyPostRow {
+  id: string;
+  cover: string | null;
+  body: string;
+}
+
+const contentTypeByExtension: Record<string, string> = {
+  gif: "image/gif",
+  jpeg: "image/jpeg",
+  jpg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+};
+
+function legacyMediaName(key: string): string {
+  const basename = key.slice(key.lastIndexOf("/") + 1);
+  try {
+    return decodeURIComponent(basename).slice(0, 240);
+  } catch {
+    return basename.slice(0, 240);
+  }
+}
+
+function legacyMediaContentType(key: string): string {
+  const extension = key.slice(key.lastIndexOf(".") + 1).toLowerCase();
+  return contentTypeByExtension[extension] ?? "application/octet-stream";
+}
+
+export async function backfillPostMedia(
+  database: D1Database,
+  store: PostMediaBackfillStore,
+): Promise<{ registered: number; linked: number; missing: string[] }> {
+  const { results: rows } = await database.prepare(
+    "SELECT id, cover, body FROM posts ORDER BY published_at, id",
+  ).all<LegacyPostRow>();
+  const references = rows.map((post) => ({
+    postId: post.id,
+    coverKey: post.cover ? mediaKeyFromUrl(post.cover) : undefined,
+    inlineKeys: extractManagedImageKeys(post.body),
+  }));
+  const referencedKeys = [...new Set(references.flatMap((post) => [
+    ...(post.coverKey ? [post.coverKey] : []),
+    ...post.inlineKeys,
+  ]))];
+  const registeredKeys = await findRegisteredMediaKeys(database, referencedKeys);
+  const missing: string[] = [];
+  const assets: BackfillMediaAssetInput[] = [];
+  for (const key of referencedKeys) {
+    if (registeredKeys.has(key)) continue;
+    const object = await store.getWithMetadata<LegacyPostMediaMetadata>(key, "arrayBuffer");
+    if (!object.value) {
+      missing.push(key);
+      continue;
+    }
+    assets.push({
+      key,
+      originalName: object.metadata?.originalName?.slice(0, 240) || legacyMediaName(key),
+      contentType: object.metadata?.contentType?.toLowerCase() || legacyMediaContentType(key),
+      sizeBytes: object.value.byteLength,
+    });
+  }
+  const availableKeys = new Set([
+    ...registeredKeys,
+    ...assets.map(({ key }) => key),
+  ]);
+  const linkedReferences = references
+    .map((post) => ({
+      postId: post.postId,
+      ...(post.coverKey && availableKeys.has(post.coverKey) ? { coverKey: post.coverKey } : {}),
+      inlineKeys: post.inlineKeys.filter((key) => availableKeys.has(key)),
+    }))
+    .filter((post) => Boolean(post.coverKey) || post.inlineKeys.length > 0);
+  const result = await registerAndLinkBackfilledPostMedia(database, assets, linkedReferences);
+  return { ...result, missing };
 }
 
 export interface MediaUploadRecoveryDetails {

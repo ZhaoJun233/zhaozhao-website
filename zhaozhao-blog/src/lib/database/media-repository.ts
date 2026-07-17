@@ -42,6 +42,19 @@ export interface BeginMediaUploadInput {
   draftToken?: string;
 }
 
+export interface BackfillMediaAssetInput {
+  key: string;
+  originalName: string;
+  contentType: string;
+  sizeBytes?: number;
+}
+
+export interface BackfillPostMediaInput {
+  postId: string;
+  coverKey?: string;
+  inlineKeys: string[];
+}
+
 export interface PostDeletePreview {
   exclusive: number;
   shared: number;
@@ -174,6 +187,123 @@ export async function beginMediaUpload(
     new Date().toISOString(),
   ).run();
   return assetFromRows(await getAssetRows(database, id));
+}
+
+export async function findRegisteredMediaKeys(
+  database: D1Database,
+  keys: string[],
+): Promise<Set<string>> {
+  const registered = new Set<string>();
+  for (const bindings of chunks(unique(keys), maxD1BindingsPerStatement)) {
+    const { results } = await primary(database).prepare(
+      `SELECT kv_key FROM media_assets
+       WHERE kv_key IN (${bindings.map(() => "?").join(", ")})`,
+    ).bind(...bindings).all<{ kv_key: string }>();
+    for (const { kv_key } of results) registered.add(kv_key);
+  }
+  return registered;
+}
+
+export async function registerAndLinkBackfilledPostMedia(
+  database: D1Database,
+  assets: BackfillMediaAssetInput[],
+  posts: BackfillPostMediaInput[],
+): Promise<{ registered: number; linked: number }> {
+  const timestamp = new Date().toISOString();
+  const { results: currentLinks } = await primary(database).prepare(
+    `SELECT DISTINCT link.post_id, asset.kv_key
+     FROM post_asset_links link
+     JOIN media_assets asset ON asset.id = link.asset_id`,
+  ).all<{ post_id: string; kv_key: string }>();
+  const currentKeysByPost = new Map<string, Set<string>>();
+  for (const link of currentLinks) {
+    const keys = currentKeysByPost.get(link.post_id) ?? new Set<string>();
+    keys.add(link.kv_key);
+    currentKeysByPost.set(link.post_id, keys);
+  }
+  let linked = 0;
+  for (const post of posts) {
+    const desiredKeys = unique([
+      ...(post.coverKey ? [post.coverKey] : []),
+      ...post.inlineKeys,
+    ]);
+    if (desiredKeys.length === 0) continue;
+    const currentKeys = currentKeysByPost.get(post.postId) ?? new Set<string>();
+    linked += desiredKeys.filter((key) => !currentKeys.has(key)).length;
+  }
+  const assetIds = new Map(assets.map((asset) => [asset.key, randomUUID()]));
+  const statements: D1PreparedStatement[] = assets.map((asset) => database.prepare(
+    `INSERT INTO media_assets
+     (id, kv_key, original_name, content_type, size_bytes, state, draft_token, created_at)
+     VALUES (?, ?, ?, ?, ?, 'ready', NULL, ?)
+     ON CONFLICT(kv_key) DO NOTHING`,
+  ).bind(
+    assetIds.get(asset.key)!,
+    asset.key,
+    asset.originalName,
+    asset.contentType,
+    asset.sizeBytes ?? null,
+    timestamp,
+  ));
+
+  const referencedKeys = unique(posts.flatMap((post) => [
+    ...(post.coverKey ? [post.coverKey] : []),
+    ...post.inlineKeys,
+  ]));
+  for (const key of referencedKeys) {
+    statements.push(database.prepare(
+      "UPDATE media_assets SET state = 'ready', draft_token = NULL WHERE kv_key = ?",
+    ).bind(key));
+  }
+
+  for (const post of posts) {
+    const libraryKeys = unique([
+      ...(post.coverKey ? [post.coverKey] : []),
+      ...post.inlineKeys,
+    ]);
+    statements.push(
+      database.prepare(
+        "DELETE FROM post_asset_links WHERE post_id = ? AND usage IN ('cover', 'inline')",
+      ).bind(post.postId),
+    );
+    for (const [sortOrder, key] of libraryKeys.entries()) {
+      statements.push(database.prepare(
+        `INSERT INTO post_asset_links (post_id, asset_id, usage, sort_order, created_at)
+         SELECT ?, id, 'library', ?, ? FROM media_assets
+         WHERE kv_key = ? AND state = 'ready'
+         ON CONFLICT(post_id, asset_id, usage) DO UPDATE SET sort_order = excluded.sort_order`,
+      ).bind(post.postId, sortOrder, timestamp, key));
+    }
+    if (post.coverKey) {
+      statements.push(database.prepare(
+        `INSERT INTO post_asset_links (post_id, asset_id, usage, sort_order, created_at)
+         SELECT ?, id, 'cover', 0, ? FROM media_assets
+         WHERE kv_key = ? AND state = 'ready'`,
+      ).bind(post.postId, timestamp, post.coverKey));
+    }
+    for (const [sortOrder, key] of post.inlineKeys.entries()) {
+      statements.push(database.prepare(
+        `INSERT INTO post_asset_links (post_id, asset_id, usage, sort_order, created_at)
+         SELECT ?, id, 'inline', ?, ? FROM media_assets
+         WHERE kv_key = ? AND state = 'ready'
+         ON CONFLICT(post_id, asset_id, usage) DO UPDATE SET sort_order = excluded.sort_order`,
+      ).bind(post.postId, sortOrder, timestamp, key));
+    }
+  }
+  for (const key of referencedKeys) {
+    statements.push(database.prepare(
+      "DELETE FROM media_cleanup_jobs WHERE kv_key = ?",
+    ).bind(key));
+  }
+
+  const results = statements.length === 0 ? [] : await database.batch(statements);
+  return {
+    registered: assets.reduce(
+      (count, _asset, index) => count + Number(results[index]?.meta.changes ?? 0),
+      0,
+    ),
+    linked,
+  };
 }
 
 export async function assertPostExists(

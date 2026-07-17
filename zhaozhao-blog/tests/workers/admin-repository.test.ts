@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { env } from "cloudflare:workers";
 import { ADMIN_SESSION_COOKIE, createAdminSession } from "../../src/lib/admin/auth";
 import { postMediaInputSchema } from "../../src/lib/admin/schemas";
+import { storeAdminMedia } from "../../src/lib/cloudflare/media";
 import {
   AdminConflictError,
   AdminNotFoundError,
@@ -30,12 +31,14 @@ import {
 } from "../../src/lib/database/admin-repository";
 import {
   beginMediaUpload,
+  listMediaCleanupJobs,
   listPostAssets,
   markMediaReady,
   syncPostAssetLinks,
 } from "../../src/lib/database/media-repository";
 import { POST as createPostRoute } from "../../src/pages/api/admin/posts/index";
 import { PUT as updatePostRoute } from "../../src/pages/api/admin/posts/[id]";
+import { POST as importBlogRoute } from "../../src/pages/api/admin/import";
 
 const draftToken = "11111111-1111-4111-8111-111111111111";
 
@@ -435,5 +438,132 @@ describe("D1 administrator repository", () => {
     expect((await listFriends(env.DB)).map(({ name }) => name)).toEqual(originalFriendNames);
     expect((await exportBlogData(env.DB)).posts).toHaveLength(6);
     expect((await exportBlogData(env.DB)).projects).toHaveLength(3);
+  });
+
+  it("exports backup schema 2 with linked ready media metadata but no object bytes", async () => {
+    const post = await createPost(env.DB, {
+      ...postInput("backup-media-manifest"),
+      body: "![backup](/media/uploads/2026/07/backup-media.png)",
+    });
+    const asset = await beginMediaUpload(env.DB, {
+      key: "uploads/2026/07/backup-media.png",
+      originalName: "backup-media.png",
+      contentType: "image/png",
+      sizeBytes: 12,
+    });
+    await markMediaReady(env.DB, asset.id);
+    await syncPostAssetLinks(env.DB, post.id, {
+      retainedAssetIds: [asset.id],
+      inlineKeys: [asset.key],
+    });
+
+    const backup = await exportBlogData(env.DB);
+
+    expect(backup.schemaVersion).toBe(2);
+    if (backup.schemaVersion !== 2) throw new Error("Expected schema version 2.");
+    expect(backup.mediaAssets).toContainEqual({
+      kvKey: asset.key,
+      originalName: "backup-media.png",
+      contentType: "image/png",
+      sizeBytes: 12,
+    });
+    expect(backup.postAssetLinks).toEqual(expect.arrayContaining([
+      { postId: post.id, kvKey: asset.key, usage: "library", sortOrder: 0 },
+      { postId: post.id, kvKey: asset.key, usage: "inline", sortOrder: 0 },
+    ]));
+    expect(JSON.stringify(backup)).not.toContain("objectBytes");
+  });
+
+  it("continues to accept schema version 1 backups", async () => {
+    const current = await exportBlogData(env.DB);
+    if (current.schemaVersion !== 2) throw new Error("Expected schema version 2.");
+    const { mediaAssets: _mediaAssets, postAssetLinks: _postAssetLinks, ...base } = current;
+    const versionOne = { ...base, schemaVersion: 1 as const };
+    const originalTitles = versionOne.posts.map(({ title }) => title);
+    const post = versionOne.posts[0]!;
+    await updatePostWithMedia(env.DB, post.id, { ...post, title: "临时标题" }, {
+      retainedAssetIds: [],
+    });
+
+    await importBlogData(env.DB, versionOne);
+
+    expect((await listPosts(env.DB)).map(({ title }) => title)).toEqual(originalTitles);
+  });
+
+  it("restores schema version 2 links, cancels restored cleanup, and queues stale keys", async () => {
+    const post = await createPost(env.DB, postInput("backup-v2-restore"));
+    const restored = await beginMediaUpload(env.DB, {
+      key: "uploads/2026/07/backup-restored.png",
+      originalName: "backup-restored.png",
+      contentType: "image/png",
+      sizeBytes: 8,
+    });
+    await markMediaReady(env.DB, restored.id);
+    await syncPostAssetLinks(env.DB, post.id, {
+      retainedAssetIds: [restored.id],
+      inlineKeys: [restored.key],
+    });
+    const backup = await exportBlogData(env.DB);
+    if (backup.schemaVersion !== 2) throw new Error("Expected schema version 2.");
+
+    const stalePost = await createPost(env.DB, postInput("backup-v2-stale-post"));
+    const stale = await beginMediaUpload(env.DB, {
+      key: "uploads/2026/07/backup-stale.png",
+      originalName: "backup-stale.png",
+      contentType: "image/png",
+      sizeBytes: 5,
+    });
+    await markMediaReady(env.DB, stale.id);
+    await syncPostAssetLinks(env.DB, stalePost.id, {
+      retainedAssetIds: [stale.id],
+      inlineKeys: [],
+    });
+    await env.DB.batch([
+      env.DB.prepare("UPDATE media_assets SET state = 'pending_delete' WHERE id = ?")
+        .bind(restored.id),
+      env.DB.prepare(
+        `INSERT INTO media_cleanup_jobs (asset_id, kv_key, reason, queued_at)
+         VALUES (?, ?, 'manual_remove', ?)`,
+      ).bind(restored.id, restored.key, "2026-07-17T00:00:00.000Z"),
+    ]);
+
+    await importBlogData(env.DB, backup);
+
+    expect(await env.DB.prepare("SELECT state FROM media_assets WHERE id = ?")
+      .bind(restored.id).first()).toEqual({ state: "ready" });
+    expect((await listPostAssets(env.DB, post.id))[0]).toMatchObject({
+      key: restored.key,
+      usages: ["inline", "library"],
+    });
+    expect(await listMediaCleanupJobs(env.DB)).toMatchObject([
+      { asset_id: stale.id, kv_key: stale.key, reason: "backup_restore" },
+    ]);
+  });
+
+  it("backfills legacy post images after a schema version 1 import", async () => {
+    const legacy = await storeAdminMedia(
+      env.MEDIA,
+      new File(["legacy-import"], "legacy-import.gif", { type: "image/gif" }),
+      new Date("2026-07-17T00:00:00.000Z"),
+    );
+    const post = await createPost(env.DB, {
+      ...postInput("legacy-import-backfill"),
+      body: `![legacy import](${legacy.url})`,
+    });
+    const current = await exportBlogData(env.DB);
+    if (current.schemaVersion !== 2) throw new Error("Expected schema version 2.");
+    const { mediaAssets: _mediaAssets, postAssetLinks: _postAssetLinks, ...base } = current;
+    const versionOne = { ...base, schemaVersion: 1 as const };
+
+    const response = await importBlogRoute({
+      request: await adminJsonRequest("POST", "/api/admin/import/", versionOne),
+    } as never);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ data: { imported: true } });
+    expect((await listPostAssets(env.DB, post.id))[0]).toMatchObject({
+      key: legacy.key,
+      usages: ["inline", "library"],
+    });
   });
 });
