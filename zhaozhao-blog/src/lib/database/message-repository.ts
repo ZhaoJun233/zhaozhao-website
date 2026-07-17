@@ -65,10 +65,38 @@ function row(database: DatabaseSync, id: string): MessageRow {
   return result;
 }
 
-export function createGuestbookMessage(database: DatabaseSync, input: unknown): AdminMessage {
+async function d1Row(database: D1DatabaseSession, id: string): Promise<MessageRow> {
+  const result = await database.prepare("SELECT * FROM guestbook_messages WHERE id = ?")
+    .bind(id).first<MessageRow>();
+  if (!result) throw new AdminNotFoundError("留言不存在。");
+  return result;
+}
+
+function isD1Database(database: DatabaseSync | D1Database): database is D1Database {
+  return "withSession" in database;
+}
+
+export function createGuestbookMessage(database: D1Database, input: unknown): Promise<AdminMessage>;
+export function createGuestbookMessage(database: DatabaseSync, input: unknown): AdminMessage;
+export function createGuestbookMessage(
+  database: DatabaseSync | D1Database,
+  input: unknown,
+): AdminMessage | Promise<AdminMessage> {
   const value = messageInputSchema.parse(input);
   const id = randomUUID();
   const timestamp = new Date().toISOString();
+  if (isD1Database(database)) {
+    return (async () => {
+      const session = database.withSession("first-primary");
+      await session.prepare(
+        `INSERT INTO guestbook_messages
+         (id, name, email, website, content, status, ip_hash, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
+      ).bind(id, value.name, value.email ?? null, value.website ?? null, value.content,
+        value.ipHash ?? null, timestamp, timestamp).run();
+      return adminMessage(await d1Row(session, id));
+    })();
+  }
   database.prepare(
     `INSERT INTO guestbook_messages
      (id, name, email, website, content, status, ip_hash, created_at, updated_at)
@@ -78,32 +106,74 @@ export function createGuestbookMessage(database: DatabaseSync, input: unknown): 
   return adminMessage(row(database, id));
 }
 
-export function listAdminMessages(database: DatabaseSync): AdminMessage[] {
+export function listAdminMessages(database: D1Database): Promise<AdminMessage[]>;
+export function listAdminMessages(database: DatabaseSync): AdminMessage[];
+export function listAdminMessages(
+  database: DatabaseSync | D1Database,
+): AdminMessage[] | Promise<AdminMessage[]> {
+  if (isD1Database(database)) {
+    return database.withSession("first-primary").prepare(
+      "SELECT * FROM guestbook_messages ORDER BY created_at DESC",
+    ).all<MessageRow>().then(({ results }) => results.map(adminMessage));
+  }
   const rows = database.prepare(
     "SELECT * FROM guestbook_messages ORDER BY created_at DESC",
   ).all() as unknown as MessageRow[];
   return rows.map(adminMessage);
 }
 
-export function listApprovedMessages(database: DatabaseSync): PublicMessage[] {
-  const rows = database.prepare(
-    "SELECT * FROM guestbook_messages WHERE status = 'approved' ORDER BY created_at DESC",
-  ).all() as unknown as MessageRow[];
-  return rows.map((item) => ({
+function publicMessage(item: MessageRow): PublicMessage {
+  return {
     id: item.id,
     name: item.name,
     ...(item.website ? { website: item.website } : {}),
     content: item.content,
     createdAt: item.created_at,
-  }));
+  };
 }
 
+export function listApprovedMessages(database: D1Database): Promise<PublicMessage[]>;
+export function listApprovedMessages(database: DatabaseSync): PublicMessage[];
+export function listApprovedMessages(
+  database: DatabaseSync | D1Database,
+): PublicMessage[] | Promise<PublicMessage[]> {
+  if (isD1Database(database)) {
+    return database.withSession("first-primary").prepare(
+      "SELECT * FROM guestbook_messages WHERE status = 'approved' ORDER BY created_at DESC",
+    ).all<MessageRow>().then(({ results }) => results.map(publicMessage));
+  }
+  const rows = database.prepare(
+    "SELECT * FROM guestbook_messages WHERE status = 'approved' ORDER BY created_at DESC",
+  ).all() as unknown as MessageRow[];
+  return rows.map(publicMessage);
+}
+
+export function updateGuestbookMessageStatus(
+  database: D1Database,
+  id: string,
+  status: MessageStatus,
+): Promise<AdminMessage>;
 export function updateGuestbookMessageStatus(
   database: DatabaseSync,
   id: string,
   status: MessageStatus,
-): AdminMessage {
+): AdminMessage;
+export function updateGuestbookMessageStatus(
+  database: DatabaseSync | D1Database,
+  id: string,
+  status: MessageStatus,
+): AdminMessage | Promise<AdminMessage> {
   const value = messageStatusSchema.parse(status);
+  if (isD1Database(database)) {
+    return (async () => {
+      const session = database.withSession("first-primary");
+      const result = await session.prepare(
+        "UPDATE guestbook_messages SET status = ?, updated_at = ? WHERE id = ?",
+      ).bind(value, new Date().toISOString(), id).run();
+      if ((result.meta.changes ?? 0) === 0) throw new AdminNotFoundError("留言不存在。");
+      return adminMessage(await d1Row(session, id));
+    })();
+  }
   if (database.prepare(
     "UPDATE guestbook_messages SET status = ?, updated_at = ? WHERE id = ?",
   ).run(value, new Date().toISOString(), id).changes === 0) {
@@ -112,7 +182,18 @@ export function updateGuestbookMessageStatus(
   return adminMessage(row(database, id));
 }
 
-export function deleteGuestbookMessage(database: DatabaseSync, id: string): void {
+export function deleteGuestbookMessage(database: D1Database, id: string): Promise<void>;
+export function deleteGuestbookMessage(database: DatabaseSync, id: string): void;
+export function deleteGuestbookMessage(
+  database: DatabaseSync | D1Database,
+  id: string,
+): void | Promise<void> {
+  if (isD1Database(database)) {
+    return database.prepare("DELETE FROM guestbook_messages WHERE id = ?").bind(id).run()
+      .then((result) => {
+        if ((result.meta.changes ?? 0) === 0) throw new AdminNotFoundError("留言不存在。");
+      });
+  }
   if (database.prepare("DELETE FROM guestbook_messages WHERE id = ?").run(id).changes === 0) {
     throw new AdminNotFoundError("留言不存在。");
   }

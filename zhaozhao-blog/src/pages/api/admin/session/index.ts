@@ -1,4 +1,5 @@
 import type { APIRoute } from "astro";
+import { env } from "cloudflare:workers";
 import {
   clearAdminSessionCookie,
   createAdminSession,
@@ -7,7 +8,6 @@ import {
   serializeAdminSessionCookie,
   verifyAdminPassword,
 } from "../../../../lib/admin/auth";
-import { getContentDatabase } from "../../../../lib/database/legacy-content-database";
 
 const attempts = new Map<string, { count: number; resetAt: number }>();
 const limitWindow = 5 * 60 * 1_000;
@@ -17,7 +17,7 @@ function noStore(headers: HeadersInit = {}): HeadersInit {
 }
 
 export const POST: APIRoute = async ({ request }) => {
-  if (!process.env.ADMIN_PASSWORD) {
+  if (!env.ADMIN_PASSWORD) {
     return Response.json({ error: "后台密码尚未配置。" }, { status: 503, headers: noStore() });
   }
   const key = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
@@ -33,7 +33,7 @@ export const POST: APIRoute = async ({ request }) => {
   } catch {
     return Response.json({ error: "请求内容格式不正确。" }, { status: 400, headers: noStore() });
   }
-  if (!verifyAdminPassword(password)) {
+  if (!verifyAdminPassword(password, env.ADMIN_PASSWORD)) {
     const next = current && current.resetAt > now
       ? { count: current.count + 1, resetAt: current.resetAt }
       : { count: 1, resetAt: now + limitWindow };
@@ -41,7 +41,12 @@ export const POST: APIRoute = async ({ request }) => {
     return Response.json({ error: "密码不正确。" }, { status: 401, headers: noStore() });
   }
   attempts.delete(key);
-  const session = createAdminSession(getContentDatabase());
+  const session = await createAdminSession(
+    env.DB,
+    undefined,
+    undefined,
+    env.ADMIN_SESSION_SECRET,
+  );
   return Response.json({ authenticated: true }, {
     headers: noStore({
       "set-cookie": serializeAdminSessionCookie(
@@ -54,7 +59,7 @@ export const POST: APIRoute = async ({ request }) => {
 };
 
 export const DELETE: APIRoute = async ({ request }) => {
-  deleteAdminSession(getContentDatabase(), readAdminSessionToken(request));
+  await deleteAdminSession(env.DB, readAdminSessionToken(request), env.ADMIN_SESSION_SECRET);
   return Response.json({ authenticated: false }, {
     headers: noStore({
       "set-cookie": clearAdminSessionCookie(new URL(request.url).protocol === "https:"),

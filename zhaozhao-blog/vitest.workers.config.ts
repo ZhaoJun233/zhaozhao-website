@@ -11,6 +11,8 @@ export default defineConfig(async () => ({
         r2Buckets: ["MEDIA"],
         bindings: {
           TEST_MIGRATIONS: await readD1Migrations("./migrations"),
+          ADMIN_PASSWORD: "test-admin-password",
+          ADMIN_SESSION_SECRET: "test-session-secret",
         },
       },
     }),

@@ -1,6 +1,8 @@
 import type { DatabaseSync } from "node:sqlite";
+import { env } from "cloudflare:workers";
 import { z } from "astro/zod";
 import { authenticateAdminSession, readAdminSessionToken } from "./auth";
+import { getDatabase } from "../cloudflare/bindings";
 import { getContentDatabase } from "../database/legacy-content-database";
 import { AdminConflictError, AdminNotFoundError } from "../database/admin-repository";
 
@@ -38,12 +40,15 @@ function requireSameOrigin(request: Request): void {
   }
 }
 
-function requireAdmin(request: Request): DatabaseSync {
+async function requireAdmin(request: Request): Promise<void> {
   requireSameOrigin(request);
-  const database = getContentDatabase();
-  const session = authenticateAdminSession(database, readAdminSessionToken(request));
+  const session = await authenticateAdminSession(
+    getDatabase(),
+    readAdminSessionToken(request),
+    undefined,
+    env.ADMIN_SESSION_SECRET,
+  );
   if (!session) throw new AdminHttpError(401, "后台会话已失效，请重新登录。" );
-  return database;
 }
 
 function errorResponse(error: unknown): Response {
@@ -83,7 +88,8 @@ export async function handleAdminRequest(
   operation: (database: DatabaseSync) => unknown | Promise<unknown>,
 ): Promise<Response> {
   try {
-    const result = await operation(requireAdmin(request));
+    await requireAdmin(request);
+    const result = await operation(getContentDatabase());
     if (result instanceof Response) return result;
     return Response.json({ data: result }, { headers: { "cache-control": "no-store" } });
   } catch (error) {

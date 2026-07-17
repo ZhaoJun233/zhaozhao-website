@@ -3,5 +3,16 @@ import { applyD1Migrations } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 
 beforeEach(async () => {
+  await env.DB.exec(`
+    DROP TABLE IF EXISTS d1_migrations;
+    DROP TABLE IF EXISTS admin_sessions;
+    DROP TABLE IF EXISTS guestbook_messages;
+    DROP TABLE IF EXISTS friend_page;
+    DROP TABLE IF EXISTS friends;
+    DROP TABLE IF EXISTS projects;
+    DROP TABLE IF EXISTS posts;
+    DROP TABLE IF EXISTS categories;
+    DROP TABLE IF EXISTS site_settings;
+  `);
   await applyD1Migrations(env.DB, env.TEST_MIGRATIONS);
 });

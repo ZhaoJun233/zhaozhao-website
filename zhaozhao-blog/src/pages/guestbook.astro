@@ -1,5 +1,5 @@
 ---
-import { getContentDatabase } from "../lib/database/legacy-content-database";
+import { getDatabase } from "../lib/cloudflare/bindings";
 import { listApprovedMessages } from "../lib/database/message-repository";
 import { loadRuntimeEditorial, loadRuntimeProfile } from "../lib/runtime-content";
 import BaseLayout from "../layouts/BaseLayout.astro";
@@ -7,7 +7,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 const [profile, editorial] = await Promise.all([loadRuntimeProfile(), loadRuntimeEditorial()]);
 const guestbookContent = editorial.guestbook;
 const { hero, guidelines, discussion } = guestbookContent;
-const messages = listApprovedMessages(getContentDatabase());
+const messages = await listApprovedMessages(getDatabase());
 ---
 
 <BaseLayout

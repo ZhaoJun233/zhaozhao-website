@@ -1,12 +1,12 @@
 import { createHmac } from "node:crypto";
+import { env } from "cloudflare:workers";
 import type { APIRoute } from "astro";
-import { getContentDatabase } from "../../lib/database/legacy-content-database";
 import { createGuestbookMessage, listApprovedMessages } from "../../lib/database/message-repository";
 
 const attempts = new Map<string, { count: number; resetAt: number }>();
 const windowMs = 10 * 60 * 1_000;
 
-export const GET: APIRoute = async () => Response.json(listApprovedMessages(getContentDatabase()), {
+export const GET: APIRoute = async () => Response.json(await listApprovedMessages(env.DB), {
   headers: { "cache-control": "no-store" },
 });
 
@@ -30,9 +30,8 @@ export const POST: APIRoute = async ({ request }) => {
     if (typeof body.company === "string" && body.company.trim()) {
       return Response.json({ accepted: true }, { status: 202 });
     }
-    const secret = process.env.ADMIN_SESSION_SECRET ?? "local-development-session-secret";
-    const ipHash = createHmac("sha256", secret).update(ip).digest("hex");
-    createGuestbookMessage(getContentDatabase(), { ...body, ipHash });
+    const ipHash = createHmac("sha256", env.ADMIN_SESSION_SECRET).update(ip).digest("hex");
+    await createGuestbookMessage(env.DB, { ...body, ipHash });
     attempts.set(ip, current && current.resetAt > now
       ? { count: current.count + 1, resetAt: current.resetAt }
       : { count: 1, resetAt: now + windowMs });

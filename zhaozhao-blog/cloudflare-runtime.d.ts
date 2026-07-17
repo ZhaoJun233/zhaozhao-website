@@ -4,7 +4,7 @@ interface D1Result<T = unknown> {
   results: T[];
   success: boolean;
   error?: string;
-  meta: Record<string, unknown>;
+  meta: Record<string, unknown> & { changes?: number };
 }
 
 interface D1PreparedStatement {
@@ -48,4 +48,11 @@ interface Fetcher {
 
 declare module "cloudflare:workers" {
   export const env: Cloudflare.Env;
+}
+
+declare namespace Cloudflare {
+  interface Env {
+    ADMIN_PASSWORD: string;
+    ADMIN_SESSION_SECRET: string;
+  }
 }

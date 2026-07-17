@@ -2,10 +2,10 @@
 import { Check, Clock3, ShieldX, Trash2 } from "lucide-astro";
 import AdminShell from "../../components/admin/AdminShell.astro";
 import AdminLayout from "../../layouts/AdminLayout.astro";
-import { getContentDatabase } from "../../lib/database/legacy-content-database";
+import { getDatabase } from "../../lib/cloudflare/bindings";
 import { listAdminMessages } from "../../lib/database/message-repository";
 
-const messages = listAdminMessages(getContentDatabase());
+const messages = await listAdminMessages(getDatabase());
 const statusLabel = { pending: "待审核", approved: "已公开", spam: "已隐藏" };
 ---
 

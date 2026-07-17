@@ -1,5 +1,4 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import type { DatabaseSync } from "node:sqlite";
 
 export const ADMIN_SESSION_COOKIE = "admin_session";
 const sevenDays = 7 * 24 * 60 * 60 * 1_000;
@@ -13,8 +12,10 @@ function comparableSecret(value: string): Buffer {
   return createHash("sha256").update(value, "utf8").digest();
 }
 
-function sessionDigest(token: string): string {
-  const secret = process.env.ADMIN_SESSION_SECRET ?? "local-development-session-secret";
+function sessionDigest(
+  token: string,
+  secret = process.env.ADMIN_SESSION_SECRET ?? "local-development-session-secret",
+): string {
   return createHmac("sha256", secret).update(token, "utf8").digest("hex");
 }
 
@@ -23,41 +24,51 @@ export function verifyAdminPassword(candidate: string, configured = process.env.
   return timingSafeEqual(comparableSecret(candidate), comparableSecret(configured));
 }
 
-export function createAdminSession(
-  database: DatabaseSync,
+export async function createAdminSession(
+  database: D1Database,
   now = new Date(),
   lifetimeMs = sevenDays,
-): AdminSession {
+  secret?: string,
+): Promise<AdminSession> {
   const token = randomBytes(32).toString("hex");
   const expiresAt = new Date(now.getTime() + lifetimeMs);
-  database.prepare(
-    "INSERT INTO admin_sessions (token_digest, created_at, expires_at) VALUES (?, ?, ?)",
-  ).run(sessionDigest(token), now.toISOString(), expiresAt.toISOString());
+  await database.batch([
+    database.prepare("DELETE FROM admin_sessions WHERE expires_at <= ?").bind(now.toISOString()),
+    database.prepare(
+      "INSERT INTO admin_sessions (token_digest, created_at, expires_at) VALUES (?, ?, ?)",
+    ).bind(sessionDigest(token, secret), now.toISOString(), expiresAt.toISOString()),
+  ]);
   return { token, expiresAt };
 }
 
-export function authenticateAdminSession(
-  database: DatabaseSync,
+export async function authenticateAdminSession(
+  database: D1Database,
   token: string | undefined,
   now = new Date(),
-): { expiresAt: Date } | null {
+  secret?: string,
+): Promise<{ expiresAt: Date } | null> {
   if (!token) return null;
-  const digest = sessionDigest(token);
-  const row = database.prepare(
+  const digest = sessionDigest(token, secret);
+  const row = await database.withSession("first-primary").prepare(
     "SELECT expires_at FROM admin_sessions WHERE token_digest = ?",
-  ).get(digest) as { expires_at?: string } | undefined;
-  if (!row?.expires_at) return null;
+  ).bind(digest).first<{ expires_at: string }>();
+  if (!row) return null;
   const expiresAt = new Date(row.expires_at);
   if (expiresAt.getTime() <= now.getTime()) {
-    database.prepare("DELETE FROM admin_sessions WHERE token_digest = ?").run(digest);
+    await database.prepare("DELETE FROM admin_sessions WHERE token_digest = ?").bind(digest).run();
     return null;
   }
   return { expiresAt };
 }
 
-export function deleteAdminSession(database: DatabaseSync, token: string | undefined): void {
+export async function deleteAdminSession(
+  database: D1Database,
+  token: string | undefined,
+  secret?: string,
+): Promise<void> {
   if (!token) return;
-  database.prepare("DELETE FROM admin_sessions WHERE token_digest = ?").run(sessionDigest(token));
+  await database.prepare("DELETE FROM admin_sessions WHERE token_digest = ?")
+    .bind(sessionDigest(token, secret)).run();
 }
 
 export function readAdminSessionToken(request: Request): string | undefined {

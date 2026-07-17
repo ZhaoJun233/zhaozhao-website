@@ -1,13 +1,16 @@
 import { defineMiddleware } from "astro:middleware";
+import { env } from "cloudflare:workers";
 import { authenticateAdminSession, readAdminSessionToken } from "./lib/admin/auth";
-import { getContentDatabase } from "./lib/database/legacy-content-database";
+import { getDatabase } from "./lib/cloudflare/bindings";
 
 export const onRequest = defineMiddleware(async (context, next) => {
   const path = context.url.pathname;
   if (!path.startsWith("/admin")) return next();
-  const authenticated = Boolean(authenticateAdminSession(
-    getContentDatabase(),
+  const authenticated = Boolean(await authenticateAdminSession(
+    getDatabase(),
     readAdminSessionToken(context.request),
+    undefined,
+    env.ADMIN_SESSION_SECRET,
   ));
   if (path === "/admin/login/" || path === "/admin/login") {
     return authenticated ? context.redirect("/admin/") : next();
