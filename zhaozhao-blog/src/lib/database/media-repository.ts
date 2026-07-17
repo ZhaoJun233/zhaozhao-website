@@ -31,6 +31,7 @@ export interface ResolvedPostAssetSync {
   coverAssetId?: string;
   inlineAssetIds: string[];
   clearDraftAssetIds: string[];
+  draftToken?: string;
 }
 
 export interface BeginMediaUploadInput {
@@ -59,6 +60,7 @@ interface AssetUsageRow extends MediaAssetRow {
 }
 
 const usageOrder: PostAssetUsage[] = ["cover", "inline", "library"];
+const maxD1BindingsPerStatement = 100;
 
 function primary(database: D1Database): D1DatabaseSession {
   return database.withSession("first-primary");
@@ -66,6 +68,49 @@ function primary(database: D1Database): D1DatabaseSession {
 
 function unique<T>(values: T[]): T[] {
   return [...new Set(values)];
+}
+
+function chunks<T>(values: T[], size: number): T[][] {
+  return Array.from(
+    { length: Math.ceil(values.length / size) },
+    (_, index) => values.slice(index * size, (index + 1) * size),
+  );
+}
+
+async function findAssetRows(
+  session: D1DatabaseSession,
+  column: "id" | "kv_key",
+  values: string[],
+): Promise<AssetUsageRow[]> {
+  const rows: AssetUsageRow[] = [];
+  for (const bindings of chunks(values, maxD1BindingsPerStatement)) {
+    const { results } = await session.prepare(
+      `SELECT asset.*, link.usage,
+         (SELECT COUNT(DISTINCT shared.post_id)
+          FROM post_asset_links shared WHERE shared.asset_id = asset.id) AS shared_by
+       FROM media_assets asset
+       LEFT JOIN post_asset_links link ON link.asset_id = asset.id
+       WHERE asset.${column} IN (${bindings.map(() => "?").join(", ")})
+       ORDER BY asset.created_at, asset.id,
+         CASE link.usage WHEN 'cover' THEN 0 WHEN 'inline' THEN 1 ELSE 2 END`,
+    ).bind(...bindings).all<AssetUsageRow>();
+    rows.push(...results);
+  }
+  return rows;
+}
+
+function uniqueAssetUsageRows(rows: AssetUsageRow[]): AssetUsageRow[] {
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    const key = `${row.id}\0${row.usage ?? ""}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function isConstraintError(error: unknown): boolean {
+  return error instanceof Error && /constraint failed|SQLITE_CONSTRAINT/i.test(error.message);
 }
 
 function assetFromRows(rows: AssetUsageRow[]): AdminMediaAsset {
@@ -219,26 +264,11 @@ export async function resolvePostAssetSync(
     };
   }
 
-  const clauses: string[] = [];
-  const bindings: string[] = [];
-  if (requestedIds.length > 0) {
-    clauses.push(`asset.id IN (${requestedIds.map(() => "?").join(", ")})`);
-    bindings.push(...requestedIds);
-  }
-  if (requestedKeys.length > 0) {
-    clauses.push(`asset.kv_key IN (${requestedKeys.map(() => "?").join(", ")})`);
-    bindings.push(...requestedKeys);
-  }
-  const { results } = await primary(database).prepare(
-    `SELECT asset.*, link.usage,
-       (SELECT COUNT(DISTINCT shared.post_id)
-        FROM post_asset_links shared WHERE shared.asset_id = asset.id) AS shared_by
-     FROM media_assets asset
-     LEFT JOIN post_asset_links link ON link.asset_id = asset.id
-     WHERE ${clauses.join(" OR ")}
-     ORDER BY asset.created_at, asset.id,
-       CASE link.usage WHEN 'cover' THEN 0 WHEN 'inline' THEN 1 ELSE 2 END`,
-  ).bind(...bindings).all<AssetUsageRow>();
+  const session = primary(database);
+  const results = uniqueAssetUsageRows([
+    ...await findAssetRows(session, "id", requestedIds),
+    ...await findAssetRows(session, "kv_key", requestedKeys),
+  ]);
 
   const assets = assetsFromRows(results);
   const rowsById = new Map(results.map((row) => [row.id, row]));
@@ -285,6 +315,7 @@ export async function resolvePostAssetSync(
     ...(coverAssetId ? { coverAssetId } : {}),
     inlineAssetIds,
     clearDraftAssetIds: unique(clearDraftAssetIds),
+    ...(input.draftToken ? { draftToken: input.draftToken } : {}),
   };
 }
 
@@ -295,12 +326,17 @@ export function buildPostAssetSyncStatements(
   now: Date,
 ): D1PreparedStatement[] {
   const timestamp = now.toISOString();
+  const draftToken = resolved.draftToken ?? null;
   return [
     database.prepare("DELETE FROM post_asset_links WHERE post_id = ?").bind(postId),
     ...resolved.libraryAssetIds.map((assetId, index) => database.prepare(
       `INSERT INTO post_asset_links (post_id, asset_id, usage, sort_order, created_at)
-       VALUES (?, ?, 'library', ?, ?)`,
-    ).bind(postId, assetId, index, timestamp)),
+       VALUES (?, (
+         SELECT asset.id FROM media_assets asset
+         WHERE asset.id = ? AND asset.state = 'ready'
+           AND (asset.draft_token IS NULL OR asset.draft_token = ?)
+       ), 'library', ?, ?)`,
+    ).bind(postId, assetId, draftToken, index, timestamp)),
     ...(resolved.coverAssetId ? [database.prepare(
       `INSERT INTO post_asset_links (post_id, asset_id, usage, sort_order, created_at)
        VALUES (?, ?, 'cover', 0, ?)`,
@@ -310,8 +346,8 @@ export function buildPostAssetSyncStatements(
        VALUES (?, ?, 'inline', ?, ?)`,
     ).bind(postId, assetId, index, timestamp)),
     ...resolved.clearDraftAssetIds.map((assetId) => database.prepare(
-      "UPDATE media_assets SET draft_token = NULL WHERE id = ?",
-    ).bind(assetId)),
+      "UPDATE media_assets SET draft_token = NULL WHERE id = ? AND draft_token = ?",
+    ).bind(assetId, draftToken)),
   ];
 }
 
@@ -321,7 +357,14 @@ export async function syncPostAssetLinks(
   input: PostAssetSyncInput,
 ): Promise<AdminMediaAsset[]> {
   const resolved = await resolvePostAssetSync(database, input);
-  await database.batch(buildPostAssetSyncStatements(database, postId, resolved, new Date()));
+  try {
+    await database.batch(buildPostAssetSyncStatements(database, postId, resolved, new Date()));
+  } catch (error) {
+    if (!isConstraintError(error)) throw error;
+    throw new AdminConflictError("图片状态或归属已变更，请重新保存。", {
+      assetIds: resolved.libraryAssetIds,
+    });
+  }
   return listPostAssets(database, postId);
 }
 
@@ -346,10 +389,16 @@ export async function removePostAsset(
   }
 
   const timestamp = new Date().toISOString();
-  await database.batch([
+  const [removeResult] = await database.batch([
     database.prepare(
-      "DELETE FROM post_asset_links WHERE post_id = ? AND asset_id = ? AND usage = 'library'",
-    ).bind(postId, assetId),
+      `DELETE FROM post_asset_links
+       WHERE post_id = ? AND asset_id = ? AND usage = 'library'
+         AND NOT EXISTS (
+           SELECT 1 FROM post_asset_links active
+           WHERE active.post_id = ? AND active.asset_id = ?
+             AND active.usage IN ('cover', 'inline')
+         )`,
+    ).bind(postId, assetId, postId, assetId),
     database.prepare(
       `UPDATE media_assets SET state = 'pending_delete'
        WHERE id = ?
@@ -364,6 +413,11 @@ export async function removePostAsset(
        ON CONFLICT(asset_id) DO NOTHING`,
     ).bind(timestamp, assetId),
   ]);
+  if (Number(removeResult?.meta.changes ?? 0) !== 1) {
+    throw new AdminConflictError("请先从封面或正文移除这张图片并保存文章。", {
+      usages: ["cover", "inline"],
+    });
+  }
 }
 
 export async function previewPostDelete(

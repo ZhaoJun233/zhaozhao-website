@@ -6,6 +6,7 @@ import {
 } from "../../src/lib/database/admin-repository";
 import {
   beginMediaUpload,
+  buildPostAssetSyncStatements,
   completeMediaCleanup,
   failMediaCleanup,
   failMediaUpload,
@@ -15,6 +16,7 @@ import {
   previewPostDelete,
   queueDraftCleanup,
   removePostAsset,
+  resolvePostAssetSync,
   syncPostAssetLinks,
 } from "../../src/lib/database/media-repository";
 
@@ -32,6 +34,19 @@ async function createTestPost(slug: string) {
     tags: ["test"],
     featured: false,
   });
+}
+
+async function insertReadyAssets(count: number, prefix: string) {
+  const assets = Array.from({ length: count }, (_, index) => ({
+    id: `00000000-0000-4000-8000-${index.toString().padStart(12, "0")}`,
+    key: `uploads/2026/07/${prefix}-${index}.png`,
+  }));
+  await env.DB.batch(assets.map(({ id, key }) => env.DB.prepare(
+    `INSERT INTO media_assets
+     (id, kv_key, original_name, content_type, size_bytes, state, draft_token, created_at)
+     VALUES (?, ?, ?, 'image/png', 4, 'ready', NULL, ?)`,
+  ).bind(id, key, `${prefix}.png`, "2026-07-17T00:00:00.000Z")));
+  return assets;
 }
 
 describe("article media schema", () => {
@@ -205,5 +220,216 @@ describe("article media schema", () => {
       "draft_cancelled",
       "upload_failed",
     ]);
+  });
+
+  it("rejects missing, uploading, pending, and mismatched draft assets", async () => {
+    const post = await createTestPost("invalid-asset-state");
+    const uploading = await beginMediaUpload(env.DB, {
+      key: "uploads/2026/07/still-uploading.png",
+      originalName: "still-uploading.png",
+      contentType: "image/png",
+      sizeBytes: 4,
+      draftToken,
+    });
+
+    await expect(syncPostAssetLinks(env.DB, post.id, {
+      draftToken,
+      retainedAssetIds: [uploading.id],
+      inlineKeys: [],
+    })).rejects.toBeInstanceOf(AdminConflictError);
+
+    await markMediaReady(env.DB, uploading.id);
+    await env.DB.prepare("UPDATE media_assets SET state = 'pending_delete' WHERE id = ?")
+      .bind(uploading.id).run();
+    await expect(syncPostAssetLinks(env.DB, post.id, {
+      draftToken,
+      retainedAssetIds: [uploading.id],
+      inlineKeys: [],
+    })).rejects.toBeInstanceOf(AdminConflictError);
+
+    const mismatched = await beginMediaUpload(env.DB, {
+      key: "uploads/2026/07/wrong-draft.png",
+      originalName: "wrong-draft.png",
+      contentType: "image/png",
+      sizeBytes: 4,
+      draftToken: "22222222-2222-4222-8222-222222222222",
+    });
+    await markMediaReady(env.DB, mismatched.id);
+    await expect(syncPostAssetLinks(env.DB, post.id, {
+      draftToken,
+      retainedAssetIds: [mismatched.id],
+      inlineKeys: [],
+    })).rejects.toBeInstanceOf(AdminConflictError);
+
+    await expect(syncPostAssetLinks(env.DB, post.id, {
+      retainedAssetIds: ["33333333-3333-4333-8333-333333333333"],
+      inlineKeys: [],
+    })).rejects.toBeInstanceOf(Error);
+  });
+
+  it("adds cover and inline assets to the library union automatically", async () => {
+    const post = await createTestPost("automatic-library-union");
+    const cover = await beginMediaUpload(env.DB, {
+      key: "uploads/2026/07/union-cover.png",
+      originalName: "union-cover.png",
+      contentType: "image/png",
+      sizeBytes: 4,
+      draftToken,
+    });
+    const inline = await beginMediaUpload(env.DB, {
+      key: "uploads/2026/07/union-inline.png",
+      originalName: "union-inline.png",
+      contentType: "image/png",
+      sizeBytes: 4,
+      draftToken,
+    });
+    await markMediaReady(env.DB, cover.id);
+    await markMediaReady(env.DB, inline.id);
+
+    const assets = await syncPostAssetLinks(env.DB, post.id, {
+      draftToken,
+      retainedAssetIds: [],
+      coverAssetId: cover.id,
+      inlineKeys: [inline.key],
+    });
+
+    expect(assets.find(({ id }) => id === cover.id)?.usages).toEqual(["cover", "library"]);
+    expect(assets.find(({ id }) => id === inline.id)?.usages).toEqual(["inline", "library"]);
+  });
+
+  it("rolls back link rebuilding when an asset changes after resolution", async () => {
+    const post = await createTestPost("stale-sync-guard");
+    const [current, replacement] = await insertReadyAssets(2, "stale-sync");
+    await syncPostAssetLinks(env.DB, post.id, {
+      retainedAssetIds: [current!.id],
+      inlineKeys: [],
+    });
+    const input = { retainedAssetIds: [replacement!.id], inlineKeys: [] };
+    const resolved = await resolvePostAssetSync(env.DB, input);
+    await env.DB.prepare("UPDATE media_assets SET state = 'pending_delete' WHERE id = ?")
+      .bind(replacement!.id).run();
+
+    await expect(env.DB.batch(
+      buildPostAssetSyncStatements(env.DB, post.id, resolved, new Date()),
+    )).rejects.toThrow();
+    expect((await listPostAssets(env.DB, post.id)).map(({ id }) => id)).toEqual([current!.id]);
+  });
+
+  it("rolls back link rebuilding when draft ownership changes after resolution", async () => {
+    const post = await createTestPost("stale-draft-guard");
+    const asset = await beginMediaUpload(env.DB, {
+      key: "uploads/2026/07/stale-draft.png",
+      originalName: "stale-draft.png",
+      contentType: "image/png",
+      sizeBytes: 4,
+      draftToken,
+    });
+    await markMediaReady(env.DB, asset.id);
+    const resolved = await resolvePostAssetSync(env.DB, {
+      draftToken,
+      retainedAssetIds: [asset.id],
+      inlineKeys: [],
+    });
+    await env.DB.prepare("UPDATE media_assets SET draft_token = ? WHERE id = ?")
+      .bind("22222222-2222-4222-8222-222222222222", asset.id).run();
+
+    await expect(env.DB.batch(
+      buildPostAssetSyncStatements(env.DB, post.id, resolved, new Date()),
+    )).rejects.toThrow();
+    expect(await listPostAssets(env.DB, post.id)).toEqual([]);
+  });
+
+  it("maps a state race during sync to an administrator conflict", async () => {
+    const post = await createTestPost("mapped-stale-sync");
+    const [asset] = await insertReadyAssets(1, "mapped-stale-sync");
+    let raced = false;
+    const racingDatabase = {
+      prepare: (...args: Parameters<D1Database["prepare"]>) => env.DB.prepare(...args),
+      withSession: (...args: Parameters<D1Database["withSession"]>) => env.DB.withSession(...args),
+      batch: async <T>(statements: D1PreparedStatement[]) => {
+        if (!raced) {
+          raced = true;
+          await env.DB.prepare("UPDATE media_assets SET state = 'pending_delete' WHERE id = ?")
+            .bind(asset!.id).run();
+        }
+        return env.DB.batch<T>(statements);
+      },
+    } as D1Database;
+
+    await expect(syncPostAssetLinks(racingDatabase, post.id, {
+      retainedAssetIds: [asset!.id],
+      inlineKeys: [],
+    })).rejects.toBeInstanceOf(AdminConflictError);
+    expect(await listPostAssets(env.DB, post.id)).toEqual([]);
+  });
+
+  it("keeps a shared asset ready when one post removes its library link", async () => {
+    const first = await createTestPost("shared-remove-first");
+    const second = await createTestPost("shared-remove-second");
+    const [asset] = await insertReadyAssets(1, "shared-remove");
+    await syncPostAssetLinks(env.DB, first.id, {
+      retainedAssetIds: [asset!.id],
+      inlineKeys: [],
+    });
+    await syncPostAssetLinks(env.DB, second.id, {
+      retainedAssetIds: [asset!.id],
+      inlineKeys: [],
+    });
+
+    await removePostAsset(env.DB, first.id, asset!.id);
+
+    expect(await listPostAssets(env.DB, first.id)).toEqual([]);
+    expect((await listPostAssets(env.DB, second.id))[0]).toMatchObject({
+      id: asset!.id,
+      sharedBy: 0,
+    });
+    expect(await listMediaCleanupJobs(env.DB)).toEqual([]);
+    expect(await env.DB.prepare("SELECT state FROM media_assets WHERE id = ?")
+      .bind(asset!.id).first()).toEqual({ state: "ready" });
+  });
+
+  it("keeps the library link when cover usage appears during removal", async () => {
+    const post = await createTestPost("remove-race-guard");
+    const [asset] = await insertReadyAssets(1, "remove-race");
+    await syncPostAssetLinks(env.DB, post.id, {
+      retainedAssetIds: [asset!.id],
+      inlineKeys: [],
+    });
+    let raced = false;
+    const racingDatabase = {
+      prepare: (...args: Parameters<D1Database["prepare"]>) => env.DB.prepare(...args),
+      withSession: (...args: Parameters<D1Database["withSession"]>) => env.DB.withSession(...args),
+      batch: async <T>(statements: D1PreparedStatement[]) => {
+        if (!raced) {
+          raced = true;
+          await env.DB.prepare(
+            `INSERT INTO post_asset_links (post_id, asset_id, usage, sort_order, created_at)
+             VALUES (?, ?, 'cover', 0, ?)`,
+          ).bind(post.id, asset!.id, new Date().toISOString()).run();
+        }
+        return env.DB.batch<T>(statements);
+      },
+    } as D1Database;
+
+    await expect(removePostAsset(racingDatabase, post.id, asset!.id))
+      .rejects.toBeInstanceOf(AdminConflictError);
+    expect((await listPostAssets(env.DB, post.id))[0]?.usages).toEqual(["cover", "library"]);
+  });
+
+  it("chunks more than 100 retained assets within D1 binding limits", async () => {
+    const post = await createTestPost("chunked-assets");
+    const assets = await insertReadyAssets(101, "chunked-assets");
+
+    const linked = await syncPostAssetLinks(env.DB, post.id, {
+      retainedAssetIds: assets.map(({ id }) => id),
+      coverAssetId: assets[0]!.id,
+      inlineKeys: [assets.at(-1)!.key],
+    });
+
+    expect(linked).toHaveLength(101);
+    expect(linked.find(({ id }) => id === assets[0]!.id)?.usages)
+      .toEqual(["cover", "library"]);
+    expect(linked.find(({ id }) => id === assets.at(-1)!.id)?.usages)
+      .toEqual(["inline", "library"]);
   });
 });
