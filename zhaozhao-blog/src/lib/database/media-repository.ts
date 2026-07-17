@@ -240,6 +240,18 @@ export async function failMediaUpload(
   ]);
 }
 
+export async function discardMediaUpload(
+  database: D1Database,
+  assetId: string,
+): Promise<void> {
+  const result = await database.prepare(
+    "DELETE FROM media_assets WHERE id = ? AND state = 'uploading'",
+  ).bind(assetId).run();
+  if (Number(result.meta.changes ?? 0) !== 1) {
+    throw new AdminConflictError("上传记录状态已变更，不能直接移除。", { assetId });
+  }
+}
+
 export async function listPostAssets(
   database: D1Database,
   postId: string,

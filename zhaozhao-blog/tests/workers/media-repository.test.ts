@@ -9,6 +9,7 @@ import {
   beginMediaUpload,
   buildPostAssetSyncStatements,
   completeMediaCleanup,
+  discardMediaUpload,
   failMediaCleanup,
   failMediaUpload,
   listMediaCleanupJobs,
@@ -97,6 +98,30 @@ describe("article media schema", () => {
       usages: ["inline", "library"],
       sharedBy: 1,
     });
+  });
+
+  it("discards only uploading assets after an object write failure", async () => {
+    const uploading = await beginMediaUpload(env.DB, {
+      key: "uploads/2026/07/discard-uploading.png",
+      originalName: "discard-uploading.png",
+      contentType: "image/png",
+      sizeBytes: 4,
+    });
+    const ready = await beginMediaUpload(env.DB, {
+      key: "uploads/2026/07/keep-ready.png",
+      originalName: "keep-ready.png",
+      contentType: "image/png",
+      sizeBytes: 4,
+    });
+    await markMediaReady(env.DB, ready.id);
+
+    await discardMediaUpload(env.DB, uploading.id);
+    expect(await env.DB.prepare("SELECT id FROM media_assets WHERE id = ?")
+      .bind(uploading.id).first()).toBeNull();
+    await expect(discardMediaUpload(env.DB, ready.id))
+      .rejects.toBeInstanceOf(AdminConflictError);
+    expect(await env.DB.prepare("SELECT state FROM media_assets WHERE id = ?")
+      .bind(ready.id).first()).toEqual({ state: "ready" });
   });
 
   it("attaches a ready upload directly to its owning post", async () => {

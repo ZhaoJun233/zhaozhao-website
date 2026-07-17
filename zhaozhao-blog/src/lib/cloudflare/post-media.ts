@@ -1,6 +1,7 @@
 import {
   beginMediaUpload,
   completeMediaCleanup,
+  discardMediaUpload,
   failMediaCleanup,
   failMediaUpload,
   listMediaCleanupJobs,
@@ -22,6 +23,13 @@ interface PostMediaMetadata {
 export interface MediaObjectStore {
   put(key: string, value: ArrayBuffer, options?: { metadata?: unknown }): Promise<void>;
   delete(key: string): Promise<void>;
+}
+
+export class MediaUploadRecoveryError extends AggregateError {
+  constructor(message: string, errors: unknown[]) {
+    super(errors, message);
+    this.name = "MediaUploadRecoveryError";
+  }
 }
 
 export async function runMediaCleanup(
@@ -63,8 +71,9 @@ export async function uploadPostImage(
     originalName,
     contentType,
     sizeBytes: file.size,
-    ...(owner.draftToken ? { draftToken: owner.draftToken } : {}),
+    ...(owner.draftToken !== undefined ? { draftToken: owner.draftToken } : {}),
   });
+
   try {
     await store.put(key, await file.arrayBuffer(), {
       metadata: {
@@ -73,18 +82,53 @@ export async function uploadPostImage(
         assetId: asset.id,
       } satisfies PostMediaMetadata,
     });
+  } catch (putError) {
+    try {
+      await discardMediaUpload(database, asset.id);
+    } catch (discardError) {
+      throw new MediaUploadRecoveryError(
+        "图片写入失败，且上传记录清理失败。",
+        [putError, discardError],
+      );
+    }
+    throw putError;
+  }
+
+  try {
     return await markMediaReady(database, asset.id, owner.postId);
-  } catch (error) {
+  } catch (readyError) {
     try {
       await failMediaUpload(database, asset.id);
-    } catch {
-      // Preserve the original upload failure if recovery also fails.
+    } catch (queueError) {
+      const recoveryErrors: unknown[] = [readyError, queueError];
+      let objectDeleted = false;
+      try {
+        await store.delete(key);
+        objectDeleted = true;
+      } catch (deleteError) {
+        recoveryErrors.push(deleteError);
+      }
+      if (objectDeleted) {
+        try {
+          await discardMediaUpload(database, asset.id);
+        } catch (discardError) {
+          recoveryErrors.push(discardError);
+        }
+      }
+      throw new MediaUploadRecoveryError(
+        "图片状态更新失败，且清理任务入队失败。",
+        recoveryErrors,
+      );
     }
+
     try {
       await runMediaCleanup(database, store);
-    } catch {
-      // Preserve the original upload failure if recovery also fails.
+    } catch (cleanupError) {
+      throw new MediaUploadRecoveryError(
+        "图片状态更新失败，且即时清理执行失败；清理任务已保留。",
+        [readyError, cleanupError],
+      );
     }
-    throw error;
+    throw readyError;
   }
 }

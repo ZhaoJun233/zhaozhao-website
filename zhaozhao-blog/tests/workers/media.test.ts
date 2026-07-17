@@ -5,14 +5,46 @@ import {
   storeAdminMedia,
 } from "../../src/lib/cloudflare/media";
 import {
+  MediaUploadRecoveryError,
   runMediaCleanup,
   uploadPostImage,
   type MediaObjectStore,
 } from "../../src/lib/cloudflare/post-media";
+import { createPost } from "../../src/lib/database/admin-repository";
 import {
+  beginMediaUpload,
+  failMediaUpload,
   listMediaCleanupJobs,
   queueDraftCleanup,
 } from "../../src/lib/database/media-repository";
+
+async function createTestPost(slug: string) {
+  return createPost(env.DB, {
+    slug,
+    title: slug,
+    description: "Media service test post.",
+    body: "Test body.",
+    publishedAt: "2026-07-17T00:00:00.000Z",
+    draft: true,
+    category: "开发",
+    tags: ["test"],
+    featured: false,
+  });
+}
+
+function databaseWithFailedBatchCalls(...failedCalls: number[]): D1Database {
+  let calls = 0;
+  return {
+    prepare: env.DB.prepare.bind(env.DB),
+    batch: async <T = unknown>(statements: D1PreparedStatement[]) => {
+      calls += 1;
+      if (failedCalls.includes(calls)) throw new Error("cleanup queue unavailable");
+      return env.DB.batch<T>(statements);
+    },
+    exec: env.DB.exec.bind(env.DB),
+    withSession: env.DB.withSession.bind(env.DB),
+  };
+}
 
 describe("KV administrator media", () => {
   it("uploads a draft article image and returns its asset", async () => {
@@ -31,6 +63,101 @@ describe("KV administrator media", () => {
       usages: [],
     });
     expect(await env.MEDIA.get(asset.key, "arrayBuffer")).not.toBeNull();
+  });
+
+  it("attaches a post upload to the article library immediately", async () => {
+    const post = await createTestPost("direct-post-upload");
+    const asset = await uploadPostImage(
+      env.DB,
+      env.MEDIA,
+      new File(["image"], "post.png", { type: "image/png" }),
+      { postId: post.id },
+    );
+
+    expect(asset.usages).toEqual(["library"]);
+    expect(asset.sharedBy).toBe(0);
+    expect(await env.MEDIA.get(asset.key, "arrayBuffer")).not.toBeNull();
+  });
+
+  it("discards only the uploading row when the object write fails", async () => {
+    let deleteCalls = 0;
+    const store: MediaObjectStore = {
+      put: async () => {
+        throw new Error("KV put failed");
+      },
+      delete: async () => {
+        deleteCalls += 1;
+      },
+    };
+
+    await expect(uploadPostImage(
+      env.DB,
+      store,
+      new File(["image"], "put-failure.png", { type: "image/png" }),
+      { draftToken: "44444444-4444-4444-8444-444444444444" },
+    )).rejects.toThrow("KV put failed");
+
+    expect(deleteCalls).toBe(0);
+    expect(await env.DB.prepare("SELECT id FROM media_assets").all()).toMatchObject({
+      results: [],
+    });
+    expect(await listMediaCleanupJobs(env.DB)).toEqual([]);
+  });
+
+  it("cleans the object when the ready state cannot be persisted", async () => {
+    let key = "";
+    const store: MediaObjectStore = {
+      put: async (nextKey, value, options) => {
+        key = nextKey;
+        await env.MEDIA.put(nextKey, value, options);
+      },
+      delete: (nextKey) => env.MEDIA.delete(nextKey),
+    };
+
+    await expect(uploadPostImage(
+      env.DB,
+      store,
+      new File(["image"], "missing-post.png", { type: "image/png" }),
+      { postId: "missing-post" },
+    )).rejects.toThrow();
+
+    expect(key).toMatch(/^uploads\//);
+    expect(await env.MEDIA.get(key, "arrayBuffer")).toBeNull();
+    expect(await env.DB.prepare("SELECT id FROM media_assets WHERE kv_key = ?")
+      .bind(key).first()).toBeNull();
+    expect(await listMediaCleanupJobs(env.DB)).toEqual([]);
+  });
+
+  it("reports cleanup queue failure after removing the untracked object", async () => {
+    let key = "";
+    const store: MediaObjectStore = {
+      put: async (nextKey, value, options) => {
+        key = nextKey;
+        await env.MEDIA.put(nextKey, value, options);
+      },
+      delete: (nextKey) => env.MEDIA.delete(nextKey),
+    };
+    const database = databaseWithFailedBatchCalls(2);
+
+    const error = await uploadPostImage(
+      database,
+      store,
+      new File(["image"], "queue-failure.png", { type: "image/png" }),
+      { postId: "missing-post" },
+    ).catch((uploadError: unknown) => uploadError);
+
+    expect(error).toMatchObject({
+      name: "MediaUploadRecoveryError",
+      message: expect.stringContaining("清理任务"),
+    });
+    expect(error).toBeInstanceOf(MediaUploadRecoveryError);
+    expect((error as MediaUploadRecoveryError).errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({ message: "cleanup queue unavailable" }),
+    ]));
+    expect(await env.MEDIA.get(key, "arrayBuffer")).toBeNull();
+    expect(await env.DB.prepare("SELECT id FROM media_assets WHERE kv_key = ?")
+      .bind(key).first()).toBeNull();
+    expect(await listMediaCleanupJobs(env.DB)).toEqual([]);
   });
 
   it("retries cleanup after an object deletion fails", async () => {
@@ -69,6 +196,24 @@ describe("KV administrator media", () => {
     });
     expect(await listMediaCleanupJobs(env.DB)).toEqual([]);
     expect(await env.MEDIA.get(asset.key, "arrayBuffer")).toBeNull();
+  });
+
+  it("completes cleanup when the object is already absent", async () => {
+    const asset = await beginMediaUpload(env.DB, {
+      key: "uploads/2026/07/already-absent.png",
+      originalName: "already-absent.png",
+      contentType: "image/png",
+      sizeBytes: 5,
+    });
+    await failMediaUpload(env.DB, asset.id);
+
+    await expect(runMediaCleanup(env.DB, env.MEDIA)).resolves.toEqual({
+      completed: 1,
+      failed: 0,
+    });
+    expect(await listMediaCleanupJobs(env.DB)).toEqual([]);
+    expect(await env.DB.prepare("SELECT id FROM media_assets WHERE id = ?")
+      .bind(asset.id).first()).toBeNull();
   });
 
   it.each([
