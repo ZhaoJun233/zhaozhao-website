@@ -10,11 +10,12 @@ export function mediaUrlFromKey(key: string): string {
   ) {
     throw new Error("图片路径不正确。");
   }
-  return `/media/${key}`;
+  return `/media/${key}/`;
 }
 
 export function mediaKeyFromUrl(value: string): string | undefined {
-  const path = value.trim().split(/[?#]/, 1)[0] ?? "";
+  const rawPath = value.trim().split(/[?#]/, 1)[0] ?? "";
+  const path = rawPath.endsWith("/") ? rawPath.slice(0, -1) : rawPath;
   const prefix = "/media/";
   if (!path.startsWith(prefix)) return undefined;
   let key: string;

@@ -8,8 +8,10 @@ import {
 describe("managed article images", () => {
   it("normalizes only uploads keys", () => {
     expect(mediaUrlFromKey("uploads/2026/07/a.webp"))
-      .toBe("/media/uploads/2026/07/a.webp");
+      .toBe("/media/uploads/2026/07/a.webp/");
     expect(mediaKeyFromUrl("/media/uploads/2026/07/a.webp?x=1"))
+      .toBe("uploads/2026/07/a.webp");
+    expect(mediaKeyFromUrl("/media/uploads/2026/07/a.webp/?x=1"))
       .toBe("uploads/2026/07/a.webp");
     expect(mediaKeyFromUrl("/media/backgrounds/home-hero.png")).toBeUndefined();
     expect(mediaKeyFromUrl("https://images.example/a.webp")).toBeUndefined();

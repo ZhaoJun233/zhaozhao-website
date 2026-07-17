@@ -220,7 +220,7 @@ describe("D1 administrator repository", () => {
       retainedAssetIds: [asset.id],
     });
 
-    expect(created.cover).toBe(`/media/${asset.key}`);
+    expect(created.cover).toBe(`/media/${asset.key}/`);
     expect(await listPostAssets(env.DB, created.id)).toEqual([
       expect.objectContaining({ id: asset.id, usages: ["cover", "library"] }),
     ]);
@@ -248,7 +248,7 @@ describe("D1 administrator repository", () => {
       retainedAssetIds: [asset.id],
     });
 
-    expect(updated.cover).toBe(`/media/${asset.key}`);
+    expect(updated.cover).toBe(`/media/${asset.key}/`);
     expect(await listPostAssets(env.DB, post.id)).toEqual([
       expect.objectContaining({
         id: asset.id,

@@ -49,7 +49,7 @@ export async function storeAdminMedia(
       originalName: file.name.slice(0, 240),
     } satisfies AdminMediaMetadata,
   });
-  return { key, url: `/media/${key}` };
+  return { key, url: `/media/${key}/` };
 }
 
 export async function readAdminMedia(store: KVNamespace, key: string): Promise<Response> {

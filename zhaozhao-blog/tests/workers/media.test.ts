@@ -275,7 +275,7 @@ describe("KV administrator media", () => {
     const stored = await storeAdminMedia(env.MEDIA, file, new Date("2026-07-17T08:00:00Z"));
 
     expect(stored.key).toMatch(new RegExp(`^uploads/2026/07/[0-9a-f-]+\\.${extension}$`));
-    expect(stored.url).toBe(`/media/${stored.key}`);
+    expect(stored.url).toBe(`/media/${stored.key}/`);
     const object = await env.MEDIA.getWithMetadata<{
       contentType: string;
       originalName: string;

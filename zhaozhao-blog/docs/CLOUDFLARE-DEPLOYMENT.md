@@ -36,19 +36,44 @@ npm run cf:typegen
 npm run check
 npm test
 npm run build
+npm run test:e2e
+npx wrangler deploy --dry-run
 npm run db:migrate:remote
 npm run deploy
 ```
 
-首次远程迁移会建立结构并导入仓库种子内容。部署完成后检查首页、`/admin/`、`/rss.xml`、留言和图片上传。
+`wrangler deploy --dry-run` 应列出 D1 绑定 `DB` 和 KV 绑定 `MEDIA`。首次远程迁移会建立结构并导入仓库种子内容；已有环境会应用 `0004_post_media.sql`，创建文章媒体、引用关系和清理队列表。远程迁移与部署都应在本地验证和变更审查通过后执行。
+
+部署完成后先做基础烟雾检查：
+
+```text
+GET  /                       -> 200
+GET  /admin/posts/           -> 302（无会话），200（已登录）
+POST /api/admin/post-assets/ -> 401（无会话）
+GET  /rss.xml                -> 200
+```
+
+随后登录后台并打开一次 `/admin/posts/`，触发可重复执行的旧文章媒体回填，再按以下顺序验证共享引用与最终清理：
+
+1. 创建文章 A，上传一张封面和一张正文图片，保存后确认两个 `/media/uploads/.../` 地址均返回 200。
+2. 创建文章 B，在 Markdown 中复用文章 A 的正文图片 URL 并保存。
+3. 删除文章 A，确认预览显示 1 张共享图片；删除后封面最终返回 404，而复用的正文图片仍返回 200。
+4. 删除文章 B，使用带随机查询参数的正文图片 URL 轮询，确认最后一个引用移除后最终返回 404。
+5. 用只读远程查询确认没有遗留清理任务：
+
+```powershell
+npx wrangler d1 execute zhaozhao-blog --remote --command "SELECT COUNT(*) AS cleanup_pending FROM media_cleanup_jobs;"
+```
+
+预期 `cleanup_pending` 为 `0`。若大于 `0`，先保留现场并检查 `attempts` 与 `last_error`，不要直接修改远程表。
 
 ## 4. 现有数据切换
 
-1. 从旧站后台“数据与备份”下载完整 JSON。
+1. 从旧站后台“数据与备份”下载 v2 JSON，并单独备份 Workers KV 图片对象。
 2. 完成远程迁移和 Worker 部署。
 3. 登录新站后台“数据与备份”。
 4. 导入 JSON，并核对文章、项目、分类、友链、页面设置和留言数量。
-5. 上传旧 JSON 中引用但未进入静态资源或 KV 的图片，并更新对应路径。
+5. 恢复 KV 对象；对旧 JSON 中引用但未进入静态资源或 KV 的图片重新上传并更新对应路径。
 6. 验证完成后再切换域名。
 
 ## 5. GitHub 连接
@@ -73,6 +98,8 @@ Cloudflare Workers Builds 可连接 `ZhaoJun233/zhaozhao-website`：
 - 代码回滚：重新部署 Git 历史中的稳定提交。
 - D1 结构回滚：优先新增修复迁移，不修改已执行的迁移文件。
 - KV 回滚：恢复键值对象或把页面设置改回已有媒体路径。
+
+注意：v2 JSON 只保存媒体元数据和引用关系，不含 KV 二进制对象。只有 JSON 的回滚不构成完整图片恢复。
 
 发布前可执行：
 
