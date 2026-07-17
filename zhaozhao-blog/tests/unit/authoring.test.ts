@@ -57,6 +57,17 @@ describe("database-backed authoring", () => {
     expect(mediaMigration).toContain("WHERE usage = 'cover'");
   });
 
+  it("ships the article-specific editor and image manager", () => {
+    const postsPage = readFileSync(resolve(appRoot, "src/pages/admin/posts.astro"), "utf8");
+    expect(postsPage).toContain("data-post-page");
+    expect(postsPage).toContain("data-post-cover-upload");
+    expect(postsPage).toContain("data-post-inline-upload");
+    expect(postsPage).toContain("data-post-media-list");
+    expect(postsPage).not.toContain('name="cover" /></div>');
+    expect(existsSync(resolve(appRoot, "src/scripts/admin-post-editor.ts"))).toBe(true);
+    expect(existsSync(resolve(appRoot, "src/scripts/admin-post-media.ts"))).toBe(true);
+  });
+
   it("documents Cloudflare secrets and removes Docker deployment files", () => {
     const environmentExample = readFileSync(resolve(appRoot, ".dev.vars.example"), "utf8");
     expect(environmentExample).toContain("ADMIN_PASSWORD=");

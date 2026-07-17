@@ -8,15 +8,6 @@ import { getDatabase } from "../../lib/cloudflare/bindings";
 const database = getDatabase();
 const [posts, categoryRows] = await Promise.all([listPosts(database), listCategories(database)]);
 const categories = categoryRows.filter(({ enabled }) => enabled);
-const config = { endpoint: "/api/admin/posts", confirmName: "文章", fields: [
-  { name: "slug", type: "text" }, { name: "title", type: "text" },
-  { name: "description", type: "textarea" }, { name: "body", type: "textarea" },
-  { name: "publishedAt", type: "date" }, { name: "updatedAt", type: "date", optional: true },
-  { name: "draft", type: "checkbox" }, { name: "category", type: "text" },
-  { name: "tags", type: "tags" }, { name: "cover", type: "text", optional: true },
-  { name: "coverAlt", type: "text", optional: true }, { name: "featured", type: "checkbox" },
-  { name: "series", type: "text", optional: true }, { name: "canonicalUrl", type: "text", optional: true },
-] };
 ---
 
 <AdminLayout title="文章管理">
@@ -26,40 +17,141 @@ const config = { endpoint: "/api/admin/posts", confirmName: "文章", fields: [
       <button class="admin-button" type="button" data-import-post><FileUp size={16} />导入 Markdown</button>
       <button class="admin-button admin-button--primary" type="button" data-create-record><Plus size={16} />新建文章</button>
     </div>
-    <div class="admin-split" data-record-page>
-      <section class="admin-panel" style="margin:0">
-        <div class="admin-panel__header"><div><h2>文章列表</h2><p>{posts.length} 篇文章，其中 {posts.filter(({ draft }) => draft).length} 篇草稿。</p></div></div>
-        <div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>文章</th><th>分类</th><th>状态</th><th>日期</th><th></th></tr></thead><tbody>
-          {posts.map((post) => <tr data-record-id={post.id}>
-            <td><div class="admin-table__title"><strong>{post.title}</strong><span>/{post.slug}/ · {post.description}</span></div></td>
-            <td>{post.category}</td>
-            <td><span class:list={["admin-badge", { "admin-badge--muted": post.draft }]}>{post.draft ? "草稿" : "已发布"}</span></td>
-            <td>{post.publishedAt.slice(0, 10)}</td>
-            <td><div class="admin-actions"><button class="admin-button admin-button--small" type="button" data-edit-record={post.id}><Pencil size={14} />编辑</button><button class="admin-button admin-button--small admin-button--danger" type="button" data-delete-record={post.id}><Trash2 size={14} />删除</button></div></td>
-          </tr>)}
-        </tbody></table></div>
+
+    <div class="admin-post-editor" data-post-page>
+      <section class="admin-panel admin-post-list">
+        <div class="admin-panel__header">
+          <div>
+            <h2>文章列表</h2>
+            <p>{posts.length} 篇文章，其中 {posts.filter(({ draft }) => draft).length} 篇草稿。</p>
+          </div>
+        </div>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead><tr><th>文章</th><th>分类</th><th>状态</th><th>日期</th><th></th></tr></thead>
+            <tbody>
+              {posts.map((post) => <tr data-record-id={post.id}>
+                <td><div class="admin-table__title"><strong>{post.title}</strong><span>/{post.slug}/ · {post.description}</span></div></td>
+                <td>{post.category}</td>
+                <td><span class:list={["admin-badge", { "admin-badge--muted": post.draft }]}>{post.draft ? "草稿" : "已发布"}</span></td>
+                <td>{post.publishedAt.slice(0, 10)}</td>
+                <td><div class="admin-actions">
+                  <button class="admin-button admin-button--small" type="button" data-edit-record={post.id}><Pencil size={14} />编辑</button>
+                  <button class="admin-button admin-button--small admin-button--danger" type="button" data-delete-record={post.id}><Trash2 size={14} />删除</button>
+                </div></td>
+              </tr>)}
+            </tbody>
+          </table>
+        </div>
       </section>
-      <aside class="admin-editor"><h2 data-editor-title>新增内容</h2><p>Slug 保存后用于文章永久链接。</p>
-        <form class="admin-form" data-record-form><input type="hidden" name="id" />
-          <div class="admin-field"><label for="post-title">标题</label><input id="post-title" name="title" required /></div>
-          <div class="admin-field"><label for="post-slug">Slug</label><input id="post-slug" name="slug" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" required /></div>
-          <div class="admin-field"><label for="post-description">摘要</label><textarea id="post-description" name="description" required></textarea></div>
-          <div class="admin-field"><label for="post-category">分类</label><select id="post-category" name="category" required><option value="">选择分类</option>{categories.map((category) => <option value={category.name}>{category.name}</option>)}</select></div>
-          <div class="admin-field"><label for="post-tags">标签</label><input id="post-tags" name="tags" placeholder="Astro, TypeScript" required /></div>
-          <div class="admin-field"><label for="post-published">发布日期</label><input id="post-published" name="publishedAt" type="date" required /></div>
-          <div class="admin-field"><label for="post-updated">更新日期</label><input id="post-updated" name="updatedAt" type="date" /></div>
-          <div class="admin-field"><label for="post-body">Markdown 正文</label><textarea id="post-body" name="body" data-body required></textarea></div>
-          <div class="admin-field"><label for="post-cover">封面路径</label><input id="post-cover" name="cover" /></div>
-          <div class="admin-field"><label for="post-cover-alt">封面说明</label><input id="post-cover-alt" name="coverAlt" /></div>
-          <div class="admin-field"><label for="post-series">系列</label><input id="post-series" name="series" /></div>
-          <div class="admin-field"><label for="post-canonical">规范链接</label><input id="post-canonical" name="canonicalUrl" type="url" /></div>
-          <label class="admin-field--check"><input name="draft" type="checkbox" />保存为草稿</label>
-          <label class="admin-field--check"><input name="featured" type="checkbox" />首页精选</label>
+
+      <section class="admin-editor admin-post-compose" aria-labelledby="post-editor-title">
+        <div class="admin-post-compose__heading">
+          <div>
+            <p class="admin-post-kicker">Article workspace</p>
+            <h2 id="post-editor-title" data-editor-title>新增文章</h2>
+            <p>先整理文字，再把图片留在本文图库中。保存时会同步封面与正文引用。</p>
+          </div>
+          <span class="admin-post-draft-mark" data-post-context-label>新草稿</span>
+        </div>
+
+        <form class="admin-form" data-record-form>
+          <input type="hidden" name="id" />
+          <input type="hidden" name="draftToken" />
+          <input type="hidden" name="coverAssetId" />
+          <input type="hidden" name="retainedAssetIds" value="[]" />
+
+          <div class="admin-post-fields">
+            <div class="admin-field admin-post-field--wide"><label for="post-title">标题</label><input id="post-title" name="title" autocomplete="off" required /></div>
+            <div class="admin-field"><label for="post-slug">Slug</label><input id="post-slug" name="slug" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" autocomplete="off" required /></div>
+            <div class="admin-field"><label for="post-category">分类</label><select id="post-category" name="category" required><option value="">选择分类</option>{categories.map((category) => <option value={category.name}>{category.name}</option>)}</select></div>
+            <div class="admin-field admin-post-field--wide"><label for="post-description">摘要</label><textarea id="post-description" name="description" required></textarea></div>
+            <div class="admin-field"><label for="post-tags">标签</label><input id="post-tags" name="tags" placeholder="Astro, TypeScript" required /></div>
+            <div class="admin-field"><label for="post-published">发布日期</label><input id="post-published" name="publishedAt" type="date" required /></div>
+            <div class="admin-field"><label for="post-updated">更新日期</label><input id="post-updated" name="updatedAt" type="date" /></div>
+            <div class="admin-field"><label for="post-series">系列</label><input id="post-series" name="series" /></div>
+            <div class="admin-field admin-post-field--wide"><label for="post-canonical">规范链接</label><input id="post-canonical" name="canonicalUrl" type="url" inputmode="url" /></div>
+          </div>
+
+          <section class="admin-post-cover" aria-labelledby="post-cover-heading">
+            <div class="admin-post-section-heading">
+              <div><span>01</span><h3 id="post-cover-heading">文章封面</h3></div>
+              <p>拖入一张图片，或从本文图库中选择。</p>
+            </div>
+            <div class="admin-post-cover__layout">
+              <div class="admin-post-cover__preview" data-post-cover-preview>
+                <img src="" alt="" data-post-cover-image hidden />
+                <p data-post-cover-empty>还没有封面。浅色预览区会显示裁切效果。</p>
+              </div>
+              <div class="admin-post-cover__controls">
+                <label class="admin-post-dropzone" for="post-cover-upload" data-post-cover-dropzone>
+                  <strong>拖放封面到这里</strong>
+                  <span>支持 JPEG、PNG、WebP 与 GIF</span>
+                </label>
+                <input id="post-cover-upload" type="file" accept="image/jpeg,image/png,image/webp,image/gif" data-post-cover-upload hidden />
+                <div class="admin-post-cover__actions">
+                  <button class="admin-button" type="button" data-post-cover-browse><FileUp size={15} />上传 / 替换</button>
+                  <button class="admin-button admin-button--danger" type="button" data-post-cover-remove><Trash2 size={15} />移除封面</button>
+                </div>
+                <div class="admin-field"><label for="post-cover-alt">封面说明</label><input id="post-cover-alt" name="coverAlt" placeholder="描述画面内容，方便读屏用户理解" /></div>
+                <details class="admin-post-advanced">
+                  <summary>兼容路径（高级）</summary>
+                  <div class="admin-field"><label for="post-cover">只读封面路径</label><input id="post-cover" name="cover" readonly aria-readonly="true" /></div>
+                </details>
+              </div>
+            </div>
+          </section>
+
+          <section class="admin-post-writing" aria-labelledby="post-body-heading">
+            <div class="admin-post-section-heading">
+              <div><span>02</span><h3 id="post-body-heading">Markdown 正文</h3></div>
+              <p>图片会插入到当前光标位置，并自动进入本文图库。</p>
+            </div>
+            <div class="admin-post-toolbar" role="toolbar" aria-label="Markdown 图片工具">
+              <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple data-post-inline-upload hidden />
+              <button class="admin-button" type="button" data-post-inline-browse><FileUp size={15} />上传并插入图片</button>
+              <span data-post-upload-hint>可一次选择多张</span>
+            </div>
+            <div class="admin-field"><label class="sr-only" for="post-body">Markdown 正文</label><textarea id="post-body" name="body" data-body spellcheck="true" required></textarea></div>
+          </section>
+
+          <section class="admin-post-media" aria-labelledby="post-media-heading">
+            <div class="admin-post-section-heading">
+              <div><span>03</span><h3 id="post-media-heading">本文图库</h3></div>
+              <p>保留图片、查看使用方式，或设为封面。</p>
+            </div>
+            <p class="admin-post-media__status" data-post-media-status aria-live="polite"></p>
+            <div class="admin-post-media-grid" data-post-media-list></div>
+            <div class="admin-post-media-empty" data-post-media-empty>
+              <strong>图库还是空的</strong>
+              <span>上传封面或正文图片后，会在这里集中显示。</span>
+            </div>
+          </section>
+
+          <div class="admin-post-options">
+            <label class="admin-field--check"><input name="draft" type="checkbox" />保存为草稿</label>
+            <label class="admin-field--check"><input name="featured" type="checkbox" />首页精选</label>
+          </div>
           <p class="admin-status" data-record-status aria-live="polite"></p>
-          <div class="admin-form__actions"><button class="admin-button admin-button--primary" type="submit"><Save size={15} />保存文章</button><button class="admin-button" type="button" data-cancel-edit><X size={15} />清空</button></div>
+          <div class="admin-form__actions admin-post-savebar">
+            <button class="admin-button admin-button--primary" type="submit"><Save size={15} />保存文章</button>
+            <button class="admin-button" type="button" data-cancel-edit><X size={15} />清空</button>
+          </div>
         </form>
-      </aside>
-      <script is:inline type="application/json" data-record-config set:html={JSON.stringify(config)}></script>
+      </section>
+
+      <dialog class="admin-post-delete-dialog" data-post-delete-dialog aria-labelledby="post-delete-title">
+        <form method="dialog">
+          <div class="admin-post-delete-dialog__mark"><Trash2 size={20} /></div>
+          <h2 id="post-delete-title">删除这篇文章？</h2>
+          <p>将一并清理 <strong data-post-delete-exclusive>0</strong> 张仅由本文使用的图片；<strong data-post-delete-shared>0</strong> 张共享图片会继续保留。</p>
+          <p class="admin-status" data-post-delete-status aria-live="polite"></p>
+          <div class="admin-form__actions">
+            <button class="admin-button" value="cancel">返回</button>
+            <button class="admin-button admin-button--danger" type="button" data-post-delete-confirm data-confirm-post-delete>确认删除</button>
+          </div>
+        </form>
+      </dialog>
     </div>
   </AdminShell>
 </AdminLayout>
