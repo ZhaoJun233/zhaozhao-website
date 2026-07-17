@@ -2,26 +2,10 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { parse } from "yaml";
-
-type ComposeService = {
-  build: { args?: Record<string, string>; context: string; target?: string };
-  environment?: Record<string, string>;
-  healthcheck?: { test: string[] };
-  ports?: string[];
-  volumes?: string[];
-};
-type ComposeConfig = {
-  services: Record<string, ComposeService>;
-  volumes?: Record<string, unknown>;
-};
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const root = resolve(appRoot, "..");
 const packageJson = JSON.parse(readFileSync(resolve(appRoot, "package.json"), "utf8"));
-const compose = parse(readFileSync(resolve(appRoot, "docker-compose.yml"), "utf8")) as ComposeConfig;
-const dockerfile = readFileSync(resolve(appRoot, "Dockerfile"), "utf8");
-const environmentExample = readFileSync(resolve(appRoot, ".env.example"), "utf8");
 
 describe("database-backed authoring", () => {
   it("ships a custom admin workspace for every maintainable content area", () => {
@@ -44,28 +28,28 @@ describe("database-backed authoring", () => {
     expect(existsSync(resolve(appRoot, "scripts/start-cms.mjs"))).toBe(false);
   });
 
-  it("runs one SSR service with a persistent SQLite volume", () => {
-    expect(Object.keys(compose.services)).toEqual(["site"]);
-    const site = compose.services.site!;
-    expect(site.build).toMatchObject({ context: ".", target: "runtime" });
-    expect(site.ports).toEqual(["127.0.0.1:4321:4321"]);
-    expect(site.volumes).toContain("blog-data:/app/storage");
-    expect(site.volumes).toContain("./src/data:/app/src/data:ro");
-    expect(site.environment).toMatchObject({
-      CONTENT_ROOT: "/app/src",
-      BLOG_DATABASE_PATH: "/app/storage/blog.sqlite",
-      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-233zhao-local-admin}",
-      ADMIN_SESSION_SECRET: "${ADMIN_SESSION_SECRET:-change-this-local-session-secret}",
+  it("uses the Cloudflare Worker adapter with D1 and R2 bindings", () => {
+    expect(packageJson.dependencies).toHaveProperty("@astrojs/cloudflare", "14.1.3");
+    expect(packageJson.dependencies).not.toHaveProperty("@astrojs/node");
+    const wrangler = JSON.parse(readFileSync(resolve(appRoot, "wrangler.jsonc"), "utf8"));
+    expect(wrangler).toMatchObject({
+      name: "zhaozhao-website",
+      compatibility_date: "2026-07-17",
+      compatibility_flags: ["nodejs_compat"],
+      d1_databases: [{ binding: "DB", database_name: "zhaozhao-blog" }],
+      r2_buckets: [{ binding: "MEDIA", bucket_name: "zhaozhao-media" }],
     });
-    expect(compose.volumes).toHaveProperty("blog-data");
+    expect(wrangler.assets.directory).toBe("./dist");
   });
 
-  it("documents the required database and administrator environment", () => {
-    expect(environmentExample).toContain("BLOG_DATABASE_PATH=");
+  it("documents Cloudflare secrets and removes Docker deployment files", () => {
+    const environmentExample = readFileSync(resolve(appRoot, ".dev.vars.example"), "utf8");
     expect(environmentExample).toContain("ADMIN_PASSWORD=");
     expect(environmentExample).toContain("ADMIN_SESSION_SECRET=");
-    expect(dockerfile).toContain('CMD ["node", "dist/server/entry.mjs"]');
-    expect(dockerfile).toContain("/app/storage");
-    expect(readFileSync(resolve(root, ".gitignore"), "utf8")).toContain("storage/*.sqlite");
+    expect(existsSync(resolve(appRoot, "docker-compose.yml"))).toBe(false);
+    expect(existsSync(resolve(appRoot, "Dockerfile"))).toBe(false);
+    const ignore = readFileSync(resolve(root, ".gitignore"), "utf8");
+    expect(ignore).toContain(".wrangler/");
+    expect(ignore).toContain(".dev.vars");
   });
 });

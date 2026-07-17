@@ -1,0 +1,2 @@
+ADMIN_PASSWORD=change-this-admin-password
+ADMIN_SESSION_SECRET=change-this-long-random-session-secret

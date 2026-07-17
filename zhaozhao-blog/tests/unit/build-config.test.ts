@@ -1,7 +1,16 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { resolveSiteUrl } from "../../src/config/build";
 
 describe("deployment site URL", () => {
+  it("builds through the Cloudflare adapter", () => {
+    const config = readFileSync(resolve("astro.config.mjs"), "utf8");
+    expect(config).toContain('from "@astrojs/cloudflare"');
+    expect(config).toContain("cloudflare(");
+    expect(config).not.toContain("@astrojs/node");
+  });
+
   it("keeps a stable localhost default for development and local tests", () => {
     expect(resolveSiteUrl({})).toBe("http://localhost:4321");
   });

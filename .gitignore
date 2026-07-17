@@ -10,11 +10,14 @@ test-results/
 storage/*.sqlite
 storage/*.sqlite-shm
 storage/*.sqlite-wal
+.wrangler/
+.dev.vars
 
 # Local environment
 .env
 .env.*
 !.env.example
+!.dev.vars.example
 
 # IDE and OS files
 .DS_Store
