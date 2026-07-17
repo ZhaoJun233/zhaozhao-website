@@ -24,7 +24,7 @@
     }
   ],
   "vars": {
-    "PUBLIC_SITE_URL": "http://localhost:4321",
+    "PUBLIC_SITE_URL": "https://zhaozhao-website.zhaozhao7991.workers.dev",
     "PUBLIC_GISCUS_REPO": "",
     "PUBLIC_GISCUS_REPO_ID": "",
     "PUBLIC_GISCUS_CATEGORY": "",
