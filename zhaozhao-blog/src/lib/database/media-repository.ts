@@ -192,11 +192,23 @@ export async function markMediaReady(
   if (postId) {
     statements.push(database.prepare(
       `INSERT INTO post_asset_links (post_id, asset_id, usage, sort_order, created_at)
-       VALUES (?, ?, 'library', 0, ?)
+       VALUES (?, (
+         SELECT asset.id FROM media_assets asset
+         WHERE asset.id = ? AND asset.state = 'ready'
+       ), 'library', 0, ?)
        ON CONFLICT(post_id, asset_id, usage) DO NOTHING`,
     ).bind(postId, assetId, timestamp));
   }
-  await database.batch(statements);
+  let results: D1Result[];
+  try {
+    results = await database.batch(statements);
+  } catch (error) {
+    if (!isConstraintError(error)) throw error;
+    throw new AdminConflictError("待删除图片不能重新使用。", { assetId });
+  }
+  if (Number(results[0]?.meta.changes ?? 0) !== 1) {
+    throw new AdminConflictError("待删除图片不能重新使用。", { assetId });
+  }
   if (postId) {
     const attached = (await listPostAssets(database, postId))
       .find(({ id }) => id === assetId);
@@ -327,27 +339,56 @@ export function buildPostAssetSyncStatements(
 ): D1PreparedStatement[] {
   const timestamp = now.toISOString();
   const draftToken = resolved.draftToken ?? null;
+  let libraryIndex = 0;
+  const libraryStatements = chunks(
+    resolved.libraryAssetIds,
+    Math.floor(maxD1BindingsPerStatement / 5),
+  ).map((assetIds) => {
+    const bindings: D1Value[] = [];
+    const values = assetIds.map((assetId) => {
+      bindings.push(postId, assetId, draftToken, libraryIndex++, timestamp);
+      return `(?, (
+        SELECT asset.id FROM media_assets asset
+        WHERE asset.id = ? AND asset.state = 'ready'
+          AND (asset.draft_token IS NULL OR asset.draft_token = ?)
+      ), 'library', ?, ?)`;
+    });
+    return database.prepare(
+      `INSERT INTO post_asset_links (post_id, asset_id, usage, sort_order, created_at)
+       VALUES ${values.join(", ")}`,
+    ).bind(...bindings);
+  });
+  let inlineIndex = 0;
+  const inlineStatements = chunks(
+    resolved.inlineAssetIds,
+    Math.floor(maxD1BindingsPerStatement / 4),
+  ).map((assetIds) => {
+    const bindings: D1Value[] = [];
+    const values = assetIds.map((assetId) => {
+      bindings.push(postId, assetId, inlineIndex++, timestamp);
+      return "(?, ?, 'inline', ?, ?)";
+    });
+    return database.prepare(
+      `INSERT INTO post_asset_links (post_id, asset_id, usage, sort_order, created_at)
+       VALUES ${values.join(", ")}`,
+    ).bind(...bindings);
+  });
+  const clearDraftStatements = chunks(
+    resolved.clearDraftAssetIds,
+    maxD1BindingsPerStatement - 1,
+  ).map((assetIds) => database.prepare(
+    `UPDATE media_assets SET draft_token = NULL
+     WHERE draft_token = ? AND id IN (${assetIds.map(() => "?").join(", ")})`,
+  ).bind(draftToken, ...assetIds));
   return [
     database.prepare("DELETE FROM post_asset_links WHERE post_id = ?").bind(postId),
-    ...resolved.libraryAssetIds.map((assetId, index) => database.prepare(
-      `INSERT INTO post_asset_links (post_id, asset_id, usage, sort_order, created_at)
-       VALUES (?, (
-         SELECT asset.id FROM media_assets asset
-         WHERE asset.id = ? AND asset.state = 'ready'
-           AND (asset.draft_token IS NULL OR asset.draft_token = ?)
-       ), 'library', ?, ?)`,
-    ).bind(postId, assetId, draftToken, index, timestamp)),
+    ...libraryStatements,
     ...(resolved.coverAssetId ? [database.prepare(
       `INSERT INTO post_asset_links (post_id, asset_id, usage, sort_order, created_at)
        VALUES (?, ?, 'cover', 0, ?)`,
     ).bind(postId, resolved.coverAssetId, timestamp)] : []),
-    ...resolved.inlineAssetIds.map((assetId, index) => database.prepare(
-      `INSERT INTO post_asset_links (post_id, asset_id, usage, sort_order, created_at)
-       VALUES (?, ?, 'inline', ?, ?)`,
-    ).bind(postId, assetId, index, timestamp)),
-    ...resolved.clearDraftAssetIds.map((assetId) => database.prepare(
-      "UPDATE media_assets SET draft_token = NULL WHERE id = ? AND draft_token = ?",
-    ).bind(assetId, draftToken)),
+    ...inlineStatements,
+    ...clearDraftStatements,
   ];
 }
 
@@ -373,23 +414,13 @@ export async function removePostAsset(
   postId: string,
   assetId: string,
 ): Promise<void> {
-  const { results } = await primary(database).prepare(
-    `SELECT usage FROM post_asset_links
-     WHERE post_id = ? AND asset_id = ?
-     ORDER BY CASE usage WHEN 'cover' THEN 0 WHEN 'inline' THEN 1 ELSE 2 END`,
-  ).bind(postId, assetId).all<{ usage: PostAssetUsage }>();
-  if (results.length === 0) throw new AdminNotFoundError("图片不属于当前文章。");
-  const activeUsages = results
-    .map(({ usage }) => usage)
-    .filter((usage): usage is "cover" | "inline" => usage !== "library");
-  if (activeUsages.length > 0) {
-    throw new AdminConflictError("请先从封面或正文移除这张图片并保存文章。", {
-      usages: activeUsages,
-    });
-  }
-
   const timestamp = new Date().toISOString();
-  const [removeResult] = await database.batch([
+  const [usageResult, removeResult] = await database.batch<{ usage: PostAssetUsage }>([
+    database.prepare(
+      `SELECT usage FROM post_asset_links
+       WHERE post_id = ? AND asset_id = ?
+       ORDER BY CASE usage WHEN 'cover' THEN 0 WHEN 'inline' THEN 1 ELSE 2 END`,
+    ).bind(postId, assetId),
     database.prepare(
       `DELETE FROM post_asset_links
        WHERE post_id = ? AND asset_id = ? AND usage = 'library'
@@ -413,10 +444,18 @@ export async function removePostAsset(
        ON CONFLICT(asset_id) DO NOTHING`,
     ).bind(timestamp, assetId),
   ]);
-  if (Number(removeResult?.meta.changes ?? 0) !== 1) {
+  const usages = usageResult?.results.map(({ usage }) => usage) ?? [];
+  if (usages.length === 0) throw new AdminNotFoundError("图片不属于当前文章。");
+  const activeUsages = usages.filter(
+    (usage): usage is "cover" | "inline" => usage !== "library",
+  );
+  if (activeUsages.length > 0) {
     throw new AdminConflictError("请先从封面或正文移除这张图片并保存文章。", {
-      usages: ["cover", "inline"],
+      usages: activeUsages,
     });
+  }
+  if (Number(removeResult?.meta.changes ?? 0) !== 1) {
+    throw new AdminNotFoundError("图片不属于当前文章。");
   }
 }
 
