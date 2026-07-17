@@ -3,9 +3,9 @@ import { Pencil, Plus, Save, Trash2, X } from "lucide-astro";
 import AdminShell from "../../components/admin/AdminShell.astro";
 import AdminLayout from "../../layouts/AdminLayout.astro";
 import { listProjects } from "../../lib/database/admin-repository";
-import { getContentDatabase } from "../../lib/database/legacy-content-database";
+import { getDatabase } from "../../lib/cloudflare/bindings";
 
-const projects = listProjects(getContentDatabase());
+const projects = await listProjects(getDatabase());
 const config = { endpoint: "/api/admin/projects", confirmName: "项目", fields: [
   { name: "slug", type: "text" }, { name: "title", type: "text" },
   { name: "description", type: "textarea" }, { name: "body", type: "textarea" },

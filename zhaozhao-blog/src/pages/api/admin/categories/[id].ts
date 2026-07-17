@@ -10,7 +10,7 @@ export const PUT: APIRoute = ({ request, params }) => handleAdminRequest(
   request,
   async (database) => updateCategory(database, params.id!, await readAdminJson(request) as never),
 );
-export const DELETE: APIRoute = ({ request, params }) => handleAdminRequest(request, (database) => {
-  deleteCategory(database, params.id!);
+export const DELETE: APIRoute = ({ request, params }) => handleAdminRequest(request, async (database) => {
+  await deleteCategory(database, params.id!);
   return { deleted: true };
 });

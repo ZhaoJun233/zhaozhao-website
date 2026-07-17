@@ -10,7 +10,7 @@ export const PUT: APIRoute = ({ request, params }) => handleAdminRequest(
   request,
   async (database) => updatePost(database, params.id!, await readAdminJson(request) as never),
 );
-export const DELETE: APIRoute = ({ request, params }) => handleAdminRequest(request, (database) => {
-  deletePost(database, params.id!);
+export const DELETE: APIRoute = ({ request, params }) => handleAdminRequest(request, async (database) => {
+  await deletePost(database, params.id!);
   return { deleted: true };
 });

@@ -1,9 +1,7 @@
-import type { DatabaseSync } from "node:sqlite";
 import { env } from "cloudflare:workers";
 import { z } from "astro/zod";
 import { authenticateAdminSession, readAdminSessionToken } from "./auth";
 import { getDatabase } from "../cloudflare/bindings";
-import { getContentDatabase } from "../database/legacy-content-database";
 import { AdminConflictError, AdminNotFoundError } from "../database/admin-repository";
 
 const maxBodyBytes = 1024 * 1024;
@@ -85,11 +83,11 @@ function errorResponse(error: unknown): Response {
 
 export async function handleAdminRequest(
   request: Request,
-  operation: (database: DatabaseSync) => unknown | Promise<unknown>,
+  operation: (database: D1Database) => unknown | Promise<unknown>,
 ): Promise<Response> {
   try {
     await requireAdmin(request);
-    const result = await operation(getContentDatabase());
+    const result = await operation(getDatabase());
     if (result instanceof Response) return result;
     return Response.json({ data: result }, { headers: { "cache-control": "no-store" } });
   } catch (error) {

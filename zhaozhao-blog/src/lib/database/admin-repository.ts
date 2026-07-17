@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import type { DatabaseSync } from "node:sqlite";
 import {
   categoryInputSchema,
   friendInputSchema,
@@ -146,244 +145,294 @@ function projectFromRow(row: ProjectRow): AdminProject {
   };
 }
 
-function getRequired<T>(value: T | undefined, message: string): T {
+async function firstRequired<T>(
+  statement: D1PreparedStatement,
+  message: string,
+): Promise<T> {
+  const value = await statement.first<T>();
   if (!value) throw new AdminNotFoundError(message);
   return value;
 }
 
-function nextOrder(database: DatabaseSync, table: "categories" | "friends" | "projects") {
-  const row = database.prepare(`SELECT COALESCE(MAX(sort_order), -1) + 1 AS value FROM ${table}`)
-    .get() as { value: number };
-  return Number(row.value);
+async function nextOrder(
+  database: D1DatabaseSession,
+  table: "categories" | "friends" | "projects",
+): Promise<number> {
+  const row = await database.prepare(
+    `SELECT COALESCE(MAX(sort_order), -1) + 1 AS value FROM ${table}`,
+  ).first<{ value: number }>();
+  return Number(row?.value ?? 0);
 }
 
-export function listCategories(database: DatabaseSync): AdminCategory[] {
-  const rows = database.prepare("SELECT * FROM categories ORDER BY sort_order, name").all();
-  return (rows as unknown as CategoryRow[]).map(categoryFromRow);
+function primary(database: D1Database): D1DatabaseSession {
+  return database.withSession("first-primary");
 }
 
-export function createCategory(database: DatabaseSync, input: CategoryInput): AdminCategory {
+export async function listCategories(database: D1Database): Promise<AdminCategory[]> {
+  const { results } = await primary(database).prepare(
+    "SELECT * FROM categories ORDER BY sort_order, name",
+  ).all<CategoryRow>();
+  return results.map(categoryFromRow);
+}
+
+export async function createCategory(
+  database: D1Database,
+  input: CategoryInput,
+): Promise<AdminCategory> {
   const value = categoryInputSchema.parse(input);
   const id = randomUUID();
-  database.prepare(
+  const session = primary(database);
+  await session.prepare(
     `INSERT INTO categories (id, name, slug, description, sort_order, enabled)
      VALUES (?, ?, ?, ?, ?, ?)`,
-  ).run(id, value.name, taxonomySlug(value.name), value.description ?? null,
-    nextOrder(database, "categories"), value.enabled ? 1 : 0);
+  ).bind(id, value.name, taxonomySlug(value.name), value.description ?? null,
+    await nextOrder(session, "categories"), value.enabled ? 1 : 0).run();
   return getCategory(database, id);
 }
 
-export function getCategory(database: DatabaseSync, id: string): AdminCategory {
-  const row = database.prepare("SELECT * FROM categories WHERE id = ?").get(id) as
-    unknown as CategoryRow | undefined;
-  return categoryFromRow(getRequired(row, "分类不存在。"));
+export async function getCategory(database: D1Database, id: string): Promise<AdminCategory> {
+  return categoryFromRow(await firstRequired<CategoryRow>(
+    primary(database).prepare("SELECT * FROM categories WHERE id = ?").bind(id),
+    "分类不存在。",
+  ));
 }
 
-export function updateCategory(database: DatabaseSync, id: string, input: CategoryInput): AdminCategory {
-  const current = getCategory(database, id);
+export async function updateCategory(
+  database: D1Database,
+  id: string,
+  input: CategoryInput,
+): Promise<AdminCategory> {
+  const current = await getCategory(database, id);
   const value = categoryInputSchema.parse(input);
-  database.exec("BEGIN IMMEDIATE");
-  try {
-    database.prepare(
-      "UPDATE categories SET name = ?, slug = ?, description = ?, enabled = ? WHERE id = ?",
-    ).run(value.name, taxonomySlug(value.name), value.description ?? null, value.enabled ? 1 : 0, id);
-    if (current.name !== value.name) {
-      database.prepare("UPDATE posts SET category = ? WHERE category = ?").run(value.name, current.name);
-    }
-    database.exec("COMMIT");
-  } catch (error) {
-    database.exec("ROLLBACK");
-    throw error;
+  const statements = [database.prepare(
+    "UPDATE categories SET name = ?, slug = ?, description = ?, enabled = ? WHERE id = ?",
+  ).bind(value.name, taxonomySlug(value.name), value.description ?? null, value.enabled ? 1 : 0, id)];
+  if (current.name !== value.name) {
+    statements.push(database.prepare(
+      "UPDATE posts SET category = ? WHERE category = ?",
+    ).bind(value.name, current.name));
   }
+  await database.batch(statements);
   return getCategory(database, id);
 }
 
-export function deleteCategory(database: DatabaseSync, id: string): void {
-  const category = getCategory(database, id);
-  const references = database.prepare("SELECT COUNT(*) AS count FROM posts WHERE category = ?")
-    .get(category.name) as { count: number };
-  if (Number(references.count) > 0) {
-    throw new AdminConflictError("该分类仍被文章使用。", { references: Number(references.count) });
+export async function deleteCategory(database: D1Database, id: string): Promise<void> {
+  const category = await getCategory(database, id);
+  const references = await primary(database).prepare(
+    "SELECT COUNT(*) AS count FROM posts WHERE category = ?",
+  ).bind(category.name).first<{ count: number }>();
+  if (Number(references?.count ?? 0) > 0) {
+    throw new AdminConflictError("该分类仍被文章使用。", {
+      references: Number(references?.count ?? 0),
+    });
   }
-  database.prepare("DELETE FROM categories WHERE id = ?").run(id);
+  await database.prepare("DELETE FROM categories WHERE id = ?").bind(id).run();
 }
 
-export function listFriends(database: DatabaseSync): AdminFriend[] {
-  const rows = database.prepare("SELECT * FROM friends ORDER BY sort_order, name").all();
-  return (rows as unknown as FriendRow[]).map(friendFromRow);
+export async function listFriends(database: D1Database): Promise<AdminFriend[]> {
+  const { results } = await primary(database).prepare(
+    "SELECT * FROM friends ORDER BY sort_order, name",
+  ).all<FriendRow>();
+  return results.map(friendFromRow);
 }
 
-export function getFriend(database: DatabaseSync, id: string): AdminFriend {
-  const row = database.prepare("SELECT * FROM friends WHERE id = ?").get(id) as
-    unknown as FriendRow | undefined;
-  return friendFromRow(getRequired(row, "友链不存在。"));
+export async function getFriend(database: D1Database, id: string): Promise<AdminFriend> {
+  return friendFromRow(await firstRequired<FriendRow>(
+    primary(database).prepare("SELECT * FROM friends WHERE id = ?").bind(id),
+    "友链不存在。",
+  ));
 }
 
-export function createFriend(database: DatabaseSync, input: FriendInput): AdminFriend {
+export async function createFriend(database: D1Database, input: FriendInput): Promise<AdminFriend> {
   const value = friendInputSchema.parse(input);
   const id = randomUUID();
-  database.prepare(
+  const timestamp = new Date().toISOString();
+  const session = primary(database);
+  await session.prepare(
     `INSERT INTO friends
      (id, name, url, description, interests_json, sort_order, enabled, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(id, value.name, value.url, value.description, JSON.stringify(value.interests),
-    nextOrder(database, "friends"), value.enabled ? 1 : 0, new Date().toISOString());
+  ).bind(id, value.name, value.url, value.description, JSON.stringify(value.interests),
+    await nextOrder(session, "friends"), value.enabled ? 1 : 0, timestamp).run();
   return getFriend(database, id);
 }
 
-export function updateFriend(database: DatabaseSync, id: string, input: FriendInput): AdminFriend {
-  getFriend(database, id);
+export async function updateFriend(
+  database: D1Database,
+  id: string,
+  input: FriendInput,
+): Promise<AdminFriend> {
+  await getFriend(database, id);
   const value = friendInputSchema.parse(input);
-  database.prepare(
+  await database.prepare(
     `UPDATE friends SET name = ?, url = ?, description = ?, interests_json = ?,
      enabled = ?, updated_at = ? WHERE id = ?`,
-  ).run(value.name, value.url, value.description, JSON.stringify(value.interests),
-    value.enabled ? 1 : 0, new Date().toISOString(), id);
+  ).bind(value.name, value.url, value.description, JSON.stringify(value.interests),
+    value.enabled ? 1 : 0, new Date().toISOString(), id).run();
   return getFriend(database, id);
 }
 
-export function deleteFriend(database: DatabaseSync, id: string): void {
-  if (database.prepare("DELETE FROM friends WHERE id = ?").run(id).changes === 0) {
-    throw new AdminNotFoundError("友链不存在。");
-  }
+export async function deleteFriend(database: D1Database, id: string): Promise<void> {
+  const result = await database.prepare("DELETE FROM friends WHERE id = ?").bind(id).run();
+  if ((result.meta.changes ?? 0) === 0) throw new AdminNotFoundError("友链不存在。");
 }
 
-export function orderFriends(database: DatabaseSync, ids: string[]): AdminFriend[] {
-  const current = listFriends(database).map(({ id }) => id).sort();
+export async function orderFriends(database: D1Database, ids: string[]): Promise<AdminFriend[]> {
+  const current = (await listFriends(database)).map(({ id }) => id).sort();
   if (ids.length !== current.length || [...ids].sort().some((id, index) => id !== current[index])) {
     throw new AdminConflictError("排序列表必须包含全部友链。" );
   }
-  database.exec("BEGIN IMMEDIATE");
-  try {
-    const update = database.prepare("UPDATE friends SET sort_order = ? WHERE id = ?");
-    ids.forEach((id, index) => update.run(index, id));
-    database.exec("COMMIT");
-  } catch (error) {
-    database.exec("ROLLBACK");
-    throw error;
-  }
+  await database.batch(ids.map((id, index) => database.prepare(
+    "UPDATE friends SET sort_order = ? WHERE id = ?",
+  ).bind(index, id)));
   return listFriends(database);
 }
 
-export function listPosts(database: DatabaseSync): AdminPost[] {
-  const rows = database.prepare("SELECT * FROM posts ORDER BY published_at DESC, slug").all();
-  return (rows as unknown as PostRow[]).map(postFromRow);
+export async function listPosts(database: D1Database): Promise<AdminPost[]> {
+  const { results } = await primary(database).prepare(
+    "SELECT * FROM posts ORDER BY published_at DESC, slug",
+  ).all<PostRow>();
+  return results.map(postFromRow);
 }
 
-export function getPost(database: DatabaseSync, id: string): AdminPost {
-  const row = database.prepare("SELECT * FROM posts WHERE id = ?").get(id) as
-    unknown as PostRow | undefined;
-  return postFromRow(getRequired(row, "文章不存在。"));
+export async function getPost(database: D1Database, id: string): Promise<AdminPost> {
+  return postFromRow(await firstRequired<PostRow>(
+    primary(database).prepare("SELECT * FROM posts WHERE id = ?").bind(id),
+    "文章不存在。",
+  ));
 }
 
-function savePost(database: DatabaseSync, id: string, input: PostInput, create: boolean): AdminPost {
+async function savePost(
+  database: D1Database,
+  id: string,
+  input: PostInput,
+  create: boolean,
+): Promise<AdminPost> {
   const value = postInputSchema.parse(input);
   if (create) {
-    database.prepare(
+    await database.prepare(
       `INSERT INTO posts
        (id, slug, title, description, body, published_at, updated_at, draft, category,
         tags_json, cover, cover_alt, featured, series, canonical_url)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).run(id, value.slug, value.title, value.description, value.body, value.publishedAt,
+    ).bind(id, value.slug, value.title, value.description, value.body, value.publishedAt,
       value.updatedAt ?? null, value.draft ? 1 : 0, value.category, JSON.stringify(value.tags),
       value.cover ?? null, value.coverAlt ?? null, value.featured ? 1 : 0,
-      value.series ?? null, value.canonicalUrl ?? null);
+      value.series ?? null, value.canonicalUrl ?? null).run();
   } else {
-    getPost(database, id);
-    database.prepare(
+    await getPost(database, id);
+    await database.prepare(
       `UPDATE posts SET slug = ?, title = ?, description = ?, body = ?, published_at = ?,
        updated_at = ?, draft = ?, category = ?, tags_json = ?, cover = ?, cover_alt = ?,
        featured = ?, series = ?, canonical_url = ? WHERE id = ?`,
-    ).run(value.slug, value.title, value.description, value.body, value.publishedAt,
+    ).bind(value.slug, value.title, value.description, value.body, value.publishedAt,
       value.updatedAt ?? null, value.draft ? 1 : 0, value.category, JSON.stringify(value.tags),
       value.cover ?? null, value.coverAlt ?? null, value.featured ? 1 : 0,
-      value.series ?? null, value.canonicalUrl ?? null, id);
+      value.series ?? null, value.canonicalUrl ?? null, id).run();
   }
   return getPost(database, id);
 }
 
-export function createPost(database: DatabaseSync, input: PostInput): AdminPost {
+export function createPost(database: D1Database, input: PostInput): Promise<AdminPost> {
   return savePost(database, randomUUID(), input, true);
 }
 
-export function updatePost(database: DatabaseSync, id: string, input: PostInput): AdminPost {
+export function updatePost(database: D1Database, id: string, input: PostInput): Promise<AdminPost> {
   return savePost(database, id, input, false);
 }
 
-export function deletePost(database: DatabaseSync, id: string): void {
-  if (database.prepare("DELETE FROM posts WHERE id = ?").run(id).changes === 0) {
-    throw new AdminNotFoundError("文章不存在。");
-  }
+export async function deletePost(database: D1Database, id: string): Promise<void> {
+  const result = await database.prepare("DELETE FROM posts WHERE id = ?").bind(id).run();
+  if ((result.meta.changes ?? 0) === 0) throw new AdminNotFoundError("文章不存在。");
 }
 
-export function listProjects(database: DatabaseSync): AdminProject[] {
-  const rows = database.prepare("SELECT * FROM projects ORDER BY sort_order, project_date DESC").all();
-  return (rows as unknown as ProjectRow[]).map(projectFromRow);
+export async function listProjects(database: D1Database): Promise<AdminProject[]> {
+  const { results } = await primary(database).prepare(
+    "SELECT * FROM projects ORDER BY sort_order, project_date DESC",
+  ).all<ProjectRow>();
+  return results.map(projectFromRow);
 }
 
-export function getProject(database: DatabaseSync, id: string): AdminProject {
-  const row = database.prepare("SELECT * FROM projects WHERE id = ?").get(id) as
-    unknown as ProjectRow | undefined;
-  return projectFromRow(getRequired(row, "项目不存在。"));
+export async function getProject(database: D1Database, id: string): Promise<AdminProject> {
+  return projectFromRow(await firstRequired<ProjectRow>(
+    primary(database).prepare("SELECT * FROM projects WHERE id = ?").bind(id),
+    "项目不存在。",
+  ));
 }
 
-function saveProject(database: DatabaseSync, id: string, input: ProjectInput, create: boolean): AdminProject {
+async function saveProject(
+  database: D1Database,
+  id: string,
+  input: ProjectInput,
+  create: boolean,
+): Promise<AdminProject> {
   const value = projectInputSchema.parse(input);
-  const sortOrder = create ? nextOrder(database, "projects") : getProject(database, id).sortOrder;
+  const session = primary(database);
+  const sortOrder = create
+    ? await nextOrder(session, "projects")
+    : (await getProject(database, id)).sortOrder;
   if (create) {
-    database.prepare(
+    await session.prepare(
       `INSERT INTO projects
        (id, slug, title, description, body, project_date, status, tags_json, cover,
         repository_url, demo_url, featured, sort_order)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).run(id, value.slug, value.title, value.description, value.body, value.date, value.status,
+    ).bind(id, value.slug, value.title, value.description, value.body, value.date, value.status,
       JSON.stringify(value.tags), value.cover ?? null, value.repositoryUrl ?? null,
-      value.demoUrl ?? null, value.featured ? 1 : 0, sortOrder);
+      value.demoUrl ?? null, value.featured ? 1 : 0, sortOrder).run();
   } else {
-    database.prepare(
+    await session.prepare(
       `UPDATE projects SET slug = ?, title = ?, description = ?, body = ?, project_date = ?,
        status = ?, tags_json = ?, cover = ?, repository_url = ?, demo_url = ?, featured = ?
        WHERE id = ?`,
-    ).run(value.slug, value.title, value.description, value.body, value.date, value.status,
+    ).bind(value.slug, value.title, value.description, value.body, value.date, value.status,
       JSON.stringify(value.tags), value.cover ?? null, value.repositoryUrl ?? null,
-      value.demoUrl ?? null, value.featured ? 1 : 0, id);
+      value.demoUrl ?? null, value.featured ? 1 : 0, id).run();
   }
   return getProject(database, id);
 }
 
-export function createProject(database: DatabaseSync, input: ProjectInput): AdminProject {
+export function createProject(database: D1Database, input: ProjectInput): Promise<AdminProject> {
   return saveProject(database, randomUUID(), input, true);
 }
 
-export function updateProject(database: DatabaseSync, id: string, input: ProjectInput): AdminProject {
+export function updateProject(
+  database: D1Database,
+  id: string,
+  input: ProjectInput,
+): Promise<AdminProject> {
   return saveProject(database, id, input, false);
 }
 
-export function deleteProject(database: DatabaseSync, id: string): void {
-  if (database.prepare("DELETE FROM projects WHERE id = ?").run(id).changes === 0) {
-    throw new AdminNotFoundError("项目不存在。");
-  }
+export async function deleteProject(database: D1Database, id: string): Promise<void> {
+  const result = await database.prepare("DELETE FROM projects WHERE id = ?").bind(id).run();
+  if ((result.meta.changes ?? 0) === 0) throw new AdminNotFoundError("项目不存在。");
 }
 
-export function getSetting(database: DatabaseSync, key: SettingKey): unknown {
-  if (key === "friend_page") {
-    const row = database.prepare("SELECT value_json FROM friend_page WHERE id = 1").get() as { value_json: string } | undefined;
-    return JSON.parse(getRequired(row, "友链页设置不存在。").value_json);
-  }
-  const row = database.prepare("SELECT value_json FROM site_settings WHERE key = ?").get(key) as { value_json: string } | undefined;
-  return JSON.parse(getRequired(row, "页面设置不存在。").value_json);
+export async function getSetting(database: D1Database, key: SettingKey): Promise<unknown> {
+  const statement = key === "friend_page"
+    ? primary(database).prepare("SELECT value_json FROM friend_page WHERE id = 1")
+    : primary(database).prepare("SELECT value_json FROM site_settings WHERE key = ?").bind(key);
+  const row = await firstRequired<{ value_json: string }>(
+    statement,
+    key === "friend_page" ? "友链页设置不存在。" : "页面设置不存在。",
+  );
+  return JSON.parse(row.value_json);
 }
 
-export function updateSetting(database: DatabaseSync, key: SettingKey, value: unknown): unknown {
+export async function updateSetting(
+  database: D1Database,
+  key: SettingKey,
+  value: unknown,
+): Promise<unknown> {
   const parsed = settingSchemas[key].parse(value);
   const timestamp = new Date().toISOString();
-  if (key === "friend_page") {
-    database.prepare("UPDATE friend_page SET value_json = ?, updated_at = ? WHERE id = 1")
-      .run(JSON.stringify(parsed), timestamp);
-  } else {
-    database.prepare("UPDATE site_settings SET value_json = ?, updated_at = ? WHERE key = ?")
-      .run(JSON.stringify(parsed), timestamp, key);
-  }
+  const statement = key === "friend_page"
+    ? database.prepare("UPDATE friend_page SET value_json = ?, updated_at = ? WHERE id = 1")
+      .bind(JSON.stringify(parsed), timestamp)
+    : database.prepare("UPDATE site_settings SET value_json = ?, updated_at = ? WHERE key = ?")
+      .bind(JSON.stringify(parsed), timestamp, key);
+  await statement.run();
   return parsed;
 }
 
@@ -399,26 +448,35 @@ export interface BlogBackup {
   messages: AdminMessage[];
 }
 
-export function exportBlogData(database: DatabaseSync): BlogBackup {
-  const settingRows = database.prepare("SELECT key, value_json FROM site_settings ORDER BY key").all();
-  const settings = Object.fromEntries(
-    (settingRows as unknown as Array<{ key: string; value_json: string }>)
-      .map(({ key, value_json }) => [key, JSON.parse(value_json)]),
-  );
+export async function exportBlogData(database: D1Database): Promise<BlogBackup> {
+  const [settingResult, categories, posts, projects, friends, friendPage, messages] = await Promise.all([
+    primary(database).prepare("SELECT key, value_json FROM site_settings ORDER BY key")
+      .all<{ key: string; value_json: string }>(),
+    listCategories(database),
+    listPosts(database),
+    listProjects(database),
+    listFriends(database),
+    getSetting(database, "friend_page"),
+    listAdminMessages(database),
+  ]);
   return {
     schemaVersion: 1,
     exportedAt: new Date().toISOString(),
-    settings,
-    categories: listCategories(database),
-    posts: listPosts(database),
-    projects: listProjects(database),
-    friends: listFriends(database),
-    friendPage: getSetting(database, "friend_page"),
-    messages: listAdminMessages(database),
+    settings: Object.fromEntries(
+      settingResult.results.map(({ key, value_json }) => [key, JSON.parse(value_json)]),
+    ),
+    categories,
+    posts,
+    projects,
+    friends,
+    friendPage,
+    messages,
   };
 }
 
-export function importBlogData(database: DatabaseSync, backup: BlogBackup): void {
+const maxBackupStatements = 500;
+
+export async function importBlogData(database: D1Database, backup: BlogBackup): Promise<void> {
   if (backup.schemaVersion !== 1) throw new Error("备份版本不受支持。");
   const settings = Object.entries(backup.settings).map(([key, value]) => {
     if (!(key in settingSchemas) || key === "friend_page") throw new Error(`未知设置：${key}`);
@@ -430,69 +488,76 @@ export function importBlogData(database: DatabaseSync, backup: BlogBackup): void
   const posts = backup.posts.map((value) => ({ ...value, ...postInputSchema.parse(value) }));
   const projects = backup.projects.map((value) => ({ ...value, ...projectInputSchema.parse(value) }));
   const messages = backup.messages ?? [];
-
-  database.exec("BEGIN IMMEDIATE");
-  try {
-    database.exec("DELETE FROM guestbook_messages; DELETE FROM posts; DELETE FROM projects; DELETE FROM friends; DELETE FROM categories; DELETE FROM site_settings;");
-    const timestamp = new Date().toISOString();
-    const insertSetting = database.prepare(
-      "INSERT INTO site_settings (key, value_json, updated_at) VALUES (?, ?, ?)",
-    );
-    settings.forEach(([key, value]) => insertSetting.run(key, JSON.stringify(value), timestamp));
+  const timestamp = new Date().toISOString();
+  const statements: D1PreparedStatement[] = [
+    database.prepare("DELETE FROM guestbook_messages"),
+    database.prepare("DELETE FROM posts"),
+    database.prepare("DELETE FROM projects"),
+    database.prepare("DELETE FROM friends"),
+    database.prepare("DELETE FROM categories"),
+    database.prepare("DELETE FROM site_settings"),
     database.prepare("UPDATE friend_page SET value_json = ?, updated_at = ? WHERE id = 1")
-      .run(JSON.stringify(friendPage), timestamp);
-
-    const insertCategory = database.prepare(
+      .bind(JSON.stringify(friendPage), timestamp),
+    ...settings.map(([key, value]) => database.prepare(
+      "INSERT INTO site_settings (key, value_json, updated_at) VALUES (?, ?, ?)",
+    ).bind(key, JSON.stringify(value), timestamp)),
+    ...categories.map((value) => database.prepare(
       "INSERT INTO categories (id, name, slug, description, sort_order, enabled) VALUES (?, ?, ?, ?, ?, ?)",
-    );
-    categories.forEach((value) => insertCategory.run(value.id, value.name, taxonomySlug(value.name),
-      value.description ?? null, value.sortOrder, value.enabled ? 1 : 0));
-    const insertFriend = database.prepare(
+    ).bind(value.id, value.name, taxonomySlug(value.name), value.description ?? null,
+      value.sortOrder, value.enabled ? 1 : 0)),
+    ...friends.map((value) => database.prepare(
       `INSERT INTO friends (id, name, url, description, interests_json, sort_order, enabled, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    );
-    friends.forEach((value) => insertFriend.run(value.id, value.name, value.url, value.description,
-      JSON.stringify(value.interests), value.sortOrder, value.enabled ? 1 : 0, value.updatedAt ?? timestamp));
-    const insertPost = database.prepare(
+    ).bind(value.id, value.name, value.url, value.description, JSON.stringify(value.interests),
+      value.sortOrder, value.enabled ? 1 : 0, value.updatedAt ?? timestamp)),
+    ...posts.map((value) => database.prepare(
       `INSERT INTO posts (id, slug, title, description, body, published_at, updated_at, draft,
        category, tags_json, cover, cover_alt, featured, series, canonical_url)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    );
-    posts.forEach((value) => insertPost.run(value.id, value.slug, value.title, value.description,
-      value.body, value.publishedAt, value.updatedAt ?? null, value.draft ? 1 : 0, value.category,
-      JSON.stringify(value.tags), value.cover ?? null, value.coverAlt ?? null,
-      value.featured ? 1 : 0, value.series ?? null, value.canonicalUrl ?? null));
-    const insertProject = database.prepare(
+    ).bind(value.id, value.slug, value.title, value.description, value.body, value.publishedAt,
+      value.updatedAt ?? null, value.draft ? 1 : 0, value.category, JSON.stringify(value.tags),
+      value.cover ?? null, value.coverAlt ?? null, value.featured ? 1 : 0,
+      value.series ?? null, value.canonicalUrl ?? null)),
+    ...projects.map((value) => database.prepare(
       `INSERT INTO projects (id, slug, title, description, body, project_date, status,
        tags_json, cover, repository_url, demo_url, featured, sort_order)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    );
-    projects.forEach((value) => insertProject.run(value.id, value.slug, value.title,
-      value.description, value.body, value.date, value.status, JSON.stringify(value.tags),
-      value.cover ?? null, value.repositoryUrl ?? null, value.demoUrl ?? null,
-      value.featured ? 1 : 0, value.sortOrder));
-    const insertMessage = database.prepare(
+    ).bind(value.id, value.slug, value.title, value.description, value.body, value.date,
+      value.status, JSON.stringify(value.tags), value.cover ?? null, value.repositoryUrl ?? null,
+      value.demoUrl ?? null, value.featured ? 1 : 0, value.sortOrder)),
+    ...messages.map((value) => database.prepare(
       `INSERT INTO guestbook_messages
        (id, name, email, website, content, status, ip_hash, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
+    ).bind(value.id, value.name, value.email ?? null, value.website ?? null,
+      value.content, value.status, value.createdAt, value.updatedAt)),
+  ];
+  if (statements.length > maxBackupStatements) {
+    throw new AdminConflictError(
+      `备份包含 ${statements.length} 条数据库操作，超过单次导入上限 ${maxBackupStatements}。请使用 Wrangler 迁移流程。`,
     );
-    messages.forEach((value) => insertMessage.run(value.id, value.name, value.email ?? null,
-      value.website ?? null, value.content, value.status, value.createdAt, value.updatedAt));
-    database.exec("COMMIT");
-  } catch (error) {
-    database.exec("ROLLBACK");
-    throw error;
   }
+  await database.batch(statements);
 }
 
-export function getAdminOverview(database: DatabaseSync) {
+export async function getAdminOverview(database: D1Database) {
+  const results = await database.batch<{ count: number }>([
+    database.prepare("SELECT COUNT(*) AS count FROM posts"),
+    database.prepare("SELECT COUNT(*) AS count FROM posts WHERE draft = 1"),
+    database.prepare("SELECT COUNT(*) AS count FROM projects"),
+    database.prepare("SELECT COUNT(*) AS count FROM categories"),
+    database.prepare("SELECT COUNT(*) AS count FROM friends"),
+    database.prepare("SELECT COUNT(*) AS count FROM guestbook_messages"),
+    database.prepare("SELECT COUNT(*) AS count FROM guestbook_messages WHERE status = 'pending'"),
+  ]);
+  const count = (index: number) => Number(results[index]?.results[0]?.count ?? 0);
   return {
-    posts: Number((database.prepare("SELECT COUNT(*) AS count FROM posts").get() as { count: number }).count),
-    drafts: Number((database.prepare("SELECT COUNT(*) AS count FROM posts WHERE draft = 1").get() as { count: number }).count),
-    projects: Number((database.prepare("SELECT COUNT(*) AS count FROM projects").get() as { count: number }).count),
-    categories: Number((database.prepare("SELECT COUNT(*) AS count FROM categories").get() as { count: number }).count),
-    friends: Number((database.prepare("SELECT COUNT(*) AS count FROM friends").get() as { count: number }).count),
-    messages: Number((database.prepare("SELECT COUNT(*) AS count FROM guestbook_messages").get() as { count: number }).count),
-    pendingMessages: Number((database.prepare("SELECT COUNT(*) AS count FROM guestbook_messages WHERE status = 'pending'").get() as { count: number }).count),
+    posts: count(0),
+    drafts: count(1),
+    projects: count(2),
+    categories: count(3),
+    friends: count(4),
+    messages: count(5),
+    pendingMessages: count(6),
   };
 }

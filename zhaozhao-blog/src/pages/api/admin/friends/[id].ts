@@ -10,7 +10,7 @@ export const PUT: APIRoute = ({ request, params }) => handleAdminRequest(
   request,
   async (database) => updateFriend(database, params.id!, await readAdminJson(request) as never),
 );
-export const DELETE: APIRoute = ({ request, params }) => handleAdminRequest(request, (database) => {
-  deleteFriend(database, params.id!);
+export const DELETE: APIRoute = ({ request, params }) => handleAdminRequest(request, async (database) => {
+  await deleteFriend(database, params.id!);
   return { deleted: true };
 });

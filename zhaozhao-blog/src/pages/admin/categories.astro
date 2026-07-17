@@ -3,9 +3,9 @@ import { Pencil, Plus, Save, Trash2, X } from "lucide-astro";
 import AdminShell from "../../components/admin/AdminShell.astro";
 import AdminLayout from "../../layouts/AdminLayout.astro";
 import { listCategories } from "../../lib/database/admin-repository";
-import { getContentDatabase } from "../../lib/database/legacy-content-database";
+import { getDatabase } from "../../lib/cloudflare/bindings";
 
-const categories = listCategories(getContentDatabase());
+const categories = await listCategories(getDatabase());
 const config = { endpoint: "/api/admin/categories", confirmName: "分类", fields: [
   { name: "name", type: "text" }, { name: "description", type: "textarea", optional: true },
   { name: "enabled", type: "checkbox" },

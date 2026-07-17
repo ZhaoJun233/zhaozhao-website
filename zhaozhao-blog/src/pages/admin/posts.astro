@@ -3,11 +3,11 @@ import { FileUp, Pencil, Plus, Save, Trash2, X } from "lucide-astro";
 import AdminShell from "../../components/admin/AdminShell.astro";
 import AdminLayout from "../../layouts/AdminLayout.astro";
 import { listCategories, listPosts } from "../../lib/database/admin-repository";
-import { getContentDatabase } from "../../lib/database/legacy-content-database";
+import { getDatabase } from "../../lib/cloudflare/bindings";
 
-const database = getContentDatabase();
-const posts = listPosts(database);
-const categories = listCategories(database).filter(({ enabled }) => enabled);
+const database = getDatabase();
+const [posts, categoryRows] = await Promise.all([listPosts(database), listCategories(database)]);
+const categories = categoryRows.filter(({ enabled }) => enabled);
 const config = { endpoint: "/api/admin/posts", confirmName: "文章", fields: [
   { name: "slug", type: "text" }, { name: "title", type: "text" },
   { name: "description", type: "textarea" }, { name: "body", type: "textarea" },

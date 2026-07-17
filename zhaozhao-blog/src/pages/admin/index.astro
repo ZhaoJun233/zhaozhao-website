@@ -2,9 +2,9 @@
 import AdminShell from "../../components/admin/AdminShell.astro";
 import AdminLayout from "../../layouts/AdminLayout.astro";
 import { getAdminOverview } from "../../lib/database/admin-repository";
-import { getContentDatabase } from "../../lib/database/legacy-content-database";
+import { getDatabase } from "../../lib/cloudflare/bindings";
 
-const overview = getAdminOverview(getContentDatabase());
+const overview = await getAdminOverview(getDatabase());
 const stats = [
   ["文章", overview.posts], ["草稿", overview.drafts], ["项目", overview.projects],
   ["分类", overview.categories], ["友链", overview.friends],
