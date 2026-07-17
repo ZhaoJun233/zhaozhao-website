@@ -1,18 +1,35 @@
 # 233昭个人博客
 
-基于 Astro SSR、SQLite 和 Docker 的单博主动态网站。
+面向单博主长期维护的 Astro SSR 动态博客，运行于 Cloudflare Workers：
 
-## 启动
+- D1：文章、项目、分类、友链、留言、后台会话和页面设置
+- R2：后台上传的头像、插画和内容图片
+- Worker 静态资源：仓库内置头像与背景
+- 单管理员后台：`/admin/`
+
+仓库目标：[ZhaoJun233/zhaozhao-website](https://github.com/ZhaoJun233/zhaozhao-website)
+
+## 本地开发
 
 ```powershell
-Copy-Item .env.example .env
-docker compose up -d --build
+npm ci
+Copy-Item .dev.vars.example .dev.vars
+npm run db:migrate:local
+npm run dev
 ```
 
-- 前台：`http://127.0.0.1:4321/`
-- 后台：`http://127.0.0.1:4321/admin/`
-- 健康检查：`http://127.0.0.1:4321/api/health`
+- 前台：<http://127.0.0.1:4321/>
+- 后台：<http://127.0.0.1:4321/admin/>
+- 健康检查：<http://127.0.0.1:4321/api/health>
 
-首次启动会把仓库现有内容导入 SQLite。后续内容维护、访客留言审核和备份恢复均在后台完成。
+## 校验
 
-详细操作见 [内容维护说明](docs/CONTENT-MAINTENANCE.md)。
+```powershell
+npm run cf:typegen
+npm run check
+npm test
+npm run build
+npm run test:e2e
+```
+
+内容操作见 [AUTHORING.md](AUTHORING.md)，部署步骤见 [Cloudflare 部署说明](docs/CLOUDFLARE-DEPLOYMENT.md)。

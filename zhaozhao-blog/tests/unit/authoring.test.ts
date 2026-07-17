@@ -52,4 +52,26 @@ describe("database-backed authoring", () => {
     expect(ignore).toContain(".wrangler/");
     expect(ignore).toContain(".dev.vars");
   });
+
+  it("documents the complete Cloudflare deployment and JSON cutover workflow", () => {
+    const deploymentPath = resolve(appRoot, "docs/CLOUDFLARE-DEPLOYMENT.md");
+    expect(existsSync(deploymentPath)).toBe(true);
+    const documentation = ["README.md", "AUTHORING.md", "docs/CONTENT-MAINTENANCE.md"]
+      .map((path) => readFileSync(resolve(appRoot, path), "utf8"))
+      .join("\n");
+    const deployment = readFileSync(deploymentPath, "utf8");
+    for (const command of [
+      "npx wrangler d1 create zhaozhao-blog",
+      "npx wrangler r2 bucket create zhaozhao-media",
+      "npx wrangler secret put ADMIN_PASSWORD",
+      "npx wrangler secret put ADMIN_SESSION_SECRET",
+      "npm run db:migrate:remote",
+      "npm run deploy",
+    ]) expect(deployment).toContain(command);
+    expect(deployment).toContain("ZhaoJun233/zhaozhao-website");
+    expect(deployment).toContain("database_id");
+    expect(deployment).toContain("JSON");
+    expect(documentation).not.toMatch(/Docker|SQLite|BLOG_DATABASE_PATH/);
+    expect(existsSync(resolve(appRoot, ".env.example"))).toBe(false);
+  });
 });

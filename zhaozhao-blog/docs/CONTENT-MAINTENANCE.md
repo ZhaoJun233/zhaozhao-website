@@ -1,89 +1,35 @@
 # 内容维护说明
 
-博客使用 Astro SSR 与 SQLite。文章、项目、分类、友链、访客留言和所有页面设置都由同一个数据库管理，后台保存后刷新前台即可看到结果。
-
 ## 登录后台
 
-1. 访问 `http://127.0.0.1:4321/admin/`。
-2. 输入 Docker 环境变量 `ADMIN_PASSWORD` 的值。
-3. 当前 Docker 本地默认密码为 `233zhao-local-admin`，公开部署前必须在 `.env` 中修改。
-
-后台模块包括：概览、文章、项目、分类、友链、留言、页面内容、数据与备份。
+访问 `/admin/`，输入 Cloudflare Secret `ADMIN_PASSWORD`。后台只有一个管理员账号；修改 `ADMIN_SESSION_SECRET` 会让现有登录立即失效。
 
 ## 日常维护
 
-- **文章**：新增、修改、删除、草稿、精选、正文、分类、标签、封面和发布日期；支持直接导入 `.md` 或 `.markdown` 文件。
-- **项目**：维护正文、状态、外部链接、标签和精选状态。
-- **分类**：新增、改名、启停和删除；改名会同步更新引用文章。
-- **友链**：新增、编辑、删除、启停、上移和下移。
-- **留言**：访客提交后默认为待审核；后台可公开、退回待审、隐藏或删除。邮箱只在后台展示。
-- **页面内容**：维护昵称、职业、所在地、个性签名、联系方式等个人资料，以及导航、首页、关于、友链页文案、留言页文案、鸣谢、索引页文案和插画信息。
+1. 在对应模块修改内容并保存。
+2. 刷新前台确认结果。
+3. 进行大批量编辑前，在“数据与备份”下载完整 JSON。
+4. 图片通过页面内容编辑器上传到 R2，再保存返回的媒体路径。
 
-## 导入 Markdown 文章
-
-进入后台“文章”，点击“导入 Markdown”并选择不超过 2 MiB 的 `.md` 或 `.markdown` 文件。导入成功后会直接写入数据库；frontmatter 未填写 `draft` 时默认保存为草稿。
-
-最小文件格式：
-
-```markdown
----
-title: 文章标题
-description: 文章摘要
-publishedAt: 2026-07-16
-category: 开发
-tags: Astro, Markdown
----
-
-这里是正文。
-```
-
-Slug 默认取英文文件名，也可在 frontmatter 中填写 `slug`。日期兼容 `publishedAt`、`date` 和 `pubDate`；更新日期兼容 `updatedAt`、`updated` 和 `lastmod`。Slug 重复或字段未通过校验时不会写入文章。
-
-## Docker 数据持久化
-
-生产数据库路径为 `/app/storage/blog.sqlite`，保存在 Compose 命名卷 `zhaozhao-blog_blog-data` 中。执行 `docker compose up -d --build` 或重建容器不会删除该卷。
-
-查看卷：
-
-```powershell
-docker volume inspect zhaozhao-blog_blog-data
-```
-
-只停止服务：
-
-```powershell
-docker compose down
-```
-
-不要使用 `docker compose down -v`，该命令会同时删除数据库卷。
+分类仍被文章引用时会阻止删除；分类改名会在同一次 D1 批处理中同步文章。友链排序必须提交完整列表。留言邮箱仅在后台显示。
 
 ## 备份与恢复
 
-后台“数据与备份”可以下载全量 JSON，内容包括页面设置、文章、项目、分类、友链和访客留言。导入时会先完整校验，再在单个数据库事务中替换内容；校验失败不会留下半份数据。
+后台导出的 JSON 包含页面设置、分类、文章、项目、友链和留言。导入前会先校验全部内容，再通过单次 D1 批处理替换数据；失败时不会保留半份内容。
 
-数据库文件级备份应在停止站点写入后执行。恢复数据库文件后重新启动容器即可。
+建议：
 
-## 首次迁移
+- 每次重要发布前下载 JSON。
+- 定期使用 Cloudflare D1 导出能力保存远程副本。
+- R2 媒体单独保留对象清单或生命周期备份。
+- 回滚代码时同时确认迁移版本和 JSON 数据版本。
 
-数据库为空时，应用自动导入现有 `src/data/*.json`、`src/content/posts/*.md` 和 `src/content/projects/*.md`。迁移成功后写入版本记录，后续启动不会用文件覆盖后台修改。
-
-## 环境变量
-
-```dotenv
-BLOG_DATABASE_PATH=/app/storage/blog.sqlite
-ADMIN_PASSWORD=使用独立强密码
-ADMIN_SESSION_SECRET=使用长度足够的随机字符串
-```
-
-修改密码或会话密钥后执行 `docker compose up -d`。修改会话密钥会使现有后台登录失效，需要重新登录。
-
-## 发布前检查
+## 本地维护
 
 ```powershell
-npm run check
-npm test
-npm run build
-docker compose up -d --build --remove-orphans
+Copy-Item .dev.vars.example .dev.vars
+npm run db:migrate:local
+npm run dev
 ```
 
-浏览器访问 `/rss.xml` 会显示可读的订阅页；RSS 阅读器仍将其识别为标准 RSS 2.0 XML。
+浏览器访问 `/rss.xml` 会显示可读的订阅页，阅读器仍可识别标准 RSS 2.0 内容。
