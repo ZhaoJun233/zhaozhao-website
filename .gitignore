@@ -11,6 +11,7 @@ storage/*.sqlite
 storage/*.sqlite-shm
 storage/*.sqlite-wal
 .wrangler/
+.wrangler-config/
 .dev.vars
 
 # Local environment

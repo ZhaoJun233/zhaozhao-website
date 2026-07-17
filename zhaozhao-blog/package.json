@@ -12,6 +12,7 @@
     "cf:typegen": "wrangler types --include-runtime false --strict-vars false",
     "db:migrate:local": "wrangler d1 migrations apply zhaozhao-blog --local",
     "db:migrate:remote": "wrangler d1 migrations apply zhaozhao-blog --remote",
+    "db:seed:generate": "node scripts/generate-d1-seed.mjs",
     "deploy": "npm run build && wrangler deploy",
     "test": "vitest run",
     "test:watch": "vitest",
