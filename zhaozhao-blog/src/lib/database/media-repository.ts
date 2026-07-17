@@ -263,7 +263,7 @@ export async function registerAndLinkBackfilledPostMedia(
     ]);
     statements.push(
       database.prepare(
-        "DELETE FROM post_asset_links WHERE post_id = ?",
+        "DELETE FROM post_asset_links WHERE post_id = ? AND usage IN ('cover', 'inline')",
       ).bind(post.postId),
     );
     for (const [sortOrder, key] of libraryKeys.entries()) {

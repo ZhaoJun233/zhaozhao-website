@@ -559,7 +559,17 @@ const backupKvKeySchema = z.string().min(1).refine((key) => {
 
 const blogBackupV2MediaSchema = z.object({
   schemaVersion: z.literal(2),
+  exportedAt: z.string().min(1),
+  settings: z.record(z.string(), z.unknown()),
+  categories: z.array(z.unknown()),
   posts: z.array(z.object({ id: z.string().min(1) }).passthrough()),
+  projects: z.array(z.unknown()),
+  friends: z.array(z.unknown()),
+  friendPage: z.unknown().refine(
+    (value) => value !== undefined && value !== null,
+    "友链页设置不能为空。",
+  ),
+  messages: z.array(z.unknown()),
   mediaAssets: z.array(z.object({
     kvKey: backupKvKeySchema,
     originalName: z.string().min(1).max(240),

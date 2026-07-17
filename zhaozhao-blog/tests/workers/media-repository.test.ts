@@ -226,10 +226,17 @@ describe("article media schema", () => {
       contentType: "image/png",
       sizeBytes: 4,
     });
+    const retained = await beginMediaUpload(env.DB, {
+      key: "uploads/2026/07/backfill-retained.png",
+      originalName: "backfill-retained.png",
+      contentType: "image/png",
+      sizeBytes: 4,
+    });
     await markMediaReady(env.DB, shared.id);
     await markMediaReady(env.DB, stale.id);
+    await markMediaReady(env.DB, retained.id);
     await syncPostAssetLinks(env.DB, emptyPost.id, {
-      retainedAssetIds: [shared.id],
+      retainedAssetIds: [shared.id, retained.id],
       coverAssetId: shared.id,
       inlineKeys: [shared.key],
     });
@@ -248,12 +255,25 @@ describe("article media schema", () => {
       linked: 0,
       missing: ["uploads/2026/07/backfill-missing.png"],
     });
-    expect(await listPostAssets(env.DB, emptyPost.id)).toEqual([]);
-    expect(await listPostAssets(env.DB, missingPost.id)).toEqual([]);
+    expect(await listPostAssets(env.DB, emptyPost.id)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: shared.id, usages: ["library"] }),
+      expect.objectContaining({ id: retained.id, usages: ["library"] }),
+    ]));
+    expect(await listPostAssets(env.DB, missingPost.id)).toEqual([
+      expect.objectContaining({ id: stale.id, usages: ["library"] }),
+    ]);
     expect((await listPostAssets(env.DB, sharedPost.id))[0]).toMatchObject({
       id: shared.id,
       usages: ["inline", "library"],
     });
+
+    expect(await backfillPostMedia(env.DB, env.MEDIA)).toEqual({
+      registered: 0,
+      linked: 0,
+      missing: ["uploads/2026/07/backfill-missing.png"],
+    });
+    expect((await listPostAssets(env.DB, emptyPost.id)).find(({ id }) => id === retained.id))
+      .toMatchObject({ usages: ["library"] });
   });
 
   it("uploads an article image through the authenticated asset API", async () => {

@@ -682,6 +682,25 @@ describe("D1 administrator repository", () => {
     expect(await env.MEDIA.get(pending.key, "arrayBuffer")).not.toBeNull();
   });
 
+  it.each([
+    { label: "missing messages", mutate: (backup: Record<string, unknown>) => {
+      delete backup.messages;
+    } },
+    { label: "null settings", mutate: (backup: Record<string, unknown>) => {
+      backup.settings = null;
+    } },
+  ])("rejects $label in v2 without changing any backup content", async ({ mutate }) => {
+    const before = await exportBlogData(env.DB);
+    const damaged = structuredClone(before) as unknown as Record<string, unknown>;
+    mutate(damaged);
+
+    await expect(importBlogData(env.DB, damaged as never))
+      .rejects.toMatchObject({ name: "ZodError" });
+
+    const after = await exportBlogData(env.DB);
+    expect({ ...after, exportedAt: before.exportedAt }).toEqual(before);
+  });
+
   it("round-trips more than eighty linked images within the import statement budget", async () => {
     const post = await createPost(env.DB, postInput("large-media-backup"));
     await insertBackupAssets(post.id, 120, "large-backup");
