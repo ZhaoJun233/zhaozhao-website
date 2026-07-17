@@ -5,6 +5,7 @@ import {
   createCategory,
   createFriend,
   createPost,
+  createPostWithMedia,
   createProject,
   deleteCategory,
   deleteFriend,
@@ -20,8 +21,30 @@ import {
   orderFriends,
   updateCategory,
   updateFriend,
+  updatePostWithMedia,
   updateSetting,
 } from "../../src/lib/database/admin-repository";
+import {
+  beginMediaUpload,
+  listPostAssets,
+  markMediaReady,
+} from "../../src/lib/database/media-repository";
+
+const draftToken = "11111111-1111-4111-8111-111111111111";
+
+function postInput(slug: string) {
+  return {
+    slug,
+    title: "图片生命周期测试",
+    description: "验证文章保存同步图片引用。",
+    body: "## 正文\n\n测试内容。",
+    publishedAt: "2026-07-17T00:00:00.000Z",
+    draft: true,
+    category: "开发",
+    tags: ["Astro"],
+    featured: false,
+  };
+}
 
 describe("D1 administrator repository", () => {
   it("renames categories across posts and protects referenced categories", async () => {
@@ -90,6 +113,94 @@ describe("D1 administrator repository", () => {
     await deletePost(env.DB, post.id);
     await deleteProject(env.DB, project.id);
     expect(await getAdminOverview(env.DB)).toMatchObject({ posts: 6, projects: 3 });
+  });
+
+  it("creates a post with its managed cover and retained library asset", async () => {
+    const asset = await beginMediaUpload(env.DB, {
+      key: "uploads/2026/07/post-create-cover.png",
+      originalName: "post-create-cover.png",
+      contentType: "image/png",
+      sizeBytes: 4,
+      draftToken,
+    });
+    await markMediaReady(env.DB, asset.id);
+
+    const created = await createPostWithMedia(env.DB, {
+      ...postInput("post-create-with-media"),
+      cover: "/static/ignored-cover.png",
+      coverAlt: "文章封面",
+    }, {
+      draftToken,
+      coverAssetId: asset.id,
+      retainedAssetIds: [asset.id],
+    });
+
+    expect(created.cover).toBe(`/media/${asset.key}`);
+    expect(await listPostAssets(env.DB, created.id)).toEqual([
+      expect.objectContaining({ id: asset.id, usages: ["cover", "library"] }),
+    ]);
+  });
+
+  it("updates managed cover, inline, and library usages in one save", async () => {
+    const post = await createPost(env.DB, postInput("post-update-with-media"));
+    const asset = await beginMediaUpload(env.DB, {
+      key: "uploads/2026/07/post-update-image.png",
+      originalName: "post-update-image.png",
+      contentType: "image/png",
+      sizeBytes: 4,
+      draftToken,
+    });
+    await markMediaReady(env.DB, asset.id);
+
+    const updated = await updatePostWithMedia(env.DB, post.id, {
+      ...post,
+      body: `![正文图片](/media/${asset.key})`,
+      cover: "/static/ignored-cover.png",
+      coverAlt: "文章封面",
+    }, {
+      draftToken,
+      coverAssetId: asset.id,
+      retainedAssetIds: [asset.id],
+    });
+
+    expect(updated.cover).toBe(`/media/${asset.key}`);
+    expect(await listPostAssets(env.DB, post.id)).toEqual([
+      expect.objectContaining({
+        id: asset.id,
+        usages: ["cover", "inline", "library"],
+      }),
+    ]);
+  });
+
+  it("rejects a managed draft asset from a different editing session", async () => {
+    const asset = await beginMediaUpload(env.DB, {
+      key: "uploads/2026/07/post-invalid-draft.png",
+      originalName: "post-invalid-draft.png",
+      contentType: "image/png",
+      sizeBytes: 4,
+      draftToken,
+    });
+    await markMediaReady(env.DB, asset.id);
+
+    await expect(createPostWithMedia(env.DB, postInput("post-invalid-draft"), {
+      draftToken: "22222222-2222-4222-8222-222222222222",
+      retainedAssetIds: [asset.id],
+    })).rejects.toBeInstanceOf(AdminConflictError);
+    expect((await listPosts(env.DB)).some(({ slug }) => slug === "post-invalid-draft")).toBe(false);
+  });
+
+  it("keeps unmanaged cover fields when no managed cover is selected", async () => {
+    const created = await createPostWithMedia(env.DB, {
+      ...postInput("post-static-cover"),
+      cover: "https://images.example/static-cover.png",
+      coverAlt: "外部封面",
+    }, { retainedAssetIds: [] });
+
+    expect(created).toMatchObject({
+      cover: "https://images.example/static-cover.png",
+      coverAlt: "外部封面",
+    });
+    expect(await listPostAssets(env.DB, created.id)).toEqual([]);
   });
 
   it("updates settings and round-trips the complete JSON backup", async () => {

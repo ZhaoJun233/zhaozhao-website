@@ -59,6 +59,12 @@ export const postInputSchema = z.object({
   }
 });
 
+export const postMediaInputSchema = z.object({
+  draftToken: z.uuid().optional(),
+  coverAssetId: z.uuid().optional(),
+  retainedAssetIds: z.array(z.uuid()).max(100).default([]),
+});
+
 export const projectInputSchema = z.object({
   slug,
   title: text,
@@ -125,4 +131,5 @@ export type SettingKey = keyof typeof settingSchemas;
 export type CategoryInput = z.infer<typeof categoryInputSchema>;
 export type FriendInput = z.infer<typeof friendInputSchema>;
 export type PostInput = z.input<typeof postInputSchema>;
+export type PostMediaInput = z.infer<typeof postMediaInputSchema>;
 export type ProjectInput = z.input<typeof projectInputSchema>;

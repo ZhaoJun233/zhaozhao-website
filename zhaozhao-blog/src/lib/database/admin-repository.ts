@@ -8,12 +8,19 @@ import {
   type CategoryInput,
   type FriendInput,
   type PostInput,
+  type PostMediaInput,
   type ProjectInput,
   type SettingKey,
 } from "../admin/schemas";
+import { extractManagedImageKeys } from "../admin/post-images";
 import { taxonomySlug } from "../slug";
 import type { CategoryRow, FriendRow, PostRow, ProjectRow } from "./types";
 import { listAdminMessages, type AdminMessage } from "./message-repository";
+import {
+  buildPostAssetSyncStatements,
+  resolvePostAssetSync,
+  type ResolvedPostAssetSync,
+} from "./media-repository";
 
 export class AdminConflictError extends Error {
   constructor(message: string, public readonly details?: Record<string, unknown>) {
@@ -302,6 +309,39 @@ export async function getPost(database: D1Database, id: string): Promise<AdminPo
   ));
 }
 
+function createPostStatement(
+  database: D1Database | D1DatabaseSession,
+  id: string,
+  value: ReturnType<typeof postInputSchema.parse>,
+  cover = value.cover,
+): D1PreparedStatement {
+  return database.prepare(
+    `INSERT INTO posts
+     (id, slug, title, description, body, published_at, updated_at, draft, category,
+      tags_json, cover, cover_alt, featured, series, canonical_url)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).bind(id, value.slug, value.title, value.description, value.body, value.publishedAt,
+    value.updatedAt ?? null, value.draft ? 1 : 0, value.category, JSON.stringify(value.tags),
+    cover ?? null, value.coverAlt ?? null, value.featured ? 1 : 0,
+    value.series ?? null, value.canonicalUrl ?? null);
+}
+
+function updatePostStatement(
+  database: D1Database | D1DatabaseSession,
+  id: string,
+  value: ReturnType<typeof postInputSchema.parse>,
+  cover = value.cover,
+): D1PreparedStatement {
+  return database.prepare(
+    `UPDATE posts SET slug = ?, title = ?, description = ?, body = ?, published_at = ?,
+     updated_at = ?, draft = ?, category = ?, tags_json = ?, cover = ?, cover_alt = ?,
+     featured = ?, series = ?, canonical_url = ? WHERE id = ?`,
+  ).bind(value.slug, value.title, value.description, value.body, value.publishedAt,
+    value.updatedAt ?? null, value.draft ? 1 : 0, value.category, JSON.stringify(value.tags),
+    cover ?? null, value.coverAlt ?? null, value.featured ? 1 : 0,
+    value.series ?? null, value.canonicalUrl ?? null, id);
+}
+
 async function savePost(
   database: D1Database,
   id: string,
@@ -309,27 +349,11 @@ async function savePost(
   create: boolean,
 ): Promise<AdminPost> {
   const value = postInputSchema.parse(input);
-  if (create) {
-    await database.prepare(
-      `INSERT INTO posts
-       (id, slug, title, description, body, published_at, updated_at, draft, category,
-        tags_json, cover, cover_alt, featured, series, canonical_url)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(id, value.slug, value.title, value.description, value.body, value.publishedAt,
-      value.updatedAt ?? null, value.draft ? 1 : 0, value.category, JSON.stringify(value.tags),
-      value.cover ?? null, value.coverAlt ?? null, value.featured ? 1 : 0,
-      value.series ?? null, value.canonicalUrl ?? null).run();
-  } else {
-    await getPost(database, id);
-    await database.prepare(
-      `UPDATE posts SET slug = ?, title = ?, description = ?, body = ?, published_at = ?,
-       updated_at = ?, draft = ?, category = ?, tags_json = ?, cover = ?, cover_alt = ?,
-       featured = ?, series = ?, canonical_url = ? WHERE id = ?`,
-    ).bind(value.slug, value.title, value.description, value.body, value.publishedAt,
-      value.updatedAt ?? null, value.draft ? 1 : 0, value.category, JSON.stringify(value.tags),
-      value.cover ?? null, value.coverAlt ?? null, value.featured ? 1 : 0,
-      value.series ?? null, value.canonicalUrl ?? null, id).run();
-  }
+  if (!create) await getPost(database, id);
+  const statement = create
+    ? createPostStatement(database, id, value)
+    : updatePostStatement(database, id, value);
+  await statement.run();
   return getPost(database, id);
 }
 
@@ -339,6 +363,65 @@ export function createPost(database: D1Database, input: PostInput): Promise<Admi
 
 export function updatePost(database: D1Database, id: string, input: PostInput): Promise<AdminPost> {
   return savePost(database, id, input, false);
+}
+
+function managedCover(resolved: ResolvedPostAssetSync): string | undefined {
+  if (!resolved.coverAssetId) return undefined;
+  return resolved.assets.find(({ id }) => id === resolved.coverAssetId)?.url;
+}
+
+function isPostAssetConstraintError(error: unknown): boolean {
+  return error instanceof Error
+    && /constraint failed|SQLITE_CONSTRAINT/i.test(error.message)
+    && /post_asset_links|media_assets/i.test(error.message);
+}
+
+async function savePostWithMedia(
+  database: D1Database,
+  id: string,
+  input: PostInput,
+  media: PostMediaInput,
+  create: boolean,
+): Promise<AdminPost> {
+  const value = postInputSchema.parse(input);
+  if (!create) await getPost(database, id);
+  const resolved = await resolvePostAssetSync(database, {
+    ...media,
+    inlineKeys: extractManagedImageKeys(value.body),
+  });
+  const cover = resolved.coverAssetId ? managedCover(resolved) : value.cover;
+  const postStatement = create
+    ? createPostStatement(database, id, value, cover)
+    : updatePostStatement(database, id, value, cover);
+  try {
+    await database.batch([
+      postStatement,
+      ...buildPostAssetSyncStatements(database, id, resolved, new Date()),
+    ]);
+  } catch (error) {
+    if (!isPostAssetConstraintError(error)) throw error;
+    throw new AdminConflictError("图片状态或归属已变更，请重新保存。", {
+      assetIds: resolved.libraryAssetIds,
+    });
+  }
+  return getPost(database, id);
+}
+
+export function createPostWithMedia(
+  database: D1Database,
+  input: PostInput,
+  media: PostMediaInput,
+): Promise<AdminPost> {
+  return savePostWithMedia(database, randomUUID(), input, media, true);
+}
+
+export function updatePostWithMedia(
+  database: D1Database,
+  id: string,
+  input: PostInput,
+  media: PostMediaInput,
+): Promise<AdminPost> {
+  return savePostWithMedia(database, id, input, media, false);
 }
 
 export async function deletePost(database: D1Database, id: string): Promise<void> {
