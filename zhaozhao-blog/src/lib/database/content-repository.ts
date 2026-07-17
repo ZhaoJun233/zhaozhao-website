@@ -1,55 +1,53 @@
-import { join, resolve } from "node:path";
-import type { DatabaseSync } from "node:sqlite";
-import { getBlogDatabase } from "./connection";
-import { initializeBlogDatabase } from "./schema";
+import { getDatabase } from "../cloudflare/bindings";
 import type { CategoryRow, FriendRow, PostRow, ProjectRow } from "./types";
 
-function contentRoot(): string {
-  return resolve(process.env.CONTENT_ROOT ?? join(process.cwd(), "src"));
-}
-
-export function getContentDatabase(): DatabaseSync {
-  const database = getBlogDatabase();
-  initializeBlogDatabase(database, contentRoot());
-  return database;
-}
-
-export function readSetting<T>(key: string): T {
-  const row = getContentDatabase().prepare(
+export async function readSetting<T>(database: D1Database, key: string): Promise<T>;
+export async function readSetting<T>(key: string): Promise<T>;
+export async function readSetting<T>(
+  databaseOrKey: D1Database | string,
+  maybeKey?: string,
+): Promise<T> {
+  const database = typeof databaseOrKey === "string" ? getDatabase() : databaseOrKey;
+  const key = typeof databaseOrKey === "string" ? databaseOrKey : maybeKey!;
+  const row = await database.prepare(
     "SELECT value_json FROM site_settings WHERE key = ?",
-  ).get(key) as { value_json?: string } | undefined;
-  if (!row?.value_json) throw new Error(`Missing site setting: ${key}`);
+  ).bind(key).first<{ value_json: string }>();
+  if (!row) throw new Error(`Missing site setting: ${key}`);
   return JSON.parse(row.value_json) as T;
 }
 
-export function readFriendPage<T>(): T {
-  const row = getContentDatabase().prepare(
+export async function readFriendPage<T>(database = getDatabase()): Promise<T> {
+  const row = await database.prepare(
     "SELECT value_json FROM friend_page WHERE id = 1",
-  ).get() as { value_json?: string } | undefined;
-  if (!row?.value_json) throw new Error("Missing friend page settings");
+  ).first<{ value_json: string }>();
+  if (!row) throw new Error("Missing friend page settings");
   return JSON.parse(row.value_json) as T;
 }
 
-export function readCategories(): CategoryRow[] {
-  return getContentDatabase().prepare(
+export async function readCategories(database = getDatabase()): Promise<CategoryRow[]> {
+  const result = await database.prepare(
     "SELECT * FROM categories WHERE enabled = 1 ORDER BY sort_order, name",
-  ).all() as unknown as CategoryRow[];
+  ).all<CategoryRow>();
+  return result.results;
 }
 
-export function readFriends(): FriendRow[] {
-  return getContentDatabase().prepare(
+export async function readFriends(database = getDatabase()): Promise<FriendRow[]> {
+  const result = await database.prepare(
     "SELECT * FROM friends WHERE enabled = 1 ORDER BY sort_order, name",
-  ).all() as unknown as FriendRow[];
+  ).all<FriendRow>();
+  return result.results;
 }
 
-export function readPosts(): PostRow[] {
-  return getContentDatabase().prepare(
+export async function readPosts(database = getDatabase()): Promise<PostRow[]> {
+  const result = await database.prepare(
     "SELECT * FROM posts ORDER BY published_at DESC, slug",
-  ).all() as unknown as PostRow[];
+  ).all<PostRow>();
+  return result.results;
 }
 
-export function readProjects(): ProjectRow[] {
-  return getContentDatabase().prepare(
+export async function readProjects(database = getDatabase()): Promise<ProjectRow[]> {
+  const result = await database.prepare(
     "SELECT * FROM projects ORDER BY sort_order, project_date DESC, slug",
-  ).all() as unknown as ProjectRow[];
+  ).all<ProjectRow>();
+  return result.results;
 }

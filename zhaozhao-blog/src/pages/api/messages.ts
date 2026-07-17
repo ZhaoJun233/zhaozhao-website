@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import type { APIRoute } from "astro";
-import { getContentDatabase } from "../../lib/database/content-repository";
+import { getContentDatabase } from "../../lib/database/legacy-content-database";
 import { createGuestbookMessage, listApprovedMessages } from "../../lib/database/message-repository";
 
 const attempts = new Map<string, { count: number; resetAt: number }>();

@@ -7,7 +7,7 @@ import {
   serializeAdminSessionCookie,
   verifyAdminPassword,
 } from "../../../../lib/admin/auth";
-import { getContentDatabase } from "../../../../lib/database/content-repository";
+import { getContentDatabase } from "../../../../lib/database/legacy-content-database";
 
 const attempts = new Map<string, { count: number; resetAt: number }>();
 const limitWindow = 5 * 60 * 1_000;

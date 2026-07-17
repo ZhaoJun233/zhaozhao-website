@@ -15,6 +15,7 @@
     "db:seed:generate": "node scripts/generate-d1-seed.mjs",
     "deploy": "npm run build && wrangler deploy",
     "test": "vitest run",
+    "test:workers": "vitest run --config vitest.workers.config.ts",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:a11y": "playwright test tests/e2e/accessibility.spec.ts",

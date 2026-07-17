@@ -3,7 +3,7 @@ import { ArrowDown, ArrowUp, Pencil, Plus, Save, Trash2, X } from "lucide-astro"
 import AdminShell from "../../components/admin/AdminShell.astro";
 import AdminLayout from "../../layouts/AdminLayout.astro";
 import { listFriends } from "../../lib/database/admin-repository";
-import { getContentDatabase } from "../../lib/database/content-repository";
+import { getContentDatabase } from "../../lib/database/legacy-content-database";
 
 const friends = listFriends(getContentDatabase());
 const config = {

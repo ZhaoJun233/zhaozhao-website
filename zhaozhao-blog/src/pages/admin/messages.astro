@@ -2,7 +2,7 @@
 import { Check, Clock3, ShieldX, Trash2 } from "lucide-astro";
 import AdminShell from "../../components/admin/AdminShell.astro";
 import AdminLayout from "../../layouts/AdminLayout.astro";
-import { getContentDatabase } from "../../lib/database/content-repository";
+import { getContentDatabase } from "../../lib/database/legacy-content-database";
 import { listAdminMessages } from "../../lib/database/message-repository";
 
 const messages = listAdminMessages(getContentDatabase());

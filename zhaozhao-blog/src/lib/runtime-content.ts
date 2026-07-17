@@ -134,33 +134,56 @@ async function renderMarkdown(body: string) {
 }
 
 export async function loadRuntimeProfile(): Promise<RuntimeProfile> {
-  const profile = profileSchema.parse(readSetting("profile"));
+  const profile = profileSchema.parse(await readSetting("profile"));
   return { ...profile, avatarUrl: mediaUrl(profile.avatar)! };
 }
 
 export async function loadRuntimeEditorial() {
-  const navigation = navigationSchema.parse(readSetting("navigation"));
-  const homepage = homepageSchema.parse(readSetting("homepage"));
-  const about = aboutSchema.parse(readSetting("about"));
-  const guestbook = guestbookSchema.parse(readSetting("guestbook"));
-  const credits = creditsSchema.parse(readSetting("credits"));
-  const pageCopy = pageCopySchema.parse(readSetting("page_copy"));
+  const [
+    navigationValue,
+    homepageValue,
+    aboutValue,
+    guestbookValue,
+    creditsValue,
+    pageCopyValue,
+    categoryRows,
+    friendPage,
+    friendRows,
+    artworkValue,
+  ] = await Promise.all([
+    readSetting("navigation"),
+    readSetting("homepage"),
+    readSetting("about"),
+    readSetting("guestbook"),
+    readSetting("credits"),
+    readSetting("page_copy"),
+    readCategories(),
+    readFriendPage<Record<string, unknown>>(),
+    readFriends(),
+    readSetting("artwork"),
+  ]);
+  const navigation = navigationSchema.parse(navigationValue);
+  const homepage = homepageSchema.parse(homepageValue);
+  const about = aboutSchema.parse(aboutValue);
+  const guestbook = guestbookSchema.parse(guestbookValue);
+  const credits = creditsSchema.parse(creditsValue);
+  const pageCopy = pageCopySchema.parse(pageCopyValue);
   const taxonomy = taxonomySchema.parse({
-    categories: readCategories().map(({ name, description }) => ({
+    categories: categoryRows.map(({ name, description }) => ({
       name,
       ...(description ? { description } : {}),
     })),
   });
   const friends = friendsSchema.parse({
-    ...readFriendPage<Record<string, unknown>>(),
-    links: readFriends().map((friend) => ({
+    ...friendPage,
+    links: friendRows.map((friend) => ({
       name: friend.name,
       url: friend.url,
       description: friend.description,
       interests: JSON.parse(friend.interests_json),
     })),
   });
-  const artwork = artworkSchema.parse(readSetting("artwork"));
+  const artwork = artworkSchema.parse(artworkValue);
   return {
     navigation,
     homepage,
@@ -181,7 +204,8 @@ export async function loadRuntimeEditorial() {
 }
 
 export async function loadRuntimePosts(): Promise<RuntimePost[]> {
-  return Promise.all(readPosts().map(async (row) => {
+  const rows = await readPosts();
+  return Promise.all(rows.map(async (row) => {
     const body = row.body;
     const rendered = await renderMarkdown(body);
     const data = postDataSchema.parse({
@@ -208,7 +232,8 @@ export async function loadRuntimePosts(): Promise<RuntimePost[]> {
 }
 
 export async function loadRuntimeProjects(): Promise<RuntimeProject[]> {
-  return Promise.all(readProjects().map(async (row) => {
+  const rows = await readProjects();
+  return Promise.all(rows.map(async (row) => {
     const body = row.body;
     const rendered = await renderMarkdown(body);
     const data = projectDataSchema.parse({

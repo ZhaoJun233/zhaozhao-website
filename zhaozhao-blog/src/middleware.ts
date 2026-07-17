@@ -1,6 +1,6 @@
 import { defineMiddleware } from "astro:middleware";
 import { authenticateAdminSession, readAdminSessionToken } from "./lib/admin/auth";
-import { getContentDatabase } from "./lib/database/content-repository";
+import { getContentDatabase } from "./lib/database/legacy-content-database";
 
 export const onRequest = defineMiddleware(async (context, next) => {
   const path = context.url.pathname;

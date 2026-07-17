@@ -1,7 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import { z } from "astro/zod";
 import { authenticateAdminSession, readAdminSessionToken } from "./auth";
-import { getContentDatabase } from "../database/content-repository";
+import { getContentDatabase } from "../database/legacy-content-database";
 import { AdminConflictError, AdminNotFoundError } from "../database/admin-repository";
 
 const maxBodyBytes = 1024 * 1024;

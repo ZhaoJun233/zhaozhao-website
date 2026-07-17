@@ -2,7 +2,7 @@
 import AdminShell from "../../components/admin/AdminShell.astro";
 import AdminLayout from "../../layouts/AdminLayout.astro";
 import { getAdminOverview } from "../../lib/database/admin-repository";
-import { getContentDatabase } from "../../lib/database/content-repository";
+import { getContentDatabase } from "../../lib/database/legacy-content-database";
 
 const overview = getAdminOverview(getContentDatabase());
 const stats = [
