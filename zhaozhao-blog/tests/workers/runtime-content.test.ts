@@ -26,7 +26,8 @@ describe("runtime content backed by D1", () => {
     ]);
 
     expect(profile.name).toBe("数据库里的233昭");
-    expect(profile.avatarUrl).toMatch(/^\/media\/profile\/.+\/$/);
+    expect(profile.avatarUrl).toMatch(/^\/media\/profile\/.+\.jpg$/);
+    expect(editorial.artwork.homeHero.imageUrl).toBe("/media/backgrounds/home-hero.png");
     expect(editorial.taxonomy.categories.map(({ name }) => name)).toEqual([
       "开发",
       "阅读",

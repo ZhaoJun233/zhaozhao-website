@@ -89,6 +89,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .admin-setting-editor[data-setting-key="profile"] > [data-setting-field="bio"],
 .admin-setting-editor[data-setting-key="profile"] > [data-setting-field="avatar"],
 .admin-setting-editor[data-setting-key="profile"] > [data-setting-field="motto"] { grid-column: 1 / -1; }
+.admin-media-upload { display: flex; align-items: center; gap: .65rem; margin-block-start: .55rem; }
+.admin-media-upload input[type="file"] { inline-size: 100%; font-size: .84rem; color: var(--admin-muted); }
 .admin-setting-group { display: grid; gap: .8rem; margin: 0 0 1rem; padding: 1rem; border: 1px solid #ebe8e2; }
 .admin-setting-group legend { padding: 0 .4rem; color: #08616a; font-size: .7rem; font-weight: 760; }
 .admin-data-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }

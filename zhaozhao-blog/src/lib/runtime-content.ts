@@ -1,4 +1,4 @@
-import { basename, join, resolve } from "node:path";
+import { basename } from "node:path";
 import { Marked, type Token } from "marked";
 import { z } from "astro/zod";
 import type { MarkdownHeading } from "astro";
@@ -24,7 +24,6 @@ import { taxonomySlug } from "./slug";
 const requiredText = z.string().trim().min(1);
 const optionalText = z.string().trim().min(1).optional();
 const httpUrl = z.url({ protocol: /^https?$/ });
-const contentRoot = resolve(process.env.CONTENT_ROOT ?? join(process.cwd(), "src"));
 
 const profileSchema = z.object({
   name: requiredText,
@@ -101,10 +100,11 @@ export type RuntimeProject = {
 function mediaUrl(value: string | undefined): string | undefined {
   if (!value) return undefined;
   const normalized = value.replaceAll("\\", "/");
+  if (normalized.startsWith("/media/")) return normalized;
   const marker = "/assets/";
   const index = normalized.lastIndexOf(marker);
-  if (index >= 0) return `/media/${normalized.slice(index + marker.length)}/`;
-  return `/media/uploads/${basename(normalized)}/`;
+  if (index >= 0) return `/media/${normalized.slice(index + marker.length)}`;
+  return `/media/uploads/${basename(normalized)}`;
 }
 
 function createMarkdownRenderer() {
@@ -254,8 +254,4 @@ export async function loadRuntimeProjects(): Promise<RuntimeProject[]> {
       data: { ...data, coverUrl: mediaUrl(data.cover) },
     };
   }));
-}
-
-export function runtimeContentRoot(): string {
-  return contentRoot;
 }

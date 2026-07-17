@@ -24,6 +24,40 @@ function titleFor(key: string) {
   return fieldLabels[key] ?? key.replaceAll("_", " ");
 }
 
+function addMediaUpload(wrapper: HTMLElement, control: HTMLInputElement | HTMLTextAreaElement) {
+  const upload = document.createElement("div");
+  upload.className = "admin-media-upload";
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/jpeg,image/png,image/webp,image/gif";
+  input.setAttribute("aria-label", "上传并填入图片路径");
+  input.addEventListener("change", async () => {
+    const file = input.files?.[0];
+    if (!file || !status) return;
+    const body = new FormData();
+    body.set("file", file);
+    status.textContent = "正在上传图片…";
+    status.removeAttribute("data-error");
+    try {
+      const response = await fetch("/api/admin/media/", { method: "POST", body });
+      const result = await response.json() as {
+        data?: { url?: string };
+        error?: string;
+      };
+      if (!response.ok || !result.data?.url) throw new Error(result.error ?? "上传失败。");
+      control.value = result.data.url;
+      status.textContent = "图片已上传，保存设置后前台生效。";
+    } catch (error) {
+      status.textContent = error instanceof Error ? error.message : "上传失败。";
+      status.setAttribute("data-error", "");
+    } finally {
+      input.value = "";
+    }
+  });
+  upload.append(input);
+  wrapper.append(upload);
+}
+
 function createControl(value: unknown, path: Array<string | number>): HTMLElement {
   const wrapper = document.createElement("div");
   wrapper.className = "admin-field";
@@ -64,6 +98,7 @@ function createControl(value: unknown, path: Array<string | number>): HTMLElemen
   }
   if (complexArray) control.style.minBlockSize = "12rem";
   wrapper.append(label, control);
+  if (["avatar", "image"].includes(fieldName)) addMediaUpload(wrapper, control);
   return wrapper;
 }
 
