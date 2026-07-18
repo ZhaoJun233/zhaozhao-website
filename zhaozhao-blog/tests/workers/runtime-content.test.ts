@@ -35,6 +35,8 @@ describe("runtime content backed by D1", () => {
     ]);
     expect(editorial.friends.links).toHaveLength(4);
     expect(editorial.friends.links[0]?.name).toBe("数据库友链");
+    expect(editorial.nowPage.music.openLabel).toBe("在网易云音乐中打开");
+    expect(editorial.navigation.items).toContainEqual({ label: "此刻", href: "/now/" });
   });
 
   it("parses posts and projects at request time", async () => {

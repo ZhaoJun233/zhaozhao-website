@@ -5,6 +5,7 @@ import friendsSource from "./friends.json";
 import guestbookSource from "./guestbook.json";
 import homepageSource from "./homepage.json";
 import navigationSource from "./navigation.json";
+import nowSource from "./now.json";
 import pageCopySource from "./page-copy.json";
 
 const text = z.string().trim().min(1);
@@ -129,6 +130,29 @@ export const guestbookSchema = z.object({
   discussion: z.object({ eyebrow: text, title: text, description: text }),
 });
 
+export const nowPageSchema = z.object({
+  seoDescription: text,
+  hero: z.object({
+    eyebrow: text,
+    title: text,
+    weatherNotes: z.object({
+      clear: text,
+      cloudy: text,
+      rain: text,
+      snow: text,
+      storm: text,
+      fallback: text,
+    }),
+  }),
+  music: z.object({
+    eyebrow: text,
+    title: text,
+    emptyTitle: text,
+    emptyDescription: text,
+    openLabel: text,
+  }),
+});
+
 export const creditsSchema = z.object({
   title: text,
   description: text,
@@ -184,5 +208,6 @@ export const homepageContent = homepageSchema.parse(homepageSource);
 export const aboutContent = aboutSchema.parse(aboutSource);
 export const friendsContent = friendsSchema.parse(friendsSource);
 export const guestbookContent = guestbookSchema.parse(guestbookSource);
+export const nowPageContent = nowPageSchema.parse(nowSource);
 export const creditsContent = creditsSchema.parse(creditsSource);
 export const pageCopy = pageCopySchema.parse(pageCopySource);

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { SchemaContext } from "astro/content/config";
 import { z } from "astro/zod";
 import { createPostSchema, createProjectSchema } from "../../src/content.config";
+import { nowPageSchema } from "../../src/data/content";
 import { validatePostCoverPair } from "../../src/lib/authoring";
 import {
   buildCategoryIndex,
@@ -52,6 +53,31 @@ const validProject = {
 const invalidDateInputs = [null, true, false, "", " ", "not-a-date"] as const;
 
 describe("content domain", () => {
+  it("accepts the editable now-page copy", () => {
+    expect(nowPageSchema.parse({
+      seoDescription: "访客时间、天气与今日选曲。",
+      hero: {
+        eyebrow: "A window by the sea",
+        title: "此刻",
+        weatherNotes: {
+          clear: "天空很轻，适合把喜欢的歌慢慢听完。",
+          cloudy: "云层压低了一点，音乐仍会留住光。",
+          rain: "让雨声和旋律一起落在窗边。",
+          snow: "雪把世界放慢，也把歌声衬得更近。",
+          storm: "雷声经过时，先在这里安静听一首歌。",
+          fallback: "天气暂时藏进云里了。",
+        },
+      },
+      music: {
+        eyebrow: "233昭的今日选曲",
+        title: "让海风替我播放",
+        emptyTitle: "唱片架还是空的",
+        emptyDescription: "博主正在挑选第一首歌。",
+        openLabel: "在网易云音乐中打开",
+      },
+    })).toMatchObject({ hero: { title: "此刻" } });
+  });
+
   it("accepts date values and rejects invalid post publishedAt inputs", () => {
     expect(postSchema.parse(validPost).publishedAt).toEqual(new Date("2026-07-15"));
     expect(

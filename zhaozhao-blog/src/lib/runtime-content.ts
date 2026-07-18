@@ -9,6 +9,7 @@ import {
   guestbookSchema,
   homepageSchema,
   navigationSchema,
+  nowPageSchema,
   pageCopySchema,
 } from "../data/content";
 import {
@@ -144,6 +145,7 @@ export async function loadRuntimeEditorial() {
     homepageValue,
     aboutValue,
     guestbookValue,
+    nowPageValue,
     creditsValue,
     pageCopyValue,
     categoryRows,
@@ -155,6 +157,7 @@ export async function loadRuntimeEditorial() {
     readSetting("homepage"),
     readSetting("about"),
     readSetting("guestbook"),
+    readSetting("now_page"),
     readSetting("credits"),
     readSetting("page_copy"),
     readCategories(),
@@ -166,6 +169,7 @@ export async function loadRuntimeEditorial() {
   const homepage = homepageSchema.parse(homepageValue);
   const about = aboutSchema.parse(aboutValue);
   const guestbook = guestbookSchema.parse(guestbookValue);
+  const nowPage = nowPageSchema.parse(nowPageValue);
   const credits = creditsSchema.parse(creditsValue);
   const pageCopy = pageCopySchema.parse(pageCopyValue);
   const taxonomy = taxonomySchema.parse({
@@ -190,6 +194,7 @@ export async function loadRuntimeEditorial() {
     about,
     friends,
     guestbook,
+    nowPage,
     credits,
     pageCopy,
     taxonomy,

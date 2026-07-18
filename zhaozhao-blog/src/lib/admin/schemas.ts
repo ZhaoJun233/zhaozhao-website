@@ -5,6 +5,7 @@ import {
   guestbookSchema,
   homepageSchema,
   navigationSchema,
+  nowPageSchema,
   pageCopySchema,
 } from "../../data/content";
 
@@ -131,6 +132,7 @@ export const settingSchemas = {
   homepage: homepageSchema,
   about: aboutSchema,
   guestbook: guestbookSchema,
+  now_page: nowPageSchema,
   credits: creditsSchema,
   page_copy: pageCopySchema,
   artwork: artworkSettingSchema,

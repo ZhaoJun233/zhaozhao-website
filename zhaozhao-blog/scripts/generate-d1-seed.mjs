@@ -11,6 +11,7 @@ const settingFiles = new Map([
   ["homepage", "homepage.json"],
   ["about", "about.json"],
   ["guestbook", "guestbook.json"],
+  ["now_page", "now.json"],
   ["credits", "credits.json"],
   ["page_copy", "page-copy.json"],
   ["artwork", "artwork.json"],
