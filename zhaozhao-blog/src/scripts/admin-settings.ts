@@ -18,6 +18,20 @@ const fieldLabels: Record<string, string> = {
   motto: "个性签名",
   email: "联系邮箱",
   website: "个人网站",
+  seoDescription: "搜索摘要",
+  eyebrow: "英文眉题",
+  title: "标题",
+  weatherNotes: "天气寄语",
+  music: "音乐文案",
+  clear: "晴朗",
+  cloudy: "多云",
+  rain: "下雨",
+  snow: "下雪",
+  storm: "雷暴",
+  fallback: "不可用时",
+  emptyTitle: "空状态标题",
+  emptyDescription: "空状态说明",
+  openLabel: "网易云外链文字",
 };
 
 function titleFor(key: string) {

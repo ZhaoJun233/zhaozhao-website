@@ -7,13 +7,12 @@ import {
   HeartHandshake,
   LayoutTemplate,
   MessageSquareText,
-  Music2,
   LogOut,
   Tags,
 } from "lucide-astro";
 
 interface Props {
-  active: "overview" | "posts" | "projects" | "categories" | "friends" | "messages" | "music" | "content" | "data";
+  active: "overview" | "posts" | "projects" | "categories" | "friends" | "messages" | "content" | "data";
   title: string;
   description: string;
 }
@@ -26,7 +25,6 @@ const navigation = [
   { key: "categories", label: "分类", href: "/admin/categories/", icon: Tags },
   { key: "friends", label: "友链", href: "/admin/friends/", icon: HeartHandshake },
   { key: "messages", label: "留言", href: "/admin/messages/", icon: MessageSquareText },
-  { key: "music", label: "音乐", href: "/admin/music/", icon: Music2 },
   { key: "content", label: "页面内容", href: "/admin/content/", icon: LayoutTemplate },
   { key: "data", label: "数据与备份", href: "/admin/data/", icon: Boxes },
 ] as const;

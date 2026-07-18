@@ -93,6 +93,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .admin-music-cover [data-music-cover-empty][hidden] { display: none; }
 .admin-music-cover__actions { display: flex; flex-wrap: wrap; gap: .5rem; }
 .admin-music-cover__status { margin-block-start: -.5rem; }
+.admin-content-music { scroll-margin-top: 1rem; }
+.admin-content-music > .admin-panel__header { margin-block: 1.5rem 1rem; }
+.admin-music__list .admin-panel__header { align-items: center; }
 .admin-field small { color: #817c75; font-size: .62rem; }
 .admin-setting-tabs { display: flex; flex-wrap: wrap; gap: .45rem; margin-block-end: 1rem; }
 .admin-setting-tabs button[aria-pressed="true"] { border-color: #086d77; background: #dff2f1; color: #08616a; }

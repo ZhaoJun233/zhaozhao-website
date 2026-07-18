@@ -1,24 +1,32 @@
 ---
 import { Save } from "lucide-astro";
+import AdminMusicManager from "../../components/admin/AdminMusicManager.astro";
 import AdminShell from "../../components/admin/AdminShell.astro";
 import AdminLayout from "../../layouts/AdminLayout.astro";
+import { getDatabase } from "../../lib/cloudflare/bindings";
+import { listMusicTracks } from "../../lib/database/music-repository";
 
 const settings = [
   ["profile", "个人资料"], ["navigation", "导航与页脚"], ["homepage", "首页"],
+  ["now_page", "首页天气与音乐"],
   ["about", "关于页"], ["friend_page", "友链页文案"], ["guestbook", "留言页"],
   ["credits", "鸣谢页"], ["page_copy", "索引页文案"], ["artwork", "插画信息"],
 ];
+const tracks = await listMusicTracks(getDatabase());
 ---
 
 <AdminLayout title="页面内容">
-  <AdminShell active="content" title="页面内容" description="结构化维护详细个人资料、导航和各页面文案。">
-    <form data-setting-form>
-      <div class="admin-setting-tabs" role="toolbar" aria-label="页面内容区域">
-        {settings.map(([key, label], index) => <button class="admin-button" type="button" data-setting-key={key} aria-pressed={index === 0 ? "true" : "false"}>{label}</button>)}
-      </div>
-      <section class="admin-setting-editor" data-setting-editor aria-live="polite"></section>
-      <p class="admin-status" data-setting-status aria-live="polite"></p>
-      <div class="admin-form__actions"><button class="admin-button admin-button--primary" type="submit"><Save size={15} />保存当前区域</button></div>
-    </form>
+  <AdminShell active="content" title="页面内容" description="维护首页、天气音乐、个人资料、导航和其他页面文案。">
+    <section class="admin-panel">
+      <form data-setting-form>
+        <div class="admin-setting-tabs" role="toolbar" aria-label="页面内容区域">
+          {settings.map(([key, label], index) => <button class="admin-button" type="button" data-setting-key={key} aria-pressed={index === 0 ? "true" : "false"}>{label}</button>)}
+        </div>
+        <section class="admin-setting-editor" data-setting-editor aria-live="polite"></section>
+        <p class="admin-status" data-setting-status aria-live="polite"></p>
+        <div class="admin-form__actions"><button class="admin-button admin-button--primary" type="submit"><Save size={15} />保存当前区域</button></div>
+      </form>
+    </section>
+    <AdminMusicManager tracks={tracks} />
   </AdminShell>
 </AdminLayout>

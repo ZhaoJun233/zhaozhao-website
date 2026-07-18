@@ -198,8 +198,14 @@ test("administrator manages music tracks and cover images", async ({ page }, tes
 
   try {
     await loginAsAdministrator(page);
-    await page.getByRole("link", { name: "音乐", exact: true }).click();
-    await expect(page.getByRole("heading", { level: 1, name: "音乐管理" })).toBeVisible();
+    await page.getByRole("link", { name: "页面内容", exact: true }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "页面内容" })).toBeVisible();
+    const homepageSettings = page.getByRole("button", { name: "首页天气与音乐" });
+    await expect(homepageSettings).toBeVisible();
+    await homepageSettings.click();
+    await expect(page.locator("[data-setting-editor]"))
+      .toHaveAttribute("data-setting-key", "now_page");
+    await expect(page.locator("#home-weather-music")).toBeVisible();
 
     await page.getByRole("button", { name: "新增歌曲" }).click();
     await page.getByLabel("歌曲名称").fill(firstTitle);
@@ -229,6 +235,11 @@ test("administrator manages music tracks and cover images", async ({ page }, tes
 
     const firstRow = page.locator("tr").filter({ hasText: firstTitle });
     await firstRow.getByRole("button", { name: `编辑 ${firstTitle}` }).click();
+    await page.getByRole("button", { name: "新增歌曲" }).click();
+    await expect(page.getByLabel("歌曲名称")).toHaveValue("");
+    await expect(page.getByLabel("歌手")).toHaveValue("");
+    await expect(page.getByLabel("网易云歌曲 ID")).toHaveValue("");
+    await firstRow.getByRole("button", { name: `编辑 ${firstTitle}` }).click();
     await page.getByLabel("推荐语").fill("修改后的海边推荐语。");
     await page.getByLabel("在前台展示").uncheck();
     await page.getByRole("button", { name: "保存歌曲" }).click();
@@ -254,6 +265,22 @@ test("administrator manages music tracks and cover images", async ({ page }, tes
     } catch {
       // Best-effort cleanup is sufficient; test failures retain the original assertion.
     }
+  }
+});
+
+test("legacy music admin route redirects to page content", async ({ page }, testInfo) => {
+  await loginAsAdministrator(page);
+  await page.goto("/admin/music/");
+  await expect(page).toHaveURL(/\/admin\/content\/#home-weather-music$/);
+  await expect(page.locator("#home-weather-music")).toBeVisible();
+  await expect(page.getByRole("link", { name: "音乐", exact: true })).toHaveCount(0);
+
+  if (testInfo.project.name === "mobile-390") {
+    const widths = await page.evaluate(() => ({
+      client: document.documentElement.clientWidth,
+      scroll: document.documentElement.scrollWidth,
+    }));
+    expect(widths.scroll).toBeLessThanOrEqual(widths.client);
   }
 });
 

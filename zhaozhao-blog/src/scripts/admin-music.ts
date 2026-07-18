@@ -75,7 +75,6 @@ if (page) {
   const resetForm = async (clean = true) => {
     const oldToken = draftTokenInput.value;
     if (uploadPromise) await uploadPromise;
-    if (clean && oldToken) await cleanupDraft(oldToken);
     form.reset();
     idInput.value = "";
     draftTokenInput.value = crypto.randomUUID();
@@ -85,6 +84,7 @@ if (page) {
     showCover();
     setStatus(status, "");
     setStatus(coverStatus, "");
+    if (clean && oldToken) await cleanupDraft(oldToken);
   };
 
   const populate = async (track: MusicTrack) => {

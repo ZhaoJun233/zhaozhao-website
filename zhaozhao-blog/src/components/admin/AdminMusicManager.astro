@@ -1,0 +1,116 @@
+---
+import {
+  ArrowDown,
+  ArrowUp,
+  Disc3,
+  ImagePlus,
+  Pencil,
+  Plus,
+  Save,
+  Trash2,
+  X,
+} from "lucide-astro";
+import type { AdminMusicTrack } from "../../lib/database/music-repository";
+
+interface Props {
+  tracks: AdminMusicTrack[];
+}
+
+const { tracks } = Astro.props;
+---
+
+<section id="home-weather-music" class="admin-content-music" aria-labelledby="home-music-heading">
+  <div class="admin-panel__header">
+    <div>
+      <h2 id="home-music-heading">首页音乐</h2>
+      <p>维护首页展示的网易云选曲、封面、推荐语和顺序。</p>
+    </div>
+  </div>
+  <div class="admin-split admin-music" data-music-page>
+    <section class="admin-panel admin-music__list">
+      <div class="admin-panel__header">
+        <div>
+          <h3>选曲列表</h3>
+          <p>共 {tracks.length} 首；启用歌曲会按此顺序出现在首页。</p>
+        </div>
+        <button class="admin-button admin-button--primary" type="button" data-create-music>
+          <Plus size={16} />新增歌曲
+        </button>
+      </div>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead><tr><th>歌曲</th><th>网易云 ID</th><th>状态</th><th>顺序</th><th><span class="sr-only">操作</span></th></tr></thead>
+          <tbody data-music-rows>
+            {tracks.map((track, index) => (
+              <tr data-music-row data-record-id={track.id}>
+                <td>
+                  <div class="admin-music-track">
+                    <div class="admin-music-track__cover">
+                      {track.coverUrl
+                        ? <img src={track.coverUrl} alt="" loading="lazy" />
+                        : <Disc3 size={20} aria-hidden="true" />}
+                    </div>
+                    <div class="admin-table__title">
+                      <strong data-music-title>{track.title}</strong>
+                      <span>{track.artist}{track.note ? ` · ${track.note}` : ""}</span>
+                    </div>
+                  </div>
+                </td>
+                <td><code>{track.neteaseSongId}</code></td>
+                <td><span class:list={["admin-badge", { "admin-badge--muted": !track.enabled }]}>{track.enabled ? "展示中" : "已停用"}</span></td>
+                <td>{String(index + 1).padStart(2, "0")}</td>
+                <td>
+                  <div class="admin-actions">
+                    <button class="admin-button admin-button--small" type="button" data-move-music={track.id} data-direction="up" aria-label={`上移 ${track.title}`}><ArrowUp size={14} /></button>
+                    <button class="admin-button admin-button--small" type="button" data-move-music={track.id} data-direction="down" aria-label={`下移 ${track.title}`}><ArrowDown size={14} /></button>
+                    <button class="admin-button admin-button--small" type="button" data-edit-music={track.id} aria-label={`编辑 ${track.title}`}><Pencil size={14} />编辑</button>
+                    <button class="admin-button admin-button--small admin-button--danger" type="button" data-delete-music={track.id} aria-label={`删除 ${track.title}`}><Trash2 size={14} />删除</button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {tracks.length === 0 && <div class="admin-empty">唱片架还是空的，先加入一首歌吧。</div>}
+      </div>
+    </section>
+
+    <aside class="admin-editor admin-music__editor">
+      <p class="admin-music__kicker">NOW PLAYING DESK</p>
+      <h2 data-music-editor-title>新增歌曲</h2>
+      <p>只填写网易云歌曲页面中的数字 ID；播放器链接会自动生成。</p>
+      <form class="admin-form" data-music-form>
+        <input type="hidden" name="id" />
+        <input type="hidden" name="draftToken" />
+        <input type="hidden" name="coverAssetId" />
+
+        <div class="admin-music-cover" data-music-cover-preview>
+          <img src="" alt="歌曲封面预览" hidden />
+          <div data-music-cover-empty><Disc3 size={30} aria-hidden="true" /><span>可选封面</span></div>
+        </div>
+        <div class="admin-music-cover__actions">
+          <label class="admin-button" for="music-cover-input"><ImagePlus size={15} />上传封面</label>
+          <input id="music-cover-input" class="admin-post-file-input" type="file" accept="image/*" data-music-cover-input />
+          <button class="admin-button admin-button--danger" type="button" data-remove-music-cover><Trash2 size={15} />移除</button>
+        </div>
+        <p class="admin-status admin-music-cover__status" data-music-cover-status aria-live="polite"></p>
+
+        <div class="admin-field"><label for="music-title">歌曲名称</label><input id="music-title" name="title" required maxlength="120" autocomplete="off" /></div>
+        <div class="admin-field"><label for="music-artist">歌手</label><input id="music-artist" name="artist" required maxlength="120" autocomplete="off" /></div>
+        <div class="admin-field">
+          <label for="music-song-id">网易云歌曲 ID</label>
+          <input id="music-song-id" name="neteaseSongId" required inputmode="numeric" pattern="[0-9]{1,20}" maxlength="20" placeholder="例如：123456789" autocomplete="off" />
+          <small>打开歌曲页，复制地址中 <code>id=</code> 后面的数字。</small>
+        </div>
+        <div class="admin-field"><label for="music-note">推荐语</label><textarea id="music-note" name="note" maxlength="500" placeholder="写一句此刻想分享这首歌的理由。"></textarea></div>
+        <label class="admin-field--check"><input name="enabled" type="checkbox" checked />在前台展示</label>
+        <p class="admin-status" data-music-status aria-live="polite"></p>
+        <div class="admin-form__actions">
+          <button class="admin-button admin-button--primary" type="submit"><Save size={15} />保存歌曲</button>
+          <button class="admin-button" type="button" data-cancel-music><X size={15} />清空</button>
+        </div>
+      </form>
+    </aside>
+    <script is:inline type="application/json" data-music-records set:html={JSON.stringify(tracks)}></script>
+  </div>
+</section>
