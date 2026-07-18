@@ -7,8 +7,14 @@ describe("siteConfig", () => {
     expect(siteConfig.timeZone).toBe("Asia/Shanghai");
     expect(siteConfig.pageSize).toBe(8);
     expect(siteConfig.navigation.map((item) => item.href)).toEqual([
-      "/", "/posts/", "/categories/", "/archive/", "/projects/",
-      "/friends/", "/now/", "/about/", "/guestbook/"
+      "/",
+      "/posts/",
+      "/categories/",
+      "/archive/",
+      "/projects/",
+      "/friends/",
+      "/about/",
+      "/guestbook/",
     ]);
   });
 });
