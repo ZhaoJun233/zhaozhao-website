@@ -98,7 +98,7 @@ test("selects and searches music from any page", async ({ page }, testInfo) => {
   const title = `导航选曲-${unique}`;
   let trackId = "";
 
-  await page.route("https://audio.example/**", async (route) => {
+  await page.route("**/api/music/audio/**", async (route) => {
     await fulfillSilentAudio(route);
   });
   await page.route("**/api/music/covers**", async (route) => {
@@ -113,12 +113,14 @@ test("selects and searches music from any page", async ({ page }, testInfo) => {
 
   try {
     await login(page);
+    await page.goto("/admin/music/");
+    await expect(page.getByText("留空时自动使用网易云在线音频；填写后优先使用自定义地址。"))
+      .toBeVisible();
     const create = await page.request.post("/api/admin/music/", {
       data: {
         title,
         artist: "远方测试歌手",
         neteaseSongId: unique,
-        audioUrl: `https://audio.example/${unique}.wav`,
         note: "适合夜路关键词",
         enabled: true,
       },
@@ -143,7 +145,7 @@ test("selects and searches music from any page", async ({ page }, testInfo) => {
     await expect(player.locator("[data-header-music-title]")).toHaveText(title);
     await expect(player.locator("[data-site-audio]")).toHaveAttribute(
       "src",
-      `https://audio.example/${unique}.wav`,
+      `/api/music/audio/${trackId}/`,
     );
     await expect(page).toHaveURL(/\/posts\/$/);
   } finally {

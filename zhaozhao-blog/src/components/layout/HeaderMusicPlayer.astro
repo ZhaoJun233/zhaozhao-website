@@ -1,6 +1,7 @@
 ---
 import { ExternalLink, Music2, Search, X } from "lucide-astro";
 import type { AdminMusicTrack } from "../../lib/database/music-repository";
+import { musicPlaybackUrl } from "../../lib/music-playback";
 
 interface Props {
   tracks: AdminMusicTrack[];
@@ -86,7 +87,7 @@ const { tracks } = Astro.props;
               data-track-artist={track.artist}
               data-track-note={track.note ?? ""}
               data-track-cover={track.coverUrl ?? ""}
-              data-track-audio={track.audioUrl ?? ""}
+              data-track-audio={musicPlaybackUrl(track)}
               data-track-embed={track.embedUrl}
               data-track-url={track.neteaseUrl}
               aria-pressed="false"

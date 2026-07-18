@@ -59,7 +59,7 @@ const { tracks } = Astro.props;
                 <td><code>{track.neteaseSongId}</code></td>
                 <td>
                   <span class:list={["admin-badge", { "admin-badge--muted": !track.enabled }]}>{track.enabled ? "展示中" : "已停用"}</span>
-                  <span class:list={["admin-badge", { "admin-badge--muted": !track.audioUrl }]}>{track.audioUrl ? "可播放" : "待填音源"}</span>
+                  <span class="admin-badge">{track.audioUrl ? "自定义音源" : "网易云在线"}</span>
                 </td>
                 <td>{String(index + 1).padStart(2, "0")}</td>
                 <td>
@@ -81,7 +81,7 @@ const { tracks } = Astro.props;
     <aside class="admin-editor admin-music__editor">
       <p class="admin-music__kicker">NOW PLAYING DESK</p>
       <h2 data-music-editor-title>新增歌曲</h2>
-      <p>网易云 ID 用于歌曲信息与封面；音频地址用于首页和导航栏同步播放。</p>
+      <p>网易云 ID 用于歌曲信息、封面和在线音频；自定义音频地址可覆盖默认音源。</p>
       <form class="admin-form" data-music-form>
         <input type="hidden" name="id" />
         <input type="hidden" name="draftToken" />
@@ -114,7 +114,7 @@ const { tracks } = Astro.props;
         <div class="admin-field">
           <label for="music-audio-url">音频播放地址</label>
           <input id="music-audio-url" name="audioUrl" type="url" maxlength="2000" placeholder="https://example.com/song.mp3" autocomplete="off" />
-          <small>填写可直接播放的 MP3、M4A、OGG 等音频地址；网易云歌曲页面链接不能作为音源。</small>
+          <small>留空时自动使用网易云在线音频；填写后优先使用自定义地址。</small>
         </div>
         <div class="admin-field"><label for="music-note">推荐语</label><textarea id="music-note" name="note" maxlength="500" placeholder="写一句此刻想分享这首歌的理由。"></textarea></div>
         <label class="admin-field--check"><input name="enabled" type="checkbox" checked />在前台展示</label>

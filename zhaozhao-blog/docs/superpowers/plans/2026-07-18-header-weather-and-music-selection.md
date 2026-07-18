@@ -16,7 +16,7 @@
 - Search locally by title, artist, and note; do not add an API or backend field.
 - Preserve the single native `<audio data-site-audio>` with `transition:persist="site-music-player"` across navigation.
 - Keep independent homepage and header control UIs synchronized through `site:music-command`, `site:music-state`, and `site:music-state-request`.
-- Add a backend `audioUrl` field for direct playback; tracks without it remain selectable and keep their NetEase link but cannot play.
+- Keep the backend `audioUrl` field as an explicit override; tracks without it use a validated `/api/music/audio/[id]/` redirect that resolves the NetEase song ID to an HTTPS audio CDN URL without proxying audio bytes.
 - Resolve missing enabled-track covers through cached read-only `/api/music/covers/` metadata lookups; never expose a user-controlled proxy.
 - Do not change third-party music copyright/playability behavior.
 
