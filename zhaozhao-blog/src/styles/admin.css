@@ -81,6 +81,19 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .admin-status { min-block-size: 1.2rem; margin: 0; color: #08735b; font-size: .7rem; }
 .admin-status[data-error] { color: #a93658; }
 .admin-empty { padding: 3rem 1rem; color: #817c75; text-align: center; }
+.admin-music__list { margin: 0; }
+.admin-music__kicker { margin: 0 0 .25rem !important; color: #0b737d !important; font-size: .58rem !important; font-weight: 800; letter-spacing: .14em; }
+.admin-music-track { display: flex; min-inline-size: 15rem; align-items: center; gap: .7rem; }
+.admin-music-track__cover { display: grid; inline-size: 2.75rem; block-size: 2.75rem; flex: 0 0 auto; overflow: hidden; place-items: center; border: 1px solid #dedbd4; border-radius: 50%; background: radial-gradient(circle at 30% 20%, #dff2f1, #f0ede7); color: #0b737d; }
+.admin-music-track__cover img { inline-size: 100%; block-size: 100%; object-fit: cover; }
+.admin-music code { color: #5c5750; font-family: var(--font-mono); font-size: .68rem; }
+.admin-music-cover { display: grid; overflow: hidden; min-block-size: 10.5rem; place-items: center; border: 1px solid #d9d5ce; border-radius: .55rem; background: radial-gradient(circle at 28% 18%, #dff2f1, transparent 45%), linear-gradient(145deg, #f8f6f1, #ece8e0); color: #0b737d; }
+.admin-music-cover img { inline-size: 100%; block-size: 100%; max-block-size: 17rem; aspect-ratio: 1 / 1; object-fit: cover; }
+.admin-music-cover [data-music-cover-empty] { display: grid; place-items: center; gap: .35rem; color: #777169; font-size: .68rem; }
+.admin-music-cover [data-music-cover-empty][hidden] { display: none; }
+.admin-music-cover__actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.admin-music-cover__status { margin-block-start: -.5rem; }
+.admin-field small { color: #817c75; font-size: .62rem; }
 .admin-setting-tabs { display: flex; flex-wrap: wrap; gap: .45rem; margin-block-end: 1rem; }
 .admin-setting-tabs button[aria-pressed="true"] { border-color: #086d77; background: #dff2f1; color: #08616a; }
 .admin-setting-editor { padding: 1.25rem; border: 1px solid #dfdcd6; border-radius: .55rem; background: #fff; }
@@ -202,6 +215,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .admin-post-media-card { display: grid; grid-template-columns: minmax(6.5rem, .72fr) minmax(0, 1.28fr); }
   .admin-post-media-card > img { block-size: 100%; aspect-ratio: auto; }
   .admin-post-savebar { inset-block-end: .35rem; }
+  .admin-music .admin-field input, .admin-music .admin-field textarea, .admin-music .admin-button { min-block-size: 2.75rem; }
+  .admin-music__editor { padding: 1rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,5 +1,10 @@
 import type { APIRoute } from "astro";
 import { handleAdminRequest, readAdminJson } from "../../../../lib/admin/http";
+import { getMediaStore } from "../../../../lib/cloudflare/bindings";
+import {
+  type MediaCleanupRunner,
+  runMediaCleanupBestEffort,
+} from "../../../../lib/cloudflare/post-media";
 import {
   deleteMusicTrack,
   getMusicTrack,
@@ -18,10 +23,12 @@ export const PUT: APIRoute = ({ request, params }) => handleAdminRequest(
     await readAdminJson(request) as never,
   ),
 );
-export const DELETE: APIRoute = ({ request, params }) => handleAdminRequest(
-  request,
-  async (database) => {
+export function createMusicDeleteRoute(cleanup?: MediaCleanupRunner): APIRoute {
+  return ({ request, params }) => handleAdminRequest(request, async (database) => {
     await deleteMusicTrack(database, params.id!);
+    await runMediaCleanupBestEffort(database, getMediaStore(), 5, cleanup);
     return { deleted: true };
-  },
-);
+  });
+}
+
+export const DELETE = createMusicDeleteRoute();

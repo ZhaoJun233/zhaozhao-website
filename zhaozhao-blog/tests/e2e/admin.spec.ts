@@ -187,6 +187,76 @@ tags: 测试, Markdown
   }
 });
 
+test("administrator manages music tracks and cover images", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-1440", "数据库写入流程只执行一次。" );
+  test.setTimeout(180_000);
+  const unique = `${Date.now()}${testInfo.retry}`;
+  const firstTitle = `海边选曲-${unique}`;
+  const secondTitle = `夜色选曲-${unique}`;
+  const songIds = [`${unique}1`, `${unique}2`];
+  let coverUrl = "";
+
+  try {
+    await loginAsAdministrator(page);
+    await page.getByRole("link", { name: "音乐", exact: true }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "音乐管理" })).toBeVisible();
+
+    await page.getByRole("button", { name: "新增歌曲" }).click();
+    await page.getByLabel("歌曲名称").fill(firstTitle);
+    await page.getByLabel("歌手").fill("测试歌手 A");
+    await page.getByLabel("网易云歌曲 ID").fill(songIds[0]);
+    await page.getByLabel("推荐语").fill("适合海风轻轻吹过的时候。");
+    await page.locator("[data-music-cover-input]").setInputFiles("tests/fixtures/post-cover.png");
+    const coverImage = page.locator("[data-music-cover-preview] img");
+    await expect(coverImage).toBeVisible();
+    await expect(page.locator("[data-music-cover-status]")).toContainText("封面已上传");
+    coverUrl = await coverImage.getAttribute("src") ?? "";
+    await page.getByRole("button", { name: "保存歌曲" }).click();
+    await expect(page.getByText(firstTitle, { exact: true })).toBeVisible();
+
+    await page.getByRole("button", { name: "新增歌曲" }).click();
+    await page.getByLabel("歌曲名称").fill(secondTitle);
+    await page.getByLabel("歌手").fill("测试歌手 B");
+    await page.getByLabel("网易云歌曲 ID").fill(songIds[1]);
+    await page.getByRole("button", { name: "保存歌曲" }).click();
+    const secondRow = page.locator("tr").filter({ hasText: secondTitle });
+    await expect(secondRow).toBeVisible();
+    await secondRow.getByRole("button", { name: `上移 ${secondTitle}` }).click();
+    await expect.poll(async () => {
+      const titles = await page.locator("[data-music-row] [data-music-title]").allTextContents();
+      return titles.indexOf(secondTitle) < titles.indexOf(firstTitle);
+    }).toBe(true);
+
+    const firstRow = page.locator("tr").filter({ hasText: firstTitle });
+    await firstRow.getByRole("button", { name: `编辑 ${firstTitle}` }).click();
+    await page.getByLabel("推荐语").fill("修改后的海边推荐语。");
+    await page.getByLabel("在前台展示").uncheck();
+    await page.getByRole("button", { name: "保存歌曲" }).click();
+    await expect(page.locator("tr").filter({ hasText: firstTitle }).getByText("已停用")).toBeVisible();
+
+    page.once("dialog", (dialog) => dialog.accept());
+    await page.locator("tr").filter({ hasText: secondTitle })
+      .getByRole("button", { name: `删除 ${secondTitle}` }).click();
+    page.once("dialog", (dialog) => dialog.accept());
+    await page.locator("tr").filter({ hasText: firstTitle })
+      .getByRole("button", { name: `删除 ${firstTitle}` }).click();
+    await expect(page.getByText(firstTitle, { exact: true })).toHaveCount(0);
+    if (coverUrl) expect(await waitForMediaStatus(page.request, coverUrl, 404)).toBe(true);
+  } finally {
+    try {
+      const response = await page.request.get("/api/admin/music/");
+      if (response.ok()) {
+        const result = await response.json() as { data?: Array<{ id: string; neteaseSongId: string }> };
+        for (const track of (result.data ?? []).filter(({ neteaseSongId }) => songIds.includes(neteaseSongId))) {
+          await page.request.delete(`/api/admin/music/${track.id}/`);
+        }
+      }
+    } catch {
+      // Best-effort cleanup is sufficient; test failures retain the original assertion.
+    }
+  }
+});
+
 test("administrator manages article images", async ({ page, request }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-1440", "数据库写入流程只执行一次。" );
   test.setTimeout(240_000);
