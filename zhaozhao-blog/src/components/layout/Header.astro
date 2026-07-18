@@ -1,7 +1,10 @@
 ---
 import { Menu, Search } from "lucide-astro";
+import { getDatabase } from "../../lib/cloudflare/bindings";
+import { listEnabledMusicTracks } from "../../lib/database/music-repository";
 import { loadRuntimeEditorial, loadRuntimeProfile } from "../../lib/runtime-content";
 import ThemeToggle from "../ui/ThemeToggle.astro";
+import HeaderMusicPlayer from "./HeaderMusicPlayer.astro";
 import MobileNav from "./MobileNav.astro";
 
 interface Props {
@@ -10,7 +13,11 @@ interface Props {
 }
 
 const { currentPath = Astro.url.pathname, overlay = false } = Astro.props;
-const [profile, editorial] = await Promise.all([loadRuntimeProfile(), loadRuntimeEditorial()]);
+const [profile, editorial, tracks] = await Promise.all([
+  loadRuntimeProfile(),
+  loadRuntimeEditorial(),
+  listEnabledMusicTracks(getDatabase()),
+]);
 const navigation = editorial.navigation.items;
 
 function normalizePath(path: string): string {
@@ -44,6 +51,7 @@ function isCurrent(href: string): boolean {
     </nav>
 
     <div class="site-header__actions">
+      <HeaderMusicPlayer tracks={tracks} />
       <a
         class="icon-button search-link"
         href="/search/"
@@ -168,6 +176,7 @@ function isCurrent(href: string): boolean {
 
   .site-header__actions {
     display: flex;
+    min-inline-size: 0;
     align-items: center;
     gap: 0.1rem;
   }
@@ -209,6 +218,10 @@ function isCurrent(href: string): boolean {
 
     .desktop-nav a {
       font-size: 0.72rem;
+    }
+
+    .site-header__inner {
+      gap: 0.75rem;
     }
   }
 

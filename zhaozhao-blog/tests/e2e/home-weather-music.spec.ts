@@ -7,7 +7,11 @@ async function login(page: Page) {
   await expect(page.getByRole("heading", { level: 1, name: "后台概览" })).toBeVisible();
 }
 
-test("homepage uses visitor IP weather and shows one selected NetEase player", async ({
+function usesMobileDrawer(page: Page): boolean {
+  return (page.viewportSize()?.width ?? 0) <= 899;
+}
+
+test("navbar player persists the selected NetEase iframe across site navigation", async ({
   page,
   context,
 }, testInfo) => {
@@ -18,6 +22,13 @@ test("homepage uses visitor IP weather and shows one selected NetEase player", a
 
   await context.grantPermissions(["geolocation"]);
   await context.setGeolocation({ latitude: 31.1837, longitude: 121.4365 });
+  await page.route("https://music.163.com/outchain/player**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "text/html",
+      body: "<!doctype html><title>NetEase player fixture</title>",
+    });
+  });
   await page.route("**/api/weather**", async (route) => {
     weatherRequests.push(route.request().url());
     await route.fulfill({
@@ -57,7 +68,7 @@ test("homepage uses visitor IP weather and shows one selected NetEase player", a
     await expect(page.locator("#weather-music")).toBeVisible();
     await expect(page.locator("#weather-music")).toHaveAttribute("aria-label", "天气与音乐");
     const drawerToggle = page.locator("[data-weather-music-toggle]");
-    if (testInfo.project.name === "mobile-390") {
+    if (usesMobileDrawer(page)) {
       await expect(drawerToggle).toHaveAttribute("aria-expanded", "false");
       await drawerToggle.click();
     }
@@ -69,17 +80,26 @@ test("homepage uses visitor IP weather and shows one selected NetEase player", a
     await expect.poll(() => weatherRequests.length).toBeGreaterThan(0);
     expect(weatherRequests.every((url) => !url.includes("lat=") && !url.includes("lon="))).toBe(true);
     await expect(page.locator("iframe[src*='music.163.com/outchain/player']")).toHaveCount(0);
+    const navbarPlayer = page.locator("[data-header-music-player]");
+    await expect(navbarPlayer).toBeVisible();
+    await expect(navbarPlayer.getByRole("button", { name: "打开音乐播放器" })).toBeVisible();
 
     const track = page.getByRole("button", { name: new RegExp(title) });
     await track.click();
     await expect(track).toHaveAttribute("aria-pressed", "true");
-    const iframe = page.locator("iframe[src*='music.163.com/outchain/player']");
+    await expect(navbarPlayer).toHaveAttribute("data-player-open", "true");
+    await expect(page.locator("#weather-music iframe")).toHaveCount(0);
+    const iframe = navbarPlayer.locator("iframe[src*='music.163.com/outchain/player']");
     await expect(iframe).toHaveCount(1);
     await expect(iframe).toHaveAttribute("src", new RegExp(`id=${unique}`));
+    await iframe.evaluate((element) => {
+      element.setAttribute("data-persistence-probe", "same-node");
+    });
     await track.click();
     await expect(iframe).toHaveCount(1);
+    await expect(iframe).toHaveAttribute("data-persistence-probe", "same-node");
 
-    if (testInfo.project.name === "mobile-390") {
+    if (usesMobileDrawer(page)) {
       const weatherBox = await page.locator("[data-home-section='weather']").boundingBox();
       const musicBox = await page.locator("[data-home-section='music']").boundingBox();
       expect(weatherBox).not.toBeNull();
@@ -94,6 +114,29 @@ test("homepage uses visitor IP weather and shows one selected NetEase player", a
 
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(overflow).toBeLessThanOrEqual(1);
+
+    await page.getByRole("link", { name: "开始阅读" }).click();
+    await expect(page).toHaveURL(/\/posts\/$/);
+    await expect(navbarPlayer.locator("iframe")).toHaveCount(1);
+    await expect(navbarPlayer.locator("iframe")).toHaveAttribute(
+      "data-persistence-probe",
+      "same-node",
+    );
+    await expect(navbarPlayer.locator("[data-header-music-title]")).toHaveText(title);
+
+    await page.getByRole("link", { name: "233昭 首页" }).click();
+    await expect(page).toHaveURL(/\/$/);
+    const returnedToggle = page.locator("[data-weather-music-toggle]");
+    const expandedBeforeClick = await returnedToggle.getAttribute("aria-expanded");
+    await returnedToggle.click();
+    await expect(returnedToggle).toHaveAttribute(
+      "aria-expanded",
+      expandedBeforeClick === "true" ? "false" : "true",
+    );
+    await expect(navbarPlayer.locator("iframe")).toHaveAttribute(
+      "data-persistence-probe",
+      "same-node",
+    );
   } finally {
     if (trackId) {
       const status = await page.evaluate(async (id) => {
@@ -107,7 +150,7 @@ test("homepage uses visitor IP weather and shows one selected NetEase player", a
 
 test("Hero drawer defaults responsively and exposes an accessible toggle", async ({
   page,
-}, testInfo) => {
+}) => {
   await page.goto("/");
   const toggle = page.locator("[data-weather-music-toggle]");
   const panel = page.locator("#hero-weather-music-panel");
@@ -115,7 +158,7 @@ test("Hero drawer defaults responsively and exposes an accessible toggle", async
   await expect(page.locator(".home-hero #weather-music")).toHaveCount(1);
   await expect(toggle).toHaveAttribute("aria-controls", "hero-weather-music-panel");
 
-  if (testInfo.project.name === "mobile-390") {
+  if (usesMobileDrawer(page)) {
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
     await expect(panel).toHaveAttribute("inert", "");
     const box = await toggle.boundingBox();
@@ -148,12 +191,21 @@ test("Hero drawer defaults responsively and exposes an accessible toggle", async
     toggle: "rgba(0, 0, 0, 0)",
     panel: "rgba(0, 0, 0, 0)",
   });
+
+  const musicHeading = page.locator(".now-music__heading h2");
+  await expect.poll(async () => musicHeading.evaluate((element) => ({
+    color: getComputedStyle(element).color,
+    textShadow: getComputedStyle(element).textShadow,
+  }))).toEqual({
+    color: "rgb(11, 72, 83)",
+    textShadow: "rgb(255, 255, 255) 0px 1px 0px, rgba(255, 255, 255, 0.9) 0px 0px 12px",
+  });
 });
 
 test("stored Hero drawer preference overrides the desktop default", async ({
   page,
-}, testInfo) => {
-  test.skip(testInfo.project.name === "mobile-390", "Desktop default coverage only.");
+}) => {
+  test.skip(usesMobileDrawer(page), "Desktop default coverage only.");
   await page.goto("/");
   const toggle = page.locator("[data-weather-music-toggle]");
   const panel = page.locator("#hero-weather-music-panel");
@@ -168,8 +220,8 @@ test("stored Hero drawer preference overrides the desktop default", async ({
 
 test("mobile IP weather refreshes only while the Hero drawer is open and visible", async ({
   page,
-}, testInfo) => {
-  test.skip(testInfo.project.name !== "mobile-390", "Mobile closed-default lifecycle coverage.");
+}) => {
+  test.skip(!usesMobileDrawer(page), "Mobile closed-default lifecycle coverage.");
   await page.clock.install({ time: new Date("2026-07-18T10:00:00+08:00") });
   const requests: string[] = [];
   await page.route("**/api/weather**", async (route) => {
@@ -217,7 +269,7 @@ test("mobile IP weather refreshes only while the Hero drawer is open and visible
 test("manual address refresh requests fresh device coordinates", async ({
   page,
   context,
-}, testInfo) => {
+}) => {
   const requests: string[] = [];
   await context.grantPermissions(["geolocation"]);
   await context.setGeolocation({ latitude: 31.1837, longitude: 121.4365 });
@@ -243,7 +295,7 @@ test("manual address refresh requests fresh device coordinates", async ({
   });
 
   await page.goto("/");
-  if (testInfo.project.name === "mobile-390") {
+  if (usesMobileDrawer(page)) {
     await page.locator("[data-weather-music-toggle]").click();
   }
   await expect(page.locator("[data-weather-area]")).toHaveText("首次 IP 地址");
@@ -261,7 +313,7 @@ test("manual address refresh requests fresh device coordinates", async ({
 
 test("weather refresh failure preserves the last successful snapshot", async ({
   page,
-}, testInfo) => {
+}) => {
   await page.clock.install({ time: new Date("2026-07-18T10:00:00+08:00") });
   let requests = 0;
   await page.route("**/api/weather**", async (route) => {
@@ -294,7 +346,7 @@ test("weather refresh failure preserves the last successful snapshot", async ({
   });
 
   await page.goto("/");
-  if (testInfo.project.name === "mobile-390") {
+  if (usesMobileDrawer(page)) {
     await page.locator("[data-weather-music-toggle]").click();
   }
   await expect(page.locator("[data-weather-area]")).toHaveText("徐汇区 · 上海市");

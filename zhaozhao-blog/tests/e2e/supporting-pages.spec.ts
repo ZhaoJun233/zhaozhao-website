@@ -1,6 +1,31 @@
 import { expect, test } from "@playwright/test";
 import profile from "../../src/data/profile.json" with { type: "json" };
 
+test("client navigation keeps the page alive and initializes guestbook behavior", async ({ page }) => {
+  await page.route("**/api/messages/**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ message: "测试留言已提交。" }),
+    });
+  });
+  await page.goto("/");
+  await page.evaluate(() => {
+    (window as typeof window & { __clientRouteProbe?: string }).__clientRouteProbe = "kept";
+  });
+
+  await page.locator("footer a[href='/guestbook/']").click();
+  await expect(page).toHaveURL(/\/guestbook\/$/);
+  await expect.poll(() => page.evaluate(() => (
+    window as typeof window & { __clientRouteProbe?: string }
+  ).__clientRouteProbe)).toBe("kept");
+
+  await page.getByLabel("昵称 *").fill("测试访客");
+  await page.getByLabel("留言 *").fill("客户端导航后的留言测试");
+  await page.getByRole("button", { name: /提交留言/ }).click();
+  await expect(page.getByText("测试留言已提交。", { exact: true })).toBeVisible();
+});
+
 test("project filters expose one active status and a live result count", async ({ page }) => {
   await page.goto("/projects/");
 

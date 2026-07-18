@@ -1,3 +1,5 @@
+import type { MusicSelection } from "./music-events";
+
 type WeatherSnapshot = {
   area: string;
   code: number;
@@ -12,9 +14,27 @@ type WeatherSnapshot = {
 
 type WeatherNotes = Record<"clear" | "cloudy" | "rain" | "snow" | "storm" | "fallback", string>;
 
-const section = document.querySelector<HTMLElement>("[data-home-weather-music]");
+let cleanupActiveSection: (() => void) | undefined;
 
-if (section) {
+function selectedTrackFromHeader(): MusicSelection | undefined {
+  const root = document.querySelector<HTMLElement>("[data-header-music-player][data-track-id]");
+  const { trackId, trackTitle, trackArtist, trackEmbed, trackUrl } = root?.dataset ?? {};
+  if (!trackId || !trackTitle || !trackEmbed || !trackUrl) return undefined;
+  return {
+    id: trackId,
+    title: trackTitle,
+    artist: trackArtist ?? "",
+    embedUrl: trackEmbed,
+    neteaseUrl: trackUrl,
+  };
+}
+
+function initializeHomeWeatherMusic(): void {
+  const section = document.querySelector<HTMLElement>("[data-home-weather-music]");
+  if (!section || section.dataset.weatherMusicReady === "true") return;
+  cleanupActiveSection?.();
+  section.dataset.weatherMusicReady = "true";
+
   const toggle = section.querySelector<HTMLButtonElement>("[data-weather-music-toggle]");
   const panel = section.querySelector<HTMLElement>("[data-weather-music-panel]");
   const weatherPanel = section.querySelector<HTMLElement>("[data-weather-panel]");
@@ -97,13 +117,8 @@ if (section) {
         return true;
       }
       return false;
-    } catch (error) {
-      if (
-        controller.signal.aborted
-        || generation !== refreshGeneration
-        || !drawerIsOpen()
-        || document.hidden
-      ) return false;
+    } catch {
+      if (controller.signal.aborted || generation !== refreshGeneration || !drawerIsOpen() || document.hidden) return false;
       showWeatherFailure();
       return false;
     } finally {
@@ -143,13 +158,8 @@ if (section) {
           fallbackMessage = "浏览器不支持设备定位，已按 IP 更新";
         }
       }
-      const loaded = await loadWeather(
-        `${weatherEndpoint.pathname}${weatherEndpoint.search}`,
-        generation,
-      );
-      if (loaded && fallbackMessage) {
-        setText("[data-weather-refresh-status]", fallbackMessage);
-      }
+      const loaded = await loadWeather(`${weatherEndpoint.pathname}${weatherEndpoint.search}`, generation);
+      if (loaded && fallbackMessage) setText("[data-weather-refresh-status]", fallbackMessage);
     } finally {
       if (requestDeviceLocation) locationRefresh?.removeAttribute("disabled");
     }
@@ -170,9 +180,7 @@ if (section) {
     if (refreshTimer !== undefined) window.clearInterval(refreshTimer);
     refreshTimer = undefined;
     if (!drawerIsOpen() || document.hidden) return;
-    refreshTimer = window.setInterval(() => {
-      void refreshWeather();
-    }, weatherRefreshMs);
+    refreshTimer = window.setInterval(() => void refreshWeather(), weatherRefreshMs);
   };
 
   const storedDrawerState = (): boolean | undefined => {
@@ -192,9 +200,7 @@ if (section) {
     if (persist) {
       try {
         localStorage.setItem(drawerStorageKey, String(open));
-      } catch {
-        // Storage may be unavailable in private browsing; the drawer still works for this page.
-      }
+      } catch {}
     }
     if (open) {
       void refreshWeather();
@@ -204,53 +210,73 @@ if (section) {
     }
   };
 
-  setDrawerOpen(storedDrawerState() ?? !mobileQuery.matches, false);
-  toggle?.addEventListener("click", () => {
-    setDrawerOpen(!drawerIsOpen());
-  });
-  locationRefresh?.addEventListener("click", () => {
-    void refreshWeather(true);
-  });
+  const applyMusicSelection = (track: MusicSelection | undefined) => {
+    const player = section.querySelector<HTMLElement>("[data-music-player]");
+    if (!player) return;
+    for (const item of player.querySelectorAll<HTMLButtonElement>("[data-track]")) {
+      item.setAttribute("aria-pressed", String(item.dataset.trackId === track?.id));
+    }
+    const vinyl = player.querySelector<HTMLElement>("[data-music-vinyl]");
+    const currentTitle = player.querySelector<HTMLElement>("[data-current-track]");
+    const currentArtist = player.querySelector<HTMLElement>("[data-current-artist]");
+    const currentLink = player.querySelector<HTMLAnchorElement>("[data-current-link]");
+    if (track) {
+      if (currentTitle) currentTitle.textContent = track.title;
+      if (currentArtist) currentArtist.textContent = `${track.artist} · 播放控制位于导航栏`;
+      if (currentLink) currentLink.href = track.neteaseUrl;
+      vinyl?.setAttribute("data-selected", "true");
+    }
+  };
 
-  document.addEventListener("visibilitychange", () => {
+  const handleToggle = () => setDrawerOpen(!drawerIsOpen());
+  const handleLocationRefresh = () => void refreshWeather(true);
+  const handleVisibility = () => {
     if (document.hidden) {
       stopWeatherRefresh();
       return;
     }
     if (!drawerIsOpen()) return;
-    if (!lastWeatherSuccess || Date.now() - lastWeatherSuccess >= weatherRefreshMs) {
-      void refreshWeather();
-    }
+    if (!lastWeatherSuccess || Date.now() - lastWeatherSuccess >= weatherRefreshMs) void refreshWeather();
     startWeatherRefresh();
-  });
+  };
+  const handleMusicClick = (event: Event) => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-track]");
+    if (!button?.dataset.neteaseEmbed || !button.dataset.trackId) return;
+    const track: MusicSelection = {
+      id: button.dataset.trackId,
+      title: button.dataset.trackTitle ?? "当前选曲",
+      artist: button.dataset.trackArtist ?? "",
+      embedUrl: button.dataset.neteaseEmbed,
+      neteaseUrl: button.dataset.neteaseUrl ?? "https://music.163.com/",
+    };
+    applyMusicSelection(track);
+    document.dispatchEvent(new CustomEvent<MusicSelection>("site:music-select", { detail: track }));
+  };
+  const handleMusicChange = (event: CustomEvent<MusicSelection>) => applyMusicSelection(event.detail);
 
-  const player = section.querySelector<HTMLElement>("[data-music-player]");
-  if (player) {
-    const frame = player.querySelector<HTMLElement>("[data-player-frame]");
-    const vinyl = player.querySelector<HTMLElement>("[data-music-vinyl]");
-    const currentTitle = player.querySelector<HTMLElement>("[data-current-track]");
-    const currentArtist = player.querySelector<HTMLElement>("[data-current-artist]");
-    const currentLink = player.querySelector<HTMLAnchorElement>("[data-current-link]");
+  toggle?.addEventListener("click", handleToggle);
+  locationRefresh?.addEventListener("click", handleLocationRefresh);
+  section.addEventListener("click", handleMusicClick);
+  document.addEventListener("visibilitychange", handleVisibility);
+  document.addEventListener("site:music-change", handleMusicChange);
 
-    player.addEventListener("click", (event) => {
-      const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-track]");
-      if (!button?.dataset.neteaseEmbed) return;
-      for (const item of player.querySelectorAll<HTMLButtonElement>("[data-track]")) {
-        item.setAttribute("aria-pressed", String(item === button));
-      }
-      if (currentTitle) currentTitle.textContent = button.dataset.trackTitle ?? "当前选曲";
-      if (currentArtist) currentArtist.textContent = button.dataset.trackArtist ?? "";
-      if (currentLink) currentLink.href = button.dataset.neteaseUrl ?? "https://music.163.com/";
-      vinyl?.setAttribute("data-selected", "true");
-      if (!frame) return;
-      const iframe = document.createElement("iframe");
-      iframe.src = button.dataset.neteaseEmbed;
-      iframe.title = `网易云音乐播放器：${button.dataset.trackTitle ?? "当前选曲"}`;
-      iframe.loading = "lazy";
-      iframe.allow = "autoplay; encrypted-media";
-      frame.replaceChildren(iframe);
-    });
-  }
+  applyMusicSelection(selectedTrackFromHeader());
+  setDrawerOpen(storedDrawerState() ?? !mobileQuery.matches, false);
+
+  cleanupActiveSection = () => {
+    stopWeatherRefresh();
+    toggle?.removeEventListener("click", handleToggle);
+    locationRefresh?.removeEventListener("click", handleLocationRefresh);
+    section.removeEventListener("click", handleMusicClick);
+    document.removeEventListener("visibilitychange", handleVisibility);
+    document.removeEventListener("site:music-change", handleMusicChange);
+    delete section.dataset.weatherMusicReady;
+    cleanupActiveSection = undefined;
+  };
 }
+
+initializeHomeWeatherMusic();
+document.addEventListener("astro:page-load", initializeHomeWeatherMusic);
+document.addEventListener("astro:before-swap", () => cleanupActiveSection?.());
 
 export {};

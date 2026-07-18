@@ -1,4 +1,5 @@
 ---
+import { ClientRouter } from "astro:transitions";
 import Footer from "../components/layout/Footer.astro";
 import Header from "../components/layout/Header.astro";
 import SeoHead from "../components/seo/SeoHead.astro";
@@ -57,6 +58,7 @@ const themeBootstrap = `(() => { try { const saved = localStorage.getItem("zhaoz
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="alternate" type="application/rss+xml" title={`${runtimeProfile.name} RSS`} href="/rss.xml" />
     <script is:inline set:html={themeBootstrap}></script>
+    <ClientRouter fallback="swap" />
     <SeoHead
       title={title}
       description={description}

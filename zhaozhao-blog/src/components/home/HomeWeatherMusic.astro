@@ -177,8 +177,9 @@ const { tracks, content } = Astro.props;
   }
 
   :global(.now-music__heading) { display: flex; align-items: end; justify-content: space-between; gap: .75rem; margin-bottom: .8rem; }
-  :global(.now-music__heading h2) { margin: 0; color: var(--drawer-ink); font-size: 1.15rem; }
-  :global(.now-music__heading > span) { color: var(--drawer-muted); font-family: var(--font-mono); font-size: .54rem; text-transform: uppercase; }
+  :global(.now-music .now-eyebrow) { color: #9f3152; text-shadow: 0 1px 0 #fff, 0 0 10px rgb(255 255 255 / 88%); }
+  :global(.now-music__heading h2) { margin: 0; color: #0b4853; font-size: 1.15rem; text-shadow: 0 1px 0 #fff, 0 0 12px rgb(255 255 255 / 90%); }
+  :global(.now-music__heading > span) { color: #8e3550; font-family: var(--font-mono); font-size: .54rem; font-weight: 760; text-shadow: 0 1px 0 #fff, 0 0 10px rgb(255 255 255 / 82%); text-transform: uppercase; }
   :global(.now-music__body) { display: grid; gap: .7rem; }
   :global(.now-player-card) { display: grid; min-width: 0; grid-template-columns: 4.8rem minmax(0, 1fr); align-items: center; gap: .75rem; padding: .72rem; border: 1px solid var(--drawer-line); border-radius: .72rem; background: rgb(255 252 246 / 68%); }
   :global(.now-vinyl) { position: relative; display: grid; width: 4.5rem; aspect-ratio: 1; place-items: center; border-radius: 50%; background: repeating-radial-gradient(circle, #17262a 0 4px, #26383c 5px 6px, #17262a 7px 11px); box-shadow: 0 9px 19px rgb(23 38 42 / 18%); }
@@ -235,6 +236,17 @@ const { tracks, content } = Astro.props;
   :global(html[data-theme="dark"]) .now-player-card,
   :global(html[data-theme="dark"]) .now-track-list button {
     background: rgb(24 38 41 / 72%);
+  }
+
+  :global(html[data-theme="dark"]) .now-music .now-eyebrow,
+  :global(html[data-theme="dark"]) .now-music__heading > span {
+    color: #ffc1d2;
+    text-shadow: 0 1px 0 rgb(0 0 0 / 70%), 0 0 12px rgb(0 0 0 / 72%);
+  }
+
+  :global(html[data-theme="dark"]) .now-music__heading h2 {
+    color: #f2fffc;
+    text-shadow: 0 1px 0 rgb(0 0 0 / 80%), 0 0 14px rgb(0 0 0 / 78%);
   }
 
   @keyframes now-spin { to { transform: rotate(1turn); } }
