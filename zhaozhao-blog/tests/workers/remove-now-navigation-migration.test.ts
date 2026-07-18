@@ -35,6 +35,14 @@ async function migrateNavigation(value: NavigationSetting): Promise<NavigationSe
 }
 
 describe("remove-now navigation migration", () => {
+  it("orders filtered navigation items by their json_each array index before aggregation", () => {
+    const sql = migration?.queries.join("\n") ?? "";
+
+    expect(sql).toMatch(
+      /FROM\s+\(\s*SELECT\s+item\.value\s+FROM\s+json_each[\s\S]*?ORDER\s+BY\s+CAST\(item\.key\s+AS\s+INTEGER\)\s*\)\s+AS\s+filtered/i,
+    );
+  });
+
   it("falls back to the home link when /now/ is the only navigation item", async () => {
     const result = await migrateNavigation({
       items: [{ label: "此刻", href: "/now/" }],
