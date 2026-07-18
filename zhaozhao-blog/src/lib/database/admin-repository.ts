@@ -943,6 +943,7 @@ export async function getAdminOverview(database: D1Database) {
     database.prepare("SELECT COUNT(*) AS count FROM friends"),
     database.prepare("SELECT COUNT(*) AS count FROM guestbook_messages"),
     database.prepare("SELECT COUNT(*) AS count FROM guestbook_messages WHERE status = 'pending'"),
+    database.prepare("SELECT COUNT(*) AS count FROM music_tracks"),
   ]);
   const count = (index: number) => Number(results[index]?.results[0]?.count ?? 0);
   return {
@@ -953,5 +954,6 @@ export async function getAdminOverview(database: D1Database) {
     friends: count(4),
     messages: count(5),
     pendingMessages: count(6),
+    musicTracks: count(7),
   };
 }

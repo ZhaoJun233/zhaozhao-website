@@ -70,6 +70,16 @@ export const postInputSchema = z.object({
   }
 });
 
+export const musicTrackInputSchema = z.object({
+  title: text,
+  artist: text,
+  neteaseSongId: text.regex(/^\d{1,20}$/, "网易云歌曲 ID 只能填写数字。"),
+  note: optionalText,
+  enabled: z.boolean().default(true),
+  draftToken: uuid.optional(),
+  coverAssetId: z.uuid().optional(),
+});
+
 export const postMediaInputSchema = z.object({
   draftToken: uuid.optional(),
   coverAssetId: uuid.optional(),
@@ -142,6 +152,7 @@ export const settingSchemas = {
 export type SettingKey = keyof typeof settingSchemas;
 export type CategoryInput = z.infer<typeof categoryInputSchema>;
 export type FriendInput = z.infer<typeof friendInputSchema>;
+export type MusicTrackInput = z.infer<typeof musicTrackInputSchema>;
 export type PostInput = z.input<typeof postInputSchema>;
 export type PostMediaInput = z.infer<typeof postMediaInputSchema>;
 export type ProjectInput = z.input<typeof projectInputSchema>;

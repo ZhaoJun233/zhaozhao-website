@@ -56,6 +56,19 @@ export interface ProjectRow {
   sort_order: number;
 }
 
+export interface MusicTrackRow {
+  id: string;
+  title: string;
+  artist: string;
+  netease_song_id: string;
+  cover_asset_id: string | null;
+  note: string | null;
+  sort_order: number;
+  enabled: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export type MediaAssetState = "uploading" | "ready" | "pending_delete";
 export type PostAssetUsage = "library" | "cover" | "inline";
 

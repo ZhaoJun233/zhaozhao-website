@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   categoryInputSchema,
+  musicTrackInputSchema,
   postInputSchema,
   postMediaInputSchema,
   profileSettingSchema,
@@ -26,6 +27,22 @@ describe("administrator payload contracts", () => {
       tags: ["测试"],
       cover: "/media/cover.jpg",
     })).toThrow("封面与说明必须同时填写");
+  });
+
+  it("accepts numeric NetEase song ids and rejects copied song URLs", () => {
+    expect(musicTrackInputSchema.parse({
+      title: "夜晚的歌",
+      artist: "歌手",
+      neteaseSongId: "123456789",
+      enabled: true,
+    })).toMatchObject({ neteaseSongId: "123456789" });
+
+    expect(() => musicTrackInputSchema.parse({
+      title: "错误歌曲",
+      artist: "歌手",
+      neteaseSongId: "https://music.163.com/song?id=1",
+      enabled: true,
+    })).toThrow("网易云歌曲 ID 只能填写数字");
   });
 
   it("explains invalid canonical links and expired draft identifiers", () => {
