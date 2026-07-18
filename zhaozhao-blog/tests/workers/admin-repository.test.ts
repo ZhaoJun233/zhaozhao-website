@@ -29,6 +29,9 @@ import {
   updateFriend,
   updatePostWithMedia,
   updateSetting,
+  type BlogBackupV1,
+  type BlogBackupV2,
+  type BlogBackupV3,
 } from "../../src/lib/database/admin-repository";
 import {
   beginMediaUpload,
@@ -40,6 +43,10 @@ import {
   queueDraftCleanup,
   syncPostAssetLinks,
 } from "../../src/lib/database/media-repository";
+import {
+  createMusicTrack,
+  listMusicTracks,
+} from "../../src/lib/database/music-repository";
 import { POST as createPostRoute } from "../../src/pages/api/admin/posts/index";
 import { PUT as updatePostRoute } from "../../src/pages/api/admin/posts/[id]";
 import { POST as importBlogRoute } from "../../src/pages/api/admin/import";
@@ -58,6 +65,21 @@ function postInput(slug: string) {
     tags: ["Astro"],
     featured: false,
   };
+}
+
+function toVersionTwo(backup: BlogBackupV3): BlogBackupV2 {
+  const { musicTracks: _musicTracks, ...base } = structuredClone(backup);
+  return { ...base, schemaVersion: 2 };
+}
+
+function toVersionOne(backup: BlogBackupV3): BlogBackupV1 {
+  const {
+    musicTracks: _musicTracks,
+    mediaAssets: _mediaAssets,
+    postAssetLinks: _postAssetLinks,
+    ...base
+  } = structuredClone(backup);
+  return { ...base, schemaVersion: 1 };
 }
 
 function databaseWithBeforeBatch(operation: () => Promise<void>): D1Database {
@@ -487,7 +509,7 @@ describe("D1 administrator repository", () => {
     expect((await exportBlogData(env.DB)).projects).toHaveLength(3);
   });
 
-  it("exports backup schema 2 with linked ready media metadata but no object bytes", async () => {
+  it("exports backup schema 3 with linked ready media metadata but no object bytes", async () => {
     const post = await createPost(env.DB, {
       ...postInput("backup-media-manifest"),
       body: "![backup](/media/uploads/2026/07/backup-media.png)",
@@ -506,8 +528,8 @@ describe("D1 administrator repository", () => {
 
     const backup = await exportBlogData(env.DB);
 
-    expect(backup.schemaVersion).toBe(2);
-    if (backup.schemaVersion !== 2) throw new Error("Expected schema version 2.");
+    expect(backup.schemaVersion).toBe(3);
+    if (backup.schemaVersion !== 3) throw new Error("Expected schema version 3.");
     expect(backup.mediaAssets).toContainEqual({
       kvKey: asset.key,
       originalName: "backup-media.png",
@@ -521,20 +543,105 @@ describe("D1 administrator repository", () => {
     expect(JSON.stringify(backup)).not.toContain("objectBytes");
   });
 
+  it("round-trips schema version 3 music tracks and managed covers", async () => {
+    const cover = await beginMediaUpload(env.DB, {
+      key: "uploads/2026/07/backup-music.png",
+      originalName: "backup-music.png",
+      contentType: "image/png",
+      sizeBytes: 16,
+    });
+    await markMediaReady(env.DB, cover.id);
+    await createMusicTrack(env.DB, {
+      title: "备份选曲",
+      artist: "测试歌手",
+      neteaseSongId: "505",
+      coverAssetId: cover.id,
+      note: "验证音乐和封面可以长期迁移。",
+      enabled: true,
+    });
+
+    const backup = await exportBlogData(env.DB);
+    expect(backup.schemaVersion).toBe(3);
+    if (backup.schemaVersion !== 3) throw new Error("Expected schema version 3.");
+    expect(backup.musicTracks).toContainEqual(expect.objectContaining({
+      neteaseSongId: "505",
+      coverAssetId: cover.id,
+    }));
+    expect(backup.mediaAssets).toContainEqual(expect.objectContaining({ kvKey: cover.key }));
+
+    await env.DB.prepare("DELETE FROM music_tracks").run();
+    await importBlogData(env.DB, backup);
+
+    expect(await listMusicTracks(env.DB)).toContainEqual(expect.objectContaining({
+      neteaseSongId: "505",
+      coverUrl: "/media/uploads/2026/07/backup-music.png/",
+    }));
+  });
+
+  it.each([
+    {
+      label: "duplicate NetEase song IDs",
+      mutate: (backup: BlogBackupV3) => {
+        const original = backup.musicTracks[0]!;
+        backup.musicTracks.push({
+          ...original,
+          id: "99999999-9999-4999-8999-999999999999",
+          sortOrder: original.sortOrder + 1,
+        });
+      },
+    },
+    {
+      label: "a cover missing from the media manifest",
+      mutate: (backup: BlogBackupV3) => {
+        backup.mediaAssets = [];
+      },
+    },
+  ])("rejects schema version 3 music with $label", async ({ mutate }) => {
+    const cover = await beginMediaUpload(env.DB, {
+      key: "uploads/2026/07/invalid-backup-music.png",
+      originalName: "invalid-backup-music.png",
+      contentType: "image/png",
+      sizeBytes: 8,
+    });
+    await markMediaReady(env.DB, cover.id);
+    await createMusicTrack(env.DB, {
+      title: "校验选曲",
+      artist: "测试歌手",
+      neteaseSongId: "606",
+      coverAssetId: cover.id,
+      enabled: true,
+    });
+    const backup = await exportBlogData(env.DB);
+    if (backup.schemaVersion !== 3) throw new Error("Expected schema version 3.");
+    const damaged = structuredClone(backup);
+    mutate(damaged);
+
+    await expect(importBlogData(env.DB, damaged)).rejects.toMatchObject({ name: "ZodError" });
+    expect(await listMusicTracks(env.DB)).toContainEqual(expect.objectContaining({
+      neteaseSongId: "606",
+    }));
+  });
+
   it("continues to accept schema version 1 backups", async () => {
     const current = await exportBlogData(env.DB);
-    if (current.schemaVersion !== 2) throw new Error("Expected schema version 2.");
-    const { mediaAssets: _mediaAssets, postAssetLinks: _postAssetLinks, ...base } = current;
-    const versionOne = { ...base, schemaVersion: 1 as const };
+    if (current.schemaVersion !== 3) throw new Error("Expected schema version 3.");
+    const versionOne = toVersionOne(current);
     const originalTitles = versionOne.posts.map(({ title }) => title);
     const post = versionOne.posts[0]!;
     await updatePostWithMedia(env.DB, post.id, { ...post, title: "临时标题" }, {
       retainedAssetIds: [],
     });
+    await createMusicTrack(env.DB, {
+      title: "旧版导入前的临时歌曲",
+      artist: "测试歌手",
+      neteaseSongId: "701",
+      enabled: true,
+    });
 
     await importBlogData(env.DB, versionOne);
 
     expect((await listPosts(env.DB)).map(({ title }) => title)).toEqual(originalTitles);
+    expect(await listMusicTracks(env.DB)).toEqual([]);
   });
 
   it("restores schema version 2 links, cancels restored cleanup, and queues stale keys", async () => {
@@ -553,8 +660,16 @@ describe("D1 administrator repository", () => {
       retainedAssetIds: [restored.id],
       inlineKeys: [restored.key],
     });
-    const backup = await exportBlogData(env.DB);
-    if (backup.schemaVersion !== 2) throw new Error("Expected schema version 2.");
+    const current = await exportBlogData(env.DB);
+    if (current.schemaVersion !== 3) throw new Error("Expected schema version 3.");
+    const backup = toVersionTwo(current);
+
+    await createMusicTrack(env.DB, {
+      title: "V2 导入前的临时歌曲",
+      artist: "测试歌手",
+      neteaseSongId: "702",
+      enabled: true,
+    });
 
     const stalePost = await createPost(env.DB, postInput("backup-v2-stale-post"));
     const stale = await beginMediaUpload(env.DB, {
@@ -588,6 +703,7 @@ describe("D1 administrator repository", () => {
     expect(await listMediaCleanupJobs(env.DB)).toMatchObject([
       { asset_id: stale.id, kv_key: stale.key, reason: "backup_restore" },
     ]);
+    expect(await listMusicTracks(env.DB)).toEqual([]);
   });
 
   it("backfills legacy post images after a schema version 1 import", async () => {
@@ -601,9 +717,8 @@ describe("D1 administrator repository", () => {
       body: `![legacy import](${legacy.url})`,
     });
     const current = await exportBlogData(env.DB);
-    if (current.schemaVersion !== 2) throw new Error("Expected schema version 2.");
-    const { mediaAssets: _mediaAssets, postAssetLinks: _postAssetLinks, ...base } = current;
-    const versionOne = { ...base, schemaVersion: 1 as const };
+    if (current.schemaVersion !== 3) throw new Error("Expected schema version 3.");
+    const versionOne = toVersionOne(current);
 
     const response = await importBlogRoute({
       request: await adminJsonRequest("POST", "/api/admin/import/", versionOne),
@@ -640,7 +755,8 @@ describe("D1 administrator repository", () => {
     } },
   ])("rejects $label in schema version 2 before database access", async ({ mutate }) => {
     const exported = await exportBlogData(env.DB);
-    const damaged = structuredClone(exported) as unknown as Record<string, unknown>;
+    if (exported.schemaVersion !== 3) throw new Error("Expected schema version 3.");
+    const damaged = structuredClone(toVersionTwo(exported)) as unknown as Record<string, unknown>;
     mutate(damaged);
     let databaseOperations = 0;
     const inaccessibleDatabase = {
@@ -672,7 +788,9 @@ describe("D1 administrator repository", () => {
     });
     await env.MEDIA.put(pending.key, "keep");
     await failMediaUpload(env.DB, pending.id);
-    const backup = await exportBlogData(env.DB);
+    const exported = await exportBlogData(env.DB);
+    if (exported.schemaVersion !== 3) throw new Error("Expected schema version 3.");
+    const backup = toVersionTwo(exported);
     const damaged = { ...backup, mediaAssets: null };
     const originalPosts = await listPosts(env.DB);
 
@@ -699,7 +817,9 @@ describe("D1 administrator repository", () => {
       backup.settings = null;
     } },
   ])("rejects $label in v2 without changing any backup content", async ({ mutate }) => {
-    const before = await exportBlogData(env.DB);
+    const exported = await exportBlogData(env.DB);
+    if (exported.schemaVersion !== 3) throw new Error("Expected schema version 3.");
+    const before = toVersionTwo(exported);
     const damaged = structuredClone(before) as unknown as Record<string, unknown>;
     mutate(damaged);
 
@@ -707,13 +827,14 @@ describe("D1 administrator repository", () => {
       .rejects.toMatchObject({ name: "ZodError" });
 
     const after = await exportBlogData(env.DB);
-    expect({ ...after, exportedAt: before.exportedAt }).toEqual(before);
+    if (after.schemaVersion !== 3) throw new Error("Expected schema version 3.");
+    expect({ ...toVersionTwo(after), exportedAt: before.exportedAt }).toEqual(before);
   });
 
   it.each([
     {
       label: "missing inline usage",
-      mutate: (backup: Extract<Awaited<ReturnType<typeof exportBlogData>>, { schemaVersion: 2 }>, postId: string) => {
+      mutate: (backup: BlogBackupV2, postId: string) => {
         backup.postAssetLinks = backup.postAssetLinks.filter(
           (link) => !(link.postId === postId && link.usage === "inline"),
         );
@@ -721,7 +842,7 @@ describe("D1 administrator repository", () => {
     },
     {
       label: "missing library usage",
-      mutate: (backup: Extract<Awaited<ReturnType<typeof exportBlogData>>, { schemaVersion: 2 }>, postId: string) => {
+      mutate: (backup: BlogBackupV2, postId: string) => {
         backup.postAssetLinks = backup.postAssetLinks.filter(
           (link) => !(link.postId === postId && link.usage === "library"),
         );
@@ -729,7 +850,7 @@ describe("D1 administrator repository", () => {
     },
     {
       label: "unreferenced active usage",
-      mutate: (backup: Extract<Awaited<ReturnType<typeof exportBlogData>>, { schemaVersion: 2 }>, postId: string) => {
+      mutate: (backup: BlogBackupV2, postId: string) => {
         const post = backup.posts.find(({ id }) => id === postId)!;
         post.body = "正文不再引用图片。";
       },
@@ -751,14 +872,16 @@ describe("D1 administrator repository", () => {
       retainedAssetIds: [asset.id],
       inlineKeys: [key],
     });
-    const before = await exportBlogData(env.DB);
-    if (before.schemaVersion !== 2) throw new Error("Expected schema version 2.");
+    const exported = await exportBlogData(env.DB);
+    if (exported.schemaVersion !== 3) throw new Error("Expected schema version 3.");
+    const before = toVersionTwo(exported);
     const damaged = structuredClone(before);
     mutate(damaged, post.id);
 
     await expect(importBlogData(env.DB, damaged)).rejects.toMatchObject({ name: "ZodError" });
     const after = await exportBlogData(env.DB);
-    expect({ ...after, exportedAt: before.exportedAt }).toEqual(before);
+    if (after.schemaVersion !== 3) throw new Error("Expected schema version 3.");
+    expect({ ...toVersionTwo(after), exportedAt: before.exportedAt }).toEqual(before);
   });
 
   it("rejects a v2 cover link that no longer matches the article cover", async () => {
@@ -780,15 +903,17 @@ describe("D1 administrator repository", () => {
       coverAssetId: asset.id,
       inlineKeys: [],
     });
-    const before = await exportBlogData(env.DB);
-    if (before.schemaVersion !== 2) throw new Error("Expected schema version 2.");
+    const exported = await exportBlogData(env.DB);
+    if (exported.schemaVersion !== 3) throw new Error("Expected schema version 3.");
+    const before = toVersionTwo(exported);
     const damaged = structuredClone(before);
     damaged.posts.find(({ id }) => id === post.id)!.cover =
       "/media/uploads/2026/07/different-cover.png/";
 
     await expect(importBlogData(env.DB, damaged)).rejects.toMatchObject({ name: "ZodError" });
     const after = await exportBlogData(env.DB);
-    expect({ ...after, exportedAt: before.exportedAt }).toEqual(before);
+    if (after.schemaVersion !== 3) throw new Error("Expected schema version 3.");
+    expect({ ...toVersionTwo(after), exportedAt: before.exportedAt }).toEqual(before);
   });
 
   it("does not restore a media key already claimed by cleanup", async () => {
@@ -830,7 +955,7 @@ describe("D1 administrator repository", () => {
     const post = await createPost(env.DB, postInput("large-media-backup"));
     await insertBackupAssets(post.id, 120, "large-backup");
     const backup = await exportBlogData(env.DB);
-    if (backup.schemaVersion !== 2) throw new Error("Expected schema version 2.");
+    if (backup.schemaVersion !== 3) throw new Error("Expected schema version 3.");
     expect(backup.mediaAssets).toHaveLength(120);
     const batchSizes: number[] = [];
 
@@ -839,15 +964,15 @@ describe("D1 administrator repository", () => {
     expect(batchSizes).toHaveLength(1);
     expect(batchSizes[0]).toBeLessThanOrEqual(500);
     const restored = await exportBlogData(env.DB);
-    expect(restored.schemaVersion).toBe(2);
-    if (restored.schemaVersion !== 2) throw new Error("Expected schema version 2.");
+    expect(restored.schemaVersion).toBe(3);
+    if (restored.schemaVersion !== 3) throw new Error("Expected schema version 3.");
     expect(restored.mediaAssets).toHaveLength(120);
     expect(restored.postAssetLinks).toHaveLength(120);
   });
 
   it("snapshots old assets inside the restore batch before selecting final stale keys", async () => {
     const backup = await exportBlogData(env.DB);
-    if (backup.schemaVersion !== 2) throw new Error("Expected schema version 2.");
+    if (backup.schemaVersion !== 3) throw new Error("Expected schema version 3.");
     const concurrent = {
       id: "99999999-9999-4999-8999-999999999999",
       key: "uploads/2026/07/concurrent-before-restore.png",

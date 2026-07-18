@@ -23,6 +23,12 @@ import {
   resolvePostAssetSync,
   type ResolvedPostAssetSync,
 } from "./media-repository";
+import {
+  listMusicTracks,
+  neteaseEmbedUrl,
+  neteaseSongUrl,
+  type AdminMusicTrack,
+} from "./music-repository";
 
 export { AdminConflictError, AdminNotFoundError } from "../admin/errors";
 
@@ -546,7 +552,12 @@ export interface BlogBackupV2 extends Omit<BlogBackupV1, "schemaVersion"> {
   }>;
 }
 
-export type BlogBackup = BlogBackupV1 | BlogBackupV2;
+export interface BlogBackupV3 extends Omit<BlogBackupV2, "schemaVersion"> {
+  schemaVersion: 3;
+  musicTracks: AdminMusicTrack[];
+}
+
+export type BlogBackup = BlogBackupV1 | BlogBackupV2 | BlogBackupV3;
 
 const backupKvKeySchema = z.string().min(1).refine((key) => {
   try {
@@ -673,6 +684,95 @@ const blogBackupV2MediaSchema = z.object({
   }
 });
 
+const blogBackupMusicTrackSchema = z.object({
+  id: z.uuid(),
+  title: z.string().min(1),
+  artist: z.string().min(1),
+  neteaseSongId: z.string().regex(/^\d{1,20}$/),
+  coverAssetId: z.uuid().optional(),
+  coverUrl: z.string().min(1).optional(),
+  note: z.string().min(1).optional(),
+  sortOrder: z.number().int().nonnegative(),
+  enabled: z.boolean(),
+  createdAt: z.string().min(1),
+  updatedAt: z.string().min(1),
+  embedUrl: z.url(),
+  neteaseUrl: z.url(),
+}).strict();
+
+const blogBackupV3Schema = z.object({
+  schemaVersion: z.literal(3),
+  mediaAssets: z.array(z.object({
+    kvKey: backupKvKeySchema,
+    originalName: z.string().min(1).max(240),
+    contentType: z.string().min(1),
+    sizeBytes: z.number().int().nonnegative().optional(),
+  }).strict()),
+  musicTracks: z.array(blogBackupMusicTrackSchema),
+}).passthrough().superRefine((backup, context) => {
+  const mediaKeys = new Set(backup.mediaAssets.map(({ kvKey }) => kvKey));
+  const trackIds = new Set<string>();
+  const songIds = new Set<string>();
+  const sortOrders = new Set<number>();
+  for (const [index, track] of backup.musicTracks.entries()) {
+    if (trackIds.has(track.id)) {
+      context.addIssue({
+        code: "custom",
+        path: ["musicTracks", index, "id"],
+        message: "歌曲 ID 重复。",
+      });
+    }
+    trackIds.add(track.id);
+    if (songIds.has(track.neteaseSongId)) {
+      context.addIssue({
+        code: "custom",
+        path: ["musicTracks", index, "neteaseSongId"],
+        message: "网易云歌曲 ID 重复。",
+      });
+    }
+    songIds.add(track.neteaseSongId);
+    if (sortOrders.has(track.sortOrder)) {
+      context.addIssue({
+        code: "custom",
+        path: ["musicTracks", index, "sortOrder"],
+        message: "歌曲排序值重复。",
+      });
+    }
+    sortOrders.add(track.sortOrder);
+    if (track.embedUrl !== neteaseEmbedUrl(track.neteaseSongId)
+      || track.neteaseUrl !== neteaseSongUrl(track.neteaseSongId)) {
+      context.addIssue({
+        code: "custom",
+        path: ["musicTracks", index],
+        message: "网易云歌曲链接与歌曲 ID 不一致。",
+      });
+    }
+    if (Boolean(track.coverAssetId) !== Boolean(track.coverUrl)) {
+      context.addIssue({
+        code: "custom",
+        path: ["musicTracks", index, "coverUrl"],
+        message: "歌曲封面引用不完整。",
+      });
+      continue;
+    }
+    if (track.coverUrl) {
+      let coverKey: string | undefined;
+      try {
+        coverKey = mediaKeyFromUrl(track.coverUrl);
+      } catch {
+        coverKey = undefined;
+      }
+      if (!coverKey || !mediaKeys.has(coverKey)) {
+        context.addIssue({
+          code: "custom",
+          path: ["musicTracks", index, "coverUrl"],
+          message: "歌曲封面不在图片清单中。",
+        });
+      }
+    }
+  }
+});
+
 export async function exportBlogData(database: D1Database): Promise<BlogBackup> {
   const [
     settingResult,
@@ -682,6 +782,7 @@ export async function exportBlogData(database: D1Database): Promise<BlogBackup> 
     friends,
     friendPage,
     messages,
+    musicTracks,
     mediaAssetResult,
     postAssetLinkResult,
   ] = await Promise.all([
@@ -693,11 +794,14 @@ export async function exportBlogData(database: D1Database): Promise<BlogBackup> 
     listFriends(database),
     getSetting(database, "friend_page"),
     listAdminMessages(database),
+    listMusicTracks(database),
     primary(database).prepare(
       `SELECT DISTINCT asset.kv_key, asset.original_name, asset.content_type, asset.size_bytes
        FROM media_assets asset
-       JOIN post_asset_links link ON link.asset_id = asset.id
-       WHERE asset.state = 'ready'
+       WHERE asset.state = 'ready' AND (
+         EXISTS (SELECT 1 FROM post_asset_links link WHERE link.asset_id = asset.id)
+         OR EXISTS (SELECT 1 FROM music_tracks track WHERE track.cover_asset_id = asset.id)
+       )
        ORDER BY asset.kv_key`,
     ).all<{
       kv_key: string;
@@ -721,7 +825,7 @@ export async function exportBlogData(database: D1Database): Promise<BlogBackup> 
     }>(),
   ]);
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     exportedAt: new Date().toISOString(),
     settings: Object.fromEntries(
       settingResult.results.map(({ key, value_json }) => [key, JSON.parse(value_json)]),
@@ -732,6 +836,7 @@ export async function exportBlogData(database: D1Database): Promise<BlogBackup> 
     friends,
     friendPage,
     messages,
+    musicTracks,
     mediaAssets: mediaAssetResult.results.map((asset) => ({
       kvKey: asset.kv_key,
       originalName: asset.original_name,
@@ -751,14 +856,28 @@ const maxBackupStatements = 500;
 
 export async function importBlogData(database: D1Database, backup: BlogBackup): Promise<void> {
   const schemaVersion = (backup as { schemaVersion?: unknown }).schemaVersion;
-  if (schemaVersion !== 1 && schemaVersion !== 2) {
+  if (schemaVersion !== 1 && schemaVersion !== 2 && schemaVersion !== 3) {
     throw new Error("备份版本不受支持。");
   }
   const validatedV2 = schemaVersion === 2 ? blogBackupV2MediaSchema.parse(backup) : undefined;
+  const validatedV3Base = schemaVersion === 3
+    ? blogBackupV2MediaSchema.parse({ ...(backup as BlogBackupV3), schemaVersion: 2 })
+    : undefined;
+  const validatedV3Music = schemaVersion === 3 ? blogBackupV3Schema.parse(backup) : undefined;
+  const validatedV3 = validatedV3Base && validatedV3Music ? {
+    ...validatedV3Base,
+    schemaVersion: 3 as const,
+    musicTracks: validatedV3Music.musicTracks,
+  } : undefined;
   const backupV2 = validatedV2 ? {
     ...(backup as BlogBackupV2),
     mediaAssets: validatedV2.mediaAssets,
     postAssetLinks: validatedV2.postAssetLinks,
+  } : validatedV3 ? {
+    ...(backup as BlogBackupV3),
+    mediaAssets: validatedV3.mediaAssets,
+    postAssetLinks: validatedV3.postAssetLinks,
+    musicTracks: validatedV3.musicTracks,
   } : undefined;
   const settings = Object.entries(backup.settings).map(([key, value]) => {
     if (!(key in settingSchemas) || key === "friend_page") throw new Error(`未知设置：${key}`);
@@ -773,6 +892,7 @@ export async function importBlogData(database: D1Database, backup: BlogBackup): 
   const timestamp = new Date().toISOString();
   const mediaAssets = backupV2?.mediaAssets ?? [];
   const postAssetLinks = backupV2?.postAssetLinks ?? [];
+  const musicTracks = validatedV3?.musicTracks ?? [];
   const importedAssetIds = new Map<string, string>();
   for (const asset of mediaAssets) {
     importedAssetIds.set(asset.kvKey, randomUUID());
@@ -782,8 +902,9 @@ export async function importBlogData(database: D1Database, backup: BlogBackup): 
       `UPDATE post_media_backfill_state
        SET cursor_published_at = NULL, cursor_post_id = NULL, completed = ?, updated_at = ?
        WHERE id = 1`,
-    ).bind(schemaVersion === 2 ? 1 : 0, timestamp),
+    ).bind(schemaVersion >= 2 ? 1 : 0, timestamp),
     database.prepare("DELETE FROM guestbook_messages"),
+    database.prepare("DELETE FROM music_tracks"),
     database.prepare("DELETE FROM posts"),
     database.prepare("DELETE FROM projects"),
     database.prepare("DELETE FROM friends"),
@@ -833,6 +954,10 @@ export async function importBlogData(database: D1Database, backup: BlogBackup): 
     }));
     const mediaJson = JSON.stringify(stagedAssets);
     const linkJson = JSON.stringify(postAssetLinks);
+    const musicJson = JSON.stringify(musicTracks.map((track) => ({
+      ...track,
+      coverKvKey: track.coverUrl ? mediaKeyFromUrl(track.coverUrl) : null,
+    })));
     const oldMarker = `backup_restore_${randomUUID()}`;
     const restoreGuard = `backup_guard_${randomUUID()}`;
     statements.unshift(
@@ -895,10 +1020,33 @@ export async function importBlogData(database: D1Database, backup: BlogBackup): 
          WHERE asset.state = 'ready'`,
       ).bind(timestamp, linkJson),
       database.prepare(
+        `INSERT INTO music_tracks
+         (id, title, artist, netease_song_id, cover_asset_id, note, sort_order,
+          enabled, created_at, updated_at)
+         SELECT
+           json_extract(item.value, '$.id'),
+           json_extract(item.value, '$.title'),
+           json_extract(item.value, '$.artist'),
+           json_extract(item.value, '$.neteaseSongId'),
+           asset.id,
+           json_extract(item.value, '$.note'),
+           json_extract(item.value, '$.sortOrder'),
+           CASE json_extract(item.value, '$.enabled') WHEN 1 THEN 1 ELSE 0 END,
+           json_extract(item.value, '$.createdAt'),
+           json_extract(item.value, '$.updatedAt')
+         FROM json_each(?) item
+         LEFT JOIN media_assets asset
+           ON asset.kv_key = json_extract(item.value, '$.coverKvKey')
+          AND asset.state = 'ready'`,
+      ).bind(musicJson),
+      database.prepare(
         `UPDATE media_assets SET state = 'pending_delete'
          WHERE draft_token = ?
            AND NOT EXISTS (
              SELECT 1 FROM post_asset_links WHERE asset_id = media_assets.id
+           )
+           AND NOT EXISTS (
+             SELECT 1 FROM music_tracks WHERE cover_asset_id = media_assets.id
            )`,
       ).bind(oldMarker),
       database.prepare(
@@ -909,6 +1057,9 @@ export async function importBlogData(database: D1Database, backup: BlogBackup): 
          WHERE asset.draft_token = ? AND asset.state = 'pending_delete'
            AND NOT EXISTS (
              SELECT 1 FROM post_asset_links WHERE asset_id = asset.id
+           )
+           AND NOT EXISTS (
+             SELECT 1 FROM music_tracks WHERE cover_asset_id = asset.id
            )
          ON CONFLICT(asset_id) DO UPDATE SET
            kv_key = excluded.kv_key,
