@@ -80,6 +80,10 @@ test("homepage shows visitor weather and one selected NetEase player", async ({
       expect(musicBox).not.toBeNull();
       expect(weatherBox!.y).toBeLessThan(musicBox!.y);
       expect((await track.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+      const currentLinkBox = await page.locator("[data-current-link]").boundingBox();
+      expect(currentLinkBox).not.toBeNull();
+      expect(currentLinkBox!.height).toBeGreaterThanOrEqual(44);
+      expect(currentLinkBox!.width).toBeGreaterThanOrEqual(44);
     }
 
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
