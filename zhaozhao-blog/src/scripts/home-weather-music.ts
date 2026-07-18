@@ -94,32 +94,64 @@ if (section) {
       if (!response.ok || !result.data) throw new Error(result.error ?? "天气读取失败。");
       if (generation === refreshGeneration && drawerIsOpen() && !document.hidden) {
         showWeather(result.data);
+        return true;
       }
+      return false;
     } catch (error) {
       if (
         controller.signal.aborted
         || generation !== refreshGeneration
         || !drawerIsOpen()
         || document.hidden
-      ) return;
+      ) return false;
       showWeatherFailure();
+      return false;
     } finally {
       if (activeWeatherAbort === controller) activeWeatherAbort = undefined;
     }
   };
 
-  const refreshWeather = async (forceLocation = false) => {
+  const currentPosition = () => new Promise<GeolocationPosition>((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      enableHighAccuracy: true,
+      timeout: 10_000,
+      maximumAge: 0,
+    });
+  });
+
+  const refreshWeather = async (requestDeviceLocation = false) => {
     if (!drawerIsOpen() || document.hidden) return;
     const generation = ++refreshGeneration;
     if (!hasWeatherSnapshot) weatherPanel?.setAttribute("aria-busy", "true");
     const weatherEndpoint = new URL(endpoint, window.location.origin);
-    if (forceLocation) weatherEndpoint.searchParams.set("refresh", "1");
-    locationRefresh?.toggleAttribute("disabled", forceLocation);
-    if (forceLocation) setText("[data-weather-refresh-status]", "正在按 IP 重新获取地址…");
+    let fallbackMessage = "";
+    locationRefresh?.toggleAttribute("disabled", requestDeviceLocation);
     try {
-      await loadWeather(`${weatherEndpoint.pathname}${weatherEndpoint.search}`, generation);
+      if (requestDeviceLocation) {
+        weatherEndpoint.searchParams.set("refresh", "1");
+        setText("[data-weather-refresh-status]", "正在获取设备位置…");
+        if (navigator.geolocation) {
+          try {
+            const { coords } = await currentPosition();
+            if (generation !== refreshGeneration || !drawerIsOpen() || document.hidden) return;
+            weatherEndpoint.searchParams.set("lat", String(coords.latitude));
+            weatherEndpoint.searchParams.set("lon", String(coords.longitude));
+          } catch {
+            fallbackMessage = "未获得设备位置，已按 IP 更新";
+          }
+        } else {
+          fallbackMessage = "浏览器不支持设备定位，已按 IP 更新";
+        }
+      }
+      const loaded = await loadWeather(
+        `${weatherEndpoint.pathname}${weatherEndpoint.search}`,
+        generation,
+      );
+      if (loaded && fallbackMessage) {
+        setText("[data-weather-refresh-status]", fallbackMessage);
+      }
     } finally {
-      if (forceLocation) locationRefresh?.removeAttribute("disabled");
+      if (requestDeviceLocation) locationRefresh?.removeAttribute("disabled");
     }
   };
 

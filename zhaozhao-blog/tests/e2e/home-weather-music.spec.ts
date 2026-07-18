@@ -125,9 +125,20 @@ test("Hero drawer defaults responsively and exposes an accessible toggle", async
     await toggle.click();
     await expect(toggle).toHaveAttribute("aria-expanded", "true");
     await expect(panel).not.toHaveAttribute("inert", "");
+    const heroCopyBox = await page.locator(".hero-copy").boundingBox();
+    const drawerBox = await page.locator("#weather-music").boundingBox();
+    expect(heroCopyBox).not.toBeNull();
+    expect(drawerBox).not.toBeNull();
+    expect(drawerBox!.y).toBeGreaterThanOrEqual(heroCopyBox!.y + heroCopyBox!.height - 1);
   } else {
     await expect(toggle).toHaveAttribute("aria-expanded", "true");
     await expect(panel).not.toHaveAttribute("inert", "");
+    const scrollHint = page.locator(".hero-scroll");
+    const toggleBox = await toggle.boundingBox();
+    const scrollBox = await scrollHint.boundingBox();
+    expect(toggleBox).not.toBeNull();
+    expect(scrollBox).not.toBeNull();
+    expect(toggleBox!.x + toggleBox!.width).toBeLessThan(scrollBox!.x);
   }
 
   await expect.poll(async () => ({
@@ -203,8 +214,13 @@ test("mobile IP weather refreshes only while the Hero drawer is open and visible
   await expect.poll(() => requests.length).toBe(closedRequestCount + 1);
 });
 
-test("manual address refresh forces a new visitor IP lookup", async ({ page }, testInfo) => {
+test("manual address refresh requests fresh device coordinates", async ({
+  page,
+  context,
+}, testInfo) => {
   const requests: string[] = [];
+  await context.grantPermissions(["geolocation"]);
+  await context.setGeolocation({ latitude: 31.1837, longitude: 121.4365 });
   await page.route("**/api/weather**", async (route) => {
     requests.push(route.request().url());
     await route.fulfill({
@@ -212,7 +228,7 @@ test("manual address refresh forces a new visitor IP lookup", async ({ page }, t
       contentType: "application/json",
       body: JSON.stringify({
         data: {
-          area: requests.length === 1 ? "首次 IP 地址" : "更新后的 IP 地址",
+          area: requests.length === 1 ? "首次 IP 地址" : "设备定位地址",
           code: 2,
           condition: "多云",
           temperature: 28.4,
@@ -236,11 +252,11 @@ test("manual address refresh forces a new visitor IP lookup", async ({ page }, t
   await expect(refreshLocation).toBeVisible();
   await refreshLocation.click();
 
-  await expect(page.locator("[data-weather-area]")).toHaveText("更新后的 IP 地址");
+  await expect(page.locator("[data-weather-area]")).toHaveText("设备定位地址");
   expect(requests).toHaveLength(2);
   expect(requests[1]).toContain("refresh=1");
-  expect(requests[1]).not.toContain("lat=");
-  expect(requests[1]).not.toContain("lon=");
+  expect(requests[1]).toContain("lat=31.1837");
+  expect(requests[1]).toContain("lon=121.4365");
 });
 
 test("weather refresh failure preserves the last successful snapshot", async ({
