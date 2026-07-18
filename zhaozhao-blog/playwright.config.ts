@@ -4,8 +4,9 @@ export default defineConfig({
   testDir: "./tests/e2e",
   globalSetup: "./scripts/playwright-global-setup.mjs",
   globalTeardown: "./scripts/playwright-global-teardown.mjs",
-  fullyParallel: true,
-  workers: process.env.CI ? 4 : 6,
+  // A single Wrangler/D1 local state is shared by the suite, so tests must run serially.
+  fullyParallel: false,
+  workers: 1,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? "github" : "list",
