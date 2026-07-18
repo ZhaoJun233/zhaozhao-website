@@ -2,8 +2,12 @@ import { defineMiddleware } from "astro:middleware";
 import { env } from "cloudflare:workers";
 import { authenticateAdminSession, readAdminSessionToken } from "./lib/admin/auth";
 import { getDatabase } from "./lib/cloudflare/bindings";
+import { buildHttpsRedirect } from "./lib/https";
 
 export const onRequest = defineMiddleware(async (context, next) => {
+  const httpsRedirect = buildHttpsRedirect(context.url, env.PUBLIC_SITE_URL);
+  if (httpsRedirect) return context.redirect(httpsRedirect.toString(), 308);
+
   const path = context.url.pathname;
   if (
     path.startsWith("/media/uploads/")
