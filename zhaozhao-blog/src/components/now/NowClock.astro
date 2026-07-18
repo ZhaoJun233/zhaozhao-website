@@ -1,0 +1,27 @@
+---
+interface Props {
+  eyebrow: string;
+  title: string;
+}
+
+const { eyebrow, title } = Astro.props;
+---
+
+<section class="now-clock" data-now-section="time" aria-labelledby="now-title">
+  <div class="now-clock__copy">
+    <p class="now-eyebrow">{eyebrow}</p>
+    <h1 id="now-title">{title}</h1>
+    <p class="now-greeting" data-now-greeting>愿你此刻有一扇向海的窗。</p>
+  </div>
+  <div class="now-clock__face">
+    <time aria-label="当前时间" data-now-time>--:--</time>
+    <p data-now-date>正在读取访客本地时间</p>
+  </div>
+  <div class="now-window" aria-hidden="true">
+    <span class="now-window__sun"></span>
+    <span class="now-window__cloud now-window__cloud--one"></span>
+    <span class="now-window__cloud now-window__cloud--two"></span>
+    <span class="now-window__sea"></span>
+    <span class="now-window__rail"></span>
+  </div>
+</section>

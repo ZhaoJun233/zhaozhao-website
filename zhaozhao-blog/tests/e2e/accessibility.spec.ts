@@ -8,6 +8,7 @@ const representativePages = [
   ["项目", "/projects/"],
   ["关于", "/about/"],
   ["搜索", "/search/"],
+  ["此刻", "/now/"],
 ] as const;
 
 for (const [label, path] of representativePages) {

@@ -1,0 +1,81 @@
+---
+import { ExternalLink, Music2 } from "lucide-astro";
+import type { AdminMusicTrack } from "../../lib/database/music-repository";
+
+interface Props {
+  tracks: AdminMusicTrack[];
+  content: {
+    eyebrow: string;
+    title: string;
+    emptyTitle: string;
+    emptyDescription: string;
+    openLabel: string;
+  };
+}
+
+const { tracks, content } = Astro.props;
+---
+
+<section class="now-music" data-now-section="music" data-music-player aria-label={content.eyebrow}>
+  <div class="now-music__heading">
+    <div>
+      <p class="now-eyebrow">{content.eyebrow}</p>
+      <h2>{content.title}</h2>
+    </div>
+    <span>{String(tracks.length).padStart(2, "0")} tracks</span>
+  </div>
+
+  {tracks.length > 0 ? (
+    <div class="now-music__body">
+      <div class="now-player-card">
+        <div class="now-vinyl" data-now-vinyl aria-hidden="true">
+          <span></span>
+        </div>
+        <div class="now-player-card__meta">
+          <p>SELECT A SONG</p>
+          <h3 data-current-track>从唱片架选一首歌</h3>
+          <span data-current-artist>播放器会在点击后载入</span>
+          <a href="https://music.163.com/" target="_blank" rel="noreferrer noopener" data-current-link>
+            {content.openLabel}<ExternalLink size={14} aria-hidden="true" />
+          </a>
+        </div>
+        <div class="now-player-frame" data-player-frame>
+          <p><Music2 size={18} aria-hidden="true" />网易云播放器尚未载入</p>
+        </div>
+      </div>
+
+      <div class="now-track-list" aria-label="歌曲列表">
+        {tracks.map((track, index) => (
+          <button
+            type="button"
+            data-track
+            data-track-id={track.id}
+            data-track-title={track.title}
+            data-track-artist={track.artist}
+            data-track-cover={track.coverUrl ?? ""}
+            data-netease-embed={track.embedUrl}
+            data-netease-url={track.neteaseUrl}
+            aria-pressed="false"
+          >
+            <span class="now-track-list__index">{String(index + 1).padStart(2, "0")}</span>
+            <span class="now-track-list__cover">
+              {track.coverUrl
+                ? <img src={track.coverUrl} alt="" loading="lazy" />
+                : <Music2 size={18} aria-hidden="true" />}
+            </span>
+            <span class="now-track-list__copy">
+              <strong>{track.title}</strong>
+              <small>{track.artist}{track.note ? ` · ${track.note}` : ""}</small>
+            </span>
+            <span class="now-track-list__play" aria-hidden="true">PLAY</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  ) : (
+    <div class="now-music-empty">
+      <div class="now-vinyl" aria-hidden="true"><span></span></div>
+      <div><h3>{content.emptyTitle}</h3><p>{content.emptyDescription}</p></div>
+    </div>
+  )}
+</section>
