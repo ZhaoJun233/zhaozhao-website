@@ -33,30 +33,112 @@ function withCf(request: Request, cf: Record<string, unknown>): Request {
 }
 
 describe("weather API", () => {
-  it("prefers browser coordinates and only fetches the fixed Open-Meteo host", async () => {
+  it("reverse geocodes browser coordinates instead of using the Cloudflare city", async () => {
     const fetched: string[] = [];
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
-      fetched.push(String(input));
+      const url = new URL(String(input));
+      fetched.push(url.toString());
+      if (url.origin === "https://api.bigdatacloud.net") {
+        return Response.json({
+          locality: "徐汇区",
+          city: "上海市",
+          principalSubdivision: "上海市",
+        });
+      }
       return weatherUpstream();
     });
     const request = withCf(
-      new Request("https://blog.example/api/weather?lat=31.2304&lon=121.4737"),
+      new Request("https://blog.example/api/weather?lat=31.1837&lon=121.4365"),
       { latitude: "30.2741", longitude: "120.1551", city: "杭州" },
     );
     const response = await createWeatherRoute({
       fetcher: fetcher as typeof fetch,
       cache: new MemoryWeatherCache(),
     })({ request } as never);
-    const upstreamUrl = new URL(fetched[0]!);
+    const reverseUrl = new URL(fetched[0]!);
+    const upstreamUrl = new URL(fetched[1]!);
 
     expect(response.status).toBe(200);
+    expect(reverseUrl.origin).toBe("https://api.bigdatacloud.net");
     expect(upstreamUrl.origin).toBe("https://api.open-meteo.com");
     expect(upstreamUrl.pathname).toBe("/v1/forecast");
-    expect(upstreamUrl.searchParams.get("latitude")).toBe("31.2304");
-    expect(upstreamUrl.searchParams.get("longitude")).toBe("121.4737");
+    expect(upstreamUrl.searchParams.get("latitude")).toBe("31.1837");
+    expect(upstreamUrl.searchParams.get("longitude")).toBe("121.4365");
     expect(await response.json()).toMatchObject({
-      data: { area: "杭州", condition: "多云", temperature: 28.4 },
+      data: { area: "徐汇区 · 上海市", condition: "多云", temperature: 28.4 },
     });
+  });
+
+  it("caches reverse-geocoded areas on a 0.02 degree grid", async () => {
+    let reverseFetches = 0;
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      if (url.origin === "https://api.bigdatacloud.net") {
+        reverseFetches += 1;
+        return Response.json({ locality: "徐汇区", city: "上海市" });
+      }
+      return weatherUpstream();
+    });
+    const route = createWeatherRoute({
+      fetcher: fetcher as typeof fetch,
+      cache: new MemoryWeatherCache(),
+    });
+
+    await route({
+      request: new Request("https://blog.example/api/weather?lat=31.1837&lon=121.4365"),
+    } as never);
+    const second = await route({
+      request: new Request("https://blog.example/api/weather?lat=31.1881&lon=121.446"),
+    } as never);
+
+    expect(reverseFetches).toBe(1);
+    expect((await second.json()).data.area).toBe("徐汇区 · 上海市");
+  });
+
+  it("does not reuse a Cloudflare-labelled snapshot for precise coordinates", async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      if (url.origin === "https://api.bigdatacloud.net") {
+        return Response.json({ locality: "徐汇区", city: "上海市" });
+      }
+      return weatherUpstream();
+    });
+    const route = createWeatherRoute({
+      fetcher: fetcher as typeof fetch,
+      cache: new MemoryWeatherCache(),
+    });
+    const cloudflareRequest = withCf(new Request("https://blog.example/api/weather"), {
+      latitude: "31.1837",
+      longitude: "121.4365",
+      city: "杭州",
+    });
+
+    await route({ request: cloudflareRequest } as never);
+    const preciseResponse = await route({
+      request: new Request("https://blog.example/api/weather?lat=31.1837&lon=121.4365"),
+    } as never);
+
+    expect((await preciseResponse.json()).data.area).toBe("徐汇区 · 上海市");
+  });
+
+  it("uses 当前位置信息 when precise reverse geocoding fails", async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      if (url.origin === "https://api.bigdatacloud.net") {
+        return new Response("reverse failed", { status: 502 });
+      }
+      return weatherUpstream();
+    });
+    const request = withCf(
+      new Request("https://blog.example/api/weather?lat=31.1837&lon=121.4365"),
+      { latitude: "30.2741", longitude: "120.1551", city: "杭州" },
+    );
+    const response = await createWeatherRoute({
+      fetcher: fetcher as typeof fetch,
+      cache: new MemoryWeatherCache(),
+    })({ request } as never);
+
+    expect((await response.json()).data.area).toBe("当前位置");
   });
 
   it("uses Cloudflare coordinates when query coordinates are absent and caches the grid", async () => {
@@ -79,10 +161,12 @@ describe("weather API", () => {
     });
 
     expect((await route({ request: first } as never)).status).toBe(200);
-    expect((await route({ request: second } as never)).status).toBe(200);
+    const secondResponse = await route({ request: second } as never);
+    expect(secondResponse.status).toBe(200);
     expect(fetcher).toHaveBeenCalledTimes(1);
     expect(new URL(fetched[0]!).searchParams.get("latitude"))
       .toBe("30.2741");
+    expect((await secondResponse.json()).data.area).toBe("杭州");
   });
 
   it("returns a stable local error when the upstream fails", async () => {

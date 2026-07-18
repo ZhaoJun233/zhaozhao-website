@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
+  fetchReverseGeocode,
   normalizeCoordinates,
+  reverseGeocodeCacheKey,
   weatherCacheKey,
   weatherCondition,
 } from "../../src/lib/weather";
@@ -20,6 +22,32 @@ describe("weather helpers", () => {
 
   it("uses a two-decimal privacy grid for cache keys", () => {
     expect(weatherCacheKey(30.27419, 120.15519)).toBe("weather:30.27:120.16");
+  });
+
+  it("formats a Chinese locality and city from BigDataCloud", async () => {
+    const fetcher = vi.fn(async () => Response.json({
+      locality: "徐汇区",
+      city: "上海市",
+      principalSubdivision: "上海市",
+    }));
+
+    await expect(fetchReverseGeocode({
+      latitude: 31.1837,
+      longitude: 121.4365,
+      fetcher: fetcher as typeof fetch,
+    })).resolves.toBe("徐汇区 · 上海市");
+
+    const url = new URL(String(fetcher.mock.calls[0]![0]));
+    expect(url.origin).toBe("https://api.bigdatacloud.net");
+    expect(url.pathname).toBe("/data/reverse-geocode-client");
+    expect(url.searchParams.get("localityLanguage")).toBe("zh");
+  });
+
+  it("uses a stable 0.02 degree reverse-geocode cache grid", () => {
+    expect(reverseGeocodeCacheKey(31.1837, 121.4365))
+      .toBe(reverseGeocodeCacheKey(31.1841, 121.4361));
+    expect(reverseGeocodeCacheKey(31.1837, 121.4365))
+      .not.toBe(reverseGeocodeCacheKey(31.2041, 121.4565));
   });
 
   it("maps WMO weather codes to concise Chinese conditions", () => {

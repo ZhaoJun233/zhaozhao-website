@@ -20,6 +20,13 @@ export interface WeatherFetchInput {
   timeoutMs?: number;
 }
 
+export interface ReverseGeocodeInput {
+  latitude: number;
+  longitude: number;
+  fetcher?: typeof fetch;
+  timeoutMs?: number;
+}
+
 const upstreamSchema = z.object({
   current: z.object({
     time: z.string().min(1),
@@ -30,6 +37,12 @@ const upstreamSchema = z.object({
     wind_speed_10m: z.number().nonnegative(),
     wind_direction_10m: z.number(),
   }),
+});
+
+const reverseGeocodeSchema = z.object({
+  locality: z.string().trim().max(120).optional().nullable(),
+  city: z.string().trim().max(120).optional().nullable(),
+  principalSubdivision: z.string().trim().max(120).optional().nullable(),
 });
 
 export class WeatherCoordinateError extends Error {
@@ -71,6 +84,11 @@ export function weatherCacheKey(latitude: number, longitude: number): string {
   return `weather:${normalized.latitude.toFixed(2)}:${normalized.longitude.toFixed(2)}`;
 }
 
+export function reverseGeocodeCacheKey(latitude: number, longitude: number): string {
+  const coordinates = normalizeCoordinates(latitude, longitude);
+  return `reverse:${Math.round(coordinates.latitude / 0.02)}:${Math.round(coordinates.longitude / 0.02)}`;
+}
+
 export function weatherCondition(code: number): string {
   if (code === 0) return "晴";
   if ([1, 2, 3].includes(code)) return "多云";
@@ -80,6 +98,30 @@ export function weatherCondition(code: number): string {
   if ([71, 73, 75, 77, 85, 86].includes(code)) return "雪";
   if ([95, 96, 99].includes(code)) return "雷雨";
   return "天气变化中";
+}
+
+export async function fetchReverseGeocode({
+  latitude,
+  longitude,
+  fetcher = fetch,
+  timeoutMs = 5_000,
+}: ReverseGeocodeInput): Promise<string> {
+  normalizeCoordinates(latitude, longitude);
+  const url = new URL("https://api.bigdatacloud.net/data/reverse-geocode-client");
+  url.searchParams.set("latitude", String(latitude));
+  url.searchParams.set("longitude", String(longitude));
+  url.searchParams.set("localityLanguage", "zh");
+
+  const response = await fetcher(url, {
+    headers: { accept: "application/json" },
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (!response.ok) throw new Error(`BigDataCloud returned ${response.status}.`);
+  const value = reverseGeocodeSchema.parse(await response.json());
+  const locality = value.locality?.trim();
+  const city = value.city?.trim();
+  if (locality && city && locality !== city) return `${locality} · ${city}`;
+  return locality || city || value.principalSubdivision?.trim() || "当前位置";
 }
 
 export async function fetchWeatherSnapshot({
