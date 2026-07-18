@@ -62,8 +62,9 @@ describe("NetEase managed metadata", () => {
       coverUrl: expect.stringMatching(/^\/media\/uploads\//),
       warning: undefined,
     });
+    const coverAssetId = result.coverAssetId!;
     const stored = await env.DB.prepare("SELECT kv_key FROM media_assets WHERE id = ?")
-      .bind(result.coverAssetId)
+      .bind(coverAssetId)
       .first<{ kv_key: string }>();
     expect(await env.MEDIA.get(stored!.kv_key, "arrayBuffer")).not.toBeNull();
   });
@@ -150,8 +151,9 @@ describe("NetEase managed metadata", () => {
       fetcher: metadataFetcher() as typeof fetch,
       cache: new MemoryMetadataCache(),
     });
+    const coverAssetId = result.coverAssetId!;
     const stored = await env.DB.prepare("SELECT kv_key FROM media_assets WHERE id = ?")
-      .bind(result.coverAssetId)
+      .bind(coverAssetId)
       .first<{ kv_key: string }>();
 
     await queueDraftCleanup(env.DB, draftToken, "draft_cancelled");
@@ -159,7 +161,7 @@ describe("NetEase managed metadata", () => {
 
     expect(await env.MEDIA.get(stored!.kv_key, "arrayBuffer")).toBeNull();
     expect(await env.DB.prepare("SELECT id FROM media_assets WHERE id = ?")
-      .bind(result.coverAssetId).first()).toBeNull();
+      .bind(coverAssetId).first()).toBeNull();
   });
 
   it("requires an authenticated administrator for the metadata endpoint", async () => {

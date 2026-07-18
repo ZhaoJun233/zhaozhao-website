@@ -25,7 +25,7 @@ describe("weather helpers", () => {
   });
 
   it("formats a Chinese locality and city from BigDataCloud", async () => {
-    const fetcher = vi.fn(async () => Response.json({
+    const fetcher = vi.fn(async (_input: RequestInfo | URL) => Response.json({
       locality: "徐汇区",
       city: "上海市",
       principalSubdivision: "上海市",

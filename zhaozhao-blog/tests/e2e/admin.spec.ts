@@ -415,7 +415,8 @@ test("music metadata fills managed fields and preserves manual track state", asy
     const draftToken = await page.locator('input[name="draftToken"]').inputValue();
     await page.getByRole("button", { name: "自动获取歌曲信息" }).click();
 
-    expect(requestedBody).toEqual({ neteaseSongId: "347230", draftToken });
+    await expect.poll(() => requestedBody)
+      .toEqual({ neteaseSongId: "347230", draftToken });
     await expect(page.getByLabel("歌曲名称")).toHaveValue("海阔天空");
     await expect(page.getByLabel("歌手")).toHaveValue("Beyond");
     await expect(page.getByLabel("推荐语")).toHaveValue("这句推荐语必须保留。");

@@ -13,7 +13,7 @@ describe("NetEase song metadata", () => {
   });
 
   it("parses title, artists, and cover from the fixed song detail endpoint", async () => {
-    const fetcher = vi.fn(async () => Response.json({
+    const fetcher = vi.fn(async (_input: RequestInfo | URL) => Response.json({
       songs: [{
         name: "海阔天空",
         artists: [{ name: "Beyond" }, { name: "黄家驹" }],
