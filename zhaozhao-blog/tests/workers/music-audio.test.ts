@@ -29,7 +29,7 @@ describe("public music audio API", () => {
     expect(response.headers.get("cache-control")).toBe("private, no-store");
   });
 
-  it("rejects missing tracks and unsafe upstream redirects", async () => {
+  it("rejects missing tracks and never forwards unsafe upstream redirects", async () => {
     const missing = createMusicAudioRoute({ listTracks: async () => [] });
     const missingResponse = await missing({
       params: { id: "missing" },
@@ -48,6 +48,8 @@ describe("public music audio API", () => {
       params: { id: "track-1" },
       request: new Request("https://blog.example/api/music/audio/track-1/"),
     } as never);
-    expect(unsafeResponse.status).toBe(502);
+    expect(unsafeResponse.status).toBe(302);
+    expect(unsafeResponse.headers.get("location"))
+      .toBe("https://music.163.com/song/media/outer/url?id=543615420.mp3");
   });
 });

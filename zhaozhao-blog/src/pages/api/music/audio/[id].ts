@@ -18,6 +18,17 @@ function errorResponse(error: string, status: number): Response {
   return Response.json({ error }, { status, headers: noStoreHeaders });
 }
 
+function redirectResponse(location: string): Response {
+  return new Response(null, {
+    status: 302,
+    headers: {
+      ...noStoreHeaders,
+      location,
+      "referrer-policy": "no-referrer",
+    },
+  });
+}
+
 function safeAudioLocation(value: string, base: string): string | undefined {
   try {
     const url = new URL(value, base);
@@ -51,17 +62,9 @@ export function createMusicAudioRoute({
       });
       const location = upstream.headers.get("location");
       const safeLocation = location ? safeAudioLocation(location, source) : undefined;
-      if (!safeLocation) return errorResponse("网易云暂未提供可播放音频。", 502);
-      return new Response(null, {
-        status: 302,
-        headers: {
-          ...noStoreHeaders,
-          location: safeLocation,
-          "referrer-policy": "no-referrer",
-        },
-      });
+      return redirectResponse(safeLocation ?? source);
     } catch {
-      return errorResponse("网易云音频暂时无法连接。", 502);
+      return redirectResponse(source);
     }
   };
 }
