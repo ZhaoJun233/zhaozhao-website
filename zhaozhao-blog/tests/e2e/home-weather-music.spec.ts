@@ -55,6 +55,8 @@ test("homepage shows visitor weather and one selected NetEase player", async ({
 
     await page.goto("/");
     await expect(page.locator("#weather-music")).toBeVisible();
+    await expect(page.locator("#weather-music")).toHaveAttribute("aria-label", "天气与音乐");
+    await expect(page.locator("#weather-music iframe")).toHaveCount(0);
     await expect(page.getByRole("region", { name: "访客天气" })).toBeVisible();
     await expect(page.getByRole("region", { name: "233昭的今日选曲" })).toBeVisible();
     await expect(page.locator("[data-now-time], [data-now-date], [data-now-greeting]")).toHaveCount(0);

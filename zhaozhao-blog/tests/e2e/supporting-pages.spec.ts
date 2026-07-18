@@ -147,6 +147,18 @@ test("runtime sitemap contains current content routes", async ({ request }) => {
   expect(xml).toContain("/friends/");
 });
 
+test("legacy now route keeps old links working", async ({ request }) => {
+  const response = await request.get("/now/", { maxRedirects: 0 });
+  expect(response.status()).toBe(308);
+  expect(response.headers().location).toBe("/#weather-music");
+});
+
+test("sitemap no longer advertises the standalone now page", async ({ request }) => {
+  const response = await request.get("/sitemap.xml");
+  expect(response.ok()).toBe(true);
+  expect(await response.text()).not.toContain("/now/");
+});
+
 test("web app manifest derives the editable author identity", async ({ request }) => {
   const response = await request.get("/manifest.webmanifest");
   expect(response.ok()).toBe(true);
