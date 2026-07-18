@@ -148,6 +148,104 @@ test("stored Hero drawer preference overrides the desktop default", async ({
   await expect(panel).toHaveAttribute("inert", "");
 });
 
+test("mobile weather refreshes only while the Hero drawer is open and visible", async ({
+  page,
+  context,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-390", "Mobile closed-default lifecycle coverage.");
+  await page.clock.install({ time: new Date("2026-07-18T10:00:00+08:00") });
+  await context.grantPermissions(["geolocation"]);
+  await context.setGeolocation({ latitude: 31.1837, longitude: 121.4365 });
+  const requests: string[] = [];
+  await page.route("**/api/weather**", async (route) => {
+    requests.push(route.request().url());
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          area: "徐汇区 · 上海市",
+          code: 2,
+          condition: "多云",
+          temperature: 28.4,
+          apparentTemperature: 31.2,
+          humidity: 72,
+          windDirection: 135,
+          windSpeed: 11.6,
+          observedAt: "2026-07-18T10:00",
+        },
+      }),
+    });
+  });
+
+  await page.goto("/");
+  const toggle = page.locator("[data-weather-music-toggle]");
+  expect(requests).toHaveLength(0);
+
+  await toggle.click();
+  await expect.poll(() => requests.length).toBe(1);
+  expect(requests[0]).toContain("lat=31.1837");
+  expect(requests[0]).toContain("lon=121.4365");
+
+  await page.clock.fastForward(600_000);
+  await expect.poll(() => requests.length).toBe(2);
+
+  await toggle.click();
+  const closedRequestCount = requests.length;
+  await page.clock.fastForward(600_000);
+  expect(requests).toHaveLength(closedRequestCount);
+
+  await toggle.click();
+  await expect.poll(() => requests.length).toBe(closedRequestCount + 1);
+});
+
+test("weather refresh failure preserves the last successful snapshot", async ({
+  page,
+}, testInfo) => {
+  await page.clock.install({ time: new Date("2026-07-18T10:00:00+08:00") });
+  let requests = 0;
+  await page.route("**/api/weather**", async (route) => {
+    requests += 1;
+    if (requests > 1) {
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "天气暂时藏进云里了。" }),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          area: "徐汇区 · 上海市",
+          code: 2,
+          condition: "多云",
+          temperature: 28.4,
+          apparentTemperature: 31.2,
+          humidity: 72,
+          windDirection: 135,
+          windSpeed: 11.6,
+          observedAt: "2026-07-18T10:00",
+        },
+      }),
+    });
+  });
+
+  await page.goto("/");
+  if (testInfo.project.name === "mobile-390") {
+    await page.locator("[data-weather-music-toggle]").click();
+  }
+  await expect(page.locator("[data-weather-area]")).toHaveText("徐汇区 · 上海市");
+  await expect(page.locator("[data-weather-temperature]")).toHaveText("28°");
+
+  await page.clock.fastForward(600_000);
+  await expect(page.locator("[data-weather-refresh-status]")).toHaveText("更新暂时失败");
+  await expect(page.locator("[data-weather-area]")).toHaveText("徐汇区 · 上海市");
+  await expect(page.locator("[data-weather-temperature]")).toHaveText("28°");
+});
+
 test("legacy now route redirects to the homepage section", async ({ page }) => {
   const response = await page.goto("/now/");
   expect(response?.status()).toBe(200);

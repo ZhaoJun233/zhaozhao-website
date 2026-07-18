@@ -13,46 +13,25 @@ type WeatherSnapshot = {
 type WeatherNotes = Record<"clear" | "cloudy" | "rain" | "snow" | "storm" | "fallback", string>;
 
 const section = document.querySelector<HTMLElement>("[data-home-weather-music]");
-const geolocationSessionKey = "home-weather-geolocation-attempted";
 
 if (section) {
   const toggle = section.querySelector<HTMLButtonElement>("[data-weather-music-toggle]");
   const panel = section.querySelector<HTMLElement>("[data-weather-music-panel]");
-  const drawerStorageKey = "hero-weather-music-open";
-  const mobileQuery = window.matchMedia("(max-width: 899px)");
-
-  const storedDrawerState = (): boolean | undefined => {
-    try {
-      const value = localStorage.getItem(drawerStorageKey);
-      return value === "true" ? true : value === "false" ? false : undefined;
-    } catch {
-      return undefined;
-    }
-  };
-
-  const setDrawerOpen = (open: boolean, persist = true) => {
-    section.dataset.drawerOpen = String(open);
-    toggle?.setAttribute("aria-expanded", String(open));
-    if (toggle) toggle.textContent = open ? "隐藏天气音乐" : "天气 · 音乐";
-    panel?.toggleAttribute("inert", !open);
-    if (persist) {
-      try {
-        localStorage.setItem(drawerStorageKey, String(open));
-      } catch {
-        // Storage may be unavailable in private browsing; the drawer still works for this page.
-      }
-    }
-  };
-
-  setDrawerOpen(storedDrawerState() ?? !mobileQuery.matches, false);
-  toggle?.addEventListener("click", () => {
-    setDrawerOpen(section.dataset.drawerOpen !== "true");
-  });
-
   const weatherPanel = section.querySelector<HTMLElement>("[data-weather-panel]");
   const notesElement = section.querySelector<HTMLScriptElement>("[data-weather-notes]");
   const notes = JSON.parse(notesElement?.textContent ?? "{}") as WeatherNotes;
-  let weatherRequest = 0;
+  const endpoint = section.dataset.weatherEndpoint ?? "/api/weather/";
+  const drawerStorageKey = "hero-weather-music-open";
+  const mobileQuery = window.matchMedia("(max-width: 899px)");
+  const weatherRefreshMs = 10 * 60 * 1000;
+  let refreshTimer: number | undefined;
+  let lastWeatherSuccess = 0;
+  let hasWeatherSnapshot = false;
+  let preciseLocationUnavailable = false;
+  let refreshGeneration = 0;
+  let activeWeatherAbort: AbortController | undefined;
+
+  const drawerIsOpen = () => section.dataset.drawerOpen === "true";
 
   const noteKey = (code: number): keyof WeatherNotes => {
     if ([95, 96, 99].includes(code)) return "storm";
@@ -85,50 +64,161 @@ if (section) {
     setText("[data-weather-humidity]", `${Math.round(snapshot.humidity)}%`);
     setText("[data-weather-wind]", `${Math.round(snapshot.windSpeed)} km/h`);
     setText("[data-weather-note]", notes[noteKey(snapshot.code)] ?? notes.fallback);
+    setText("[data-weather-refresh-status]", "");
+    hasWeatherSnapshot = true;
+    lastWeatherSuccess = Date.now();
     weatherPanel?.setAttribute("aria-busy", "false");
   };
 
-  const loadWeather = async (endpoint: string) => {
-    const requestId = ++weatherRequest;
-    try {
-      const response = await fetch(endpoint, { headers: { accept: "application/json" } });
-      const result = await response.json() as { data?: WeatherSnapshot; error?: string };
-      if (!response.ok || !result.data) throw new Error(result.error ?? "天气读取失败。");
-      if (requestId === weatherRequest) showWeather(result.data);
-    } catch {
-      if (requestId !== weatherRequest) return;
+  const showWeatherFailure = () => {
+    if (hasWeatherSnapshot) {
+      setText("[data-weather-refresh-status]", "更新暂时失败");
+    } else {
       setText("[data-weather-condition]", "天气暂时藏进云里了");
       setText("[data-weather-note]", notes.fallback ?? "天气暂时藏进云里了。");
-      weatherPanel?.setAttribute("aria-busy", "false");
+    }
+    weatherPanel?.setAttribute("aria-busy", "false");
+  };
+
+  const loadWeather = async (weatherEndpoint: string, generation: number) => {
+    activeWeatherAbort?.abort();
+    const controller = new AbortController();
+    activeWeatherAbort = controller;
+    try {
+      const response = await fetch(weatherEndpoint, {
+        headers: { accept: "application/json" },
+        signal: controller.signal,
+      });
+      const result = await response.json() as { data?: WeatherSnapshot; error?: string };
+      if (!response.ok || !result.data) throw new Error(result.error ?? "天气读取失败。");
+      if (generation === refreshGeneration && drawerIsOpen() && !document.hidden) {
+        showWeather(result.data);
+      }
+    } catch (error) {
+      if (
+        controller.signal.aborted
+        || generation !== refreshGeneration
+        || !drawerIsOpen()
+        || document.hidden
+      ) return;
+      showWeatherFailure();
+    } finally {
+      if (activeWeatherAbort === controller) activeWeatherAbort = undefined;
     }
   };
 
-  const endpoint = section.dataset.weatherEndpoint ?? "/api/weather/";
-  void loadWeather(endpoint);
+  const currentPosition = () => new Promise<GeolocationPosition>((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      enableHighAccuracy: false,
+      timeout: 5_000,
+      maximumAge: weatherRefreshMs,
+    });
+  });
 
-  const requestPreciseWeather = async () => {
-    if (!navigator.geolocation || sessionStorage.getItem(geolocationSessionKey)) return;
+  const refreshWeather = async () => {
+    if (!drawerIsOpen() || document.hidden) return;
+    const generation = ++refreshGeneration;
+    if (!hasWeatherSnapshot) weatherPanel?.setAttribute("aria-busy", "true");
+
+    if (preciseLocationUnavailable || !navigator.geolocation) {
+      preciseLocationUnavailable = true;
+      await loadWeather(endpoint, generation);
+      return;
+    }
+
     if (navigator.permissions) {
       try {
         const permission = await navigator.permissions.query({ name: "geolocation" });
-        if (permission.state === "denied") return;
+        if (generation !== refreshGeneration || !drawerIsOpen() || document.hidden) return;
+        if (permission.state === "denied") {
+          preciseLocationUnavailable = true;
+          await loadWeather(endpoint, generation);
+          return;
+        }
       } catch {
-        // Browsers without a geolocation permission descriptor continue with one normal request.
+        // Browsers without a geolocation permission descriptor continue normally.
       }
     }
-    sessionStorage.setItem(geolocationSessionKey, "1");
-    navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
-        const url = new URL(endpoint, window.location.origin);
-        url.searchParams.set("lat", String(coords.latitude));
-        url.searchParams.set("lon", String(coords.longitude));
-        void loadWeather(`${url.pathname}${url.search}`);
-      },
-      () => undefined,
-      { enableHighAccuracy: false, timeout: 5_000, maximumAge: 10 * 60 * 1000 },
-    );
+
+    try {
+      const { coords } = await currentPosition();
+      if (generation !== refreshGeneration || !drawerIsOpen() || document.hidden) return;
+      const preciseEndpoint = new URL(endpoint, window.location.origin);
+      preciseEndpoint.searchParams.set("lat", String(coords.latitude));
+      preciseEndpoint.searchParams.set("lon", String(coords.longitude));
+      await loadWeather(`${preciseEndpoint.pathname}${preciseEndpoint.search}`, generation);
+    } catch {
+      if (generation !== refreshGeneration || !drawerIsOpen() || document.hidden) return;
+      preciseLocationUnavailable = true;
+      await loadWeather(endpoint, generation);
+    }
   };
-  void requestPreciseWeather();
+
+  const stopWeatherRefresh = () => {
+    if (refreshTimer !== undefined) {
+      window.clearInterval(refreshTimer);
+      refreshTimer = undefined;
+    }
+    refreshGeneration += 1;
+    activeWeatherAbort?.abort();
+    activeWeatherAbort = undefined;
+    weatherPanel?.setAttribute("aria-busy", "false");
+  };
+
+  const startWeatherRefresh = () => {
+    if (refreshTimer !== undefined) window.clearInterval(refreshTimer);
+    refreshTimer = undefined;
+    if (!drawerIsOpen() || document.hidden) return;
+    refreshTimer = window.setInterval(() => {
+      void refreshWeather();
+    }, weatherRefreshMs);
+  };
+
+  const storedDrawerState = (): boolean | undefined => {
+    try {
+      const value = localStorage.getItem(drawerStorageKey);
+      return value === "true" ? true : value === "false" ? false : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+
+  const setDrawerOpen = (open: boolean, persist = true) => {
+    section.dataset.drawerOpen = String(open);
+    toggle?.setAttribute("aria-expanded", String(open));
+    if (toggle) toggle.textContent = open ? "隐藏天气音乐" : "天气 · 音乐";
+    panel?.toggleAttribute("inert", !open);
+    if (persist) {
+      try {
+        localStorage.setItem(drawerStorageKey, String(open));
+      } catch {
+        // Storage may be unavailable in private browsing; the drawer still works for this page.
+      }
+    }
+    if (open) {
+      void refreshWeather();
+      startWeatherRefresh();
+    } else {
+      stopWeatherRefresh();
+    }
+  };
+
+  setDrawerOpen(storedDrawerState() ?? !mobileQuery.matches, false);
+  toggle?.addEventListener("click", () => {
+    setDrawerOpen(!drawerIsOpen());
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      stopWeatherRefresh();
+      return;
+    }
+    if (!drawerIsOpen()) return;
+    if (!lastWeatherSuccess || Date.now() - lastWeatherSuccess >= weatherRefreshMs) {
+      void refreshWeather();
+    }
+    startWeatherRefresh();
+  });
 
   const player = section.querySelector<HTMLElement>("[data-music-player]");
   if (player) {

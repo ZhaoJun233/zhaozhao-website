@@ -42,5 +42,6 @@ const { notes } = Astro.props;
     <div><dt>湿度</dt><dd data-weather-humidity>--%</dd></div>
     <div><dt>风</dt><dd data-weather-wind>-- km/h</dd></div>
   </dl>
+  <span class="now-weather__status" data-weather-refresh-status aria-live="polite"></span>
   <p class="now-weather__note" data-weather-note>{notes.fallback}</p>
 </section>
