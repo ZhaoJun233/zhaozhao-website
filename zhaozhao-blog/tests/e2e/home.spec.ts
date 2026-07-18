@@ -41,7 +41,7 @@ test("home composition exposes its discovery landmarks", async ({ page }) => {
   );
 });
 
-test("featured posts use three linked cards without an empty state", async ({ page }) => {
+test("featured posts use a clean grid when the lead article has no cover", async ({ page }) => {
   await page.goto("/");
 
   const featuredPosts = page.getByTestId("featured-posts");
@@ -49,6 +49,9 @@ test("featured posts use three linked cards without an empty state", async ({ pa
 
   await expect(featuredPosts).toBeVisible();
   await expect(cards).toHaveCount(3);
+  await expect(featuredPosts.locator(".posts-layout--grid .post-card")).toHaveCount(3);
+  await expect(featuredPosts.locator(".post-card__media--placeholder")).toHaveCount(0);
+  await expect(featuredPosts.locator(".post-card__wordmark")).toHaveCount(0);
   await expect(featuredPosts.locator(".empty-state")).toHaveCount(0);
 
   for (let index = 0; index < 3; index += 1) {
