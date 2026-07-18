@@ -53,7 +53,7 @@ const { tracks, content } = Astro.props;
   >
     <WeatherPanel notes={content.hero.weatherNotes} />
     <MusicPlayer tracks={tracks} content={content.music} />
-    <p class="hero-weather-music__privacy">位置仅用于天气与地名查询，不会保存。</p>
+    <p class="hero-weather-music__privacy">天气地址按访客 IP 粗略定位，仅用于本次查询，不会保存。</p>
   </div>
   <script
     is:inline
@@ -93,19 +93,18 @@ const { tracks, content } = Astro.props;
     padding: .62rem .9rem;
     border: 1px solid rgb(255 255 255 / 52%);
     border-radius: 999px;
-    background: rgb(248 248 244 / 72%);
-    box-shadow: 0 12px 30px rgb(24 50 58 / 14%);
+    background: transparent;
+    box-shadow: none;
     color: #24444c;
     font: 720 .68rem/1 var(--font-sans);
     letter-spacing: .06em;
-    backdrop-filter: blur(16px) saturate(1.08);
     cursor: pointer;
     transition: transform 180ms ease, background-color 180ms ease, box-shadow 180ms ease;
   }
 
   .hero-weather-music__toggle:hover {
-    background: rgb(255 255 252 / 88%);
-    box-shadow: 0 15px 34px rgb(24 50 58 / 18%);
+    background: transparent;
+    box-shadow: none;
     transform: translateY(-1px);
   }
 
@@ -115,9 +114,8 @@ const { tracks, content } = Astro.props;
     overflow: auto;
     border: 1px solid rgb(255 255 255 / 48%);
     border-radius: 1rem;
-    background: rgb(248 248 244 / 62%);
-    box-shadow: 0 24px 70px rgb(24 50 58 / 18%);
-    backdrop-filter: blur(20px) saturate(1.08);
+    background: transparent;
+    box-shadow: none;
     scrollbar-width: thin;
     transform-origin: bottom right;
     transition: max-height 220ms ease, opacity 180ms ease, visibility 180ms ease, transform 220ms ease;
@@ -164,7 +162,11 @@ const { tracks, content } = Astro.props;
   :global(.now-weather__details div) { padding: .52rem .4rem; border-block: 1px solid rgb(255 255 255 / 14%); }
   :global(.now-weather__details dt) { color: rgb(236 249 248 / 64%); font-size: .52rem; }
   :global(.now-weather__details dd) { margin: .16rem 0 0; font-family: var(--font-mono); font-size: .62rem; font-weight: 760; }
-  :global(.now-weather__status) { display: block; min-height: .9rem; margin-top: .45rem; color: #ffe3a7; font-size: .56rem; line-height: .9rem; }
+  :global(.now-weather__refresh) { display: flex; min-height: 32px; align-items: center; gap: .55rem; margin-top: .6rem; }
+  :global(.now-weather__refresh button) { min-height: 32px; flex: 0 0 auto; padding: .38rem .55rem; border: 1px solid rgb(255 255 255 / 28%); border-radius: 999px; background: transparent; color: rgb(245 251 250 / 82%); font: 720 .52rem/1 var(--font-sans); cursor: pointer; transition: border-color 180ms ease, background-color 180ms ease; }
+  :global(.now-weather__refresh button:hover) { border-color: rgb(255 255 255 / 52%); background: rgb(255 255 255 / 10%); }
+  :global(.now-weather__refresh button:disabled) { cursor: wait; opacity: .55; }
+  :global(.now-weather__status) { display: block; min-height: .9rem; color: #ffe3a7; font-size: .56rem; line-height: .9rem; }
   :global(.now-weather__note) { margin: .78rem 0 0; color: rgb(245 251 250 / 84%); font-family: var(--font-serif); font-size: .72rem; line-height: 1.55; }
 
   :global(.now-music) {
@@ -226,7 +228,7 @@ const { tracks, content } = Astro.props;
   :global(html[data-theme="dark"]) .hero-weather-music__toggle,
   :global(html[data-theme="dark"]) .hero-weather-music__panel {
     border-color: rgb(255 255 255 / 13%);
-    background: rgb(20 31 34 / 72%);
+    background: transparent;
     color: var(--drawer-ink);
   }
 
@@ -247,6 +249,7 @@ const { tracks, content } = Astro.props;
 
     .hero-weather-music__panel { max-height: 70svh; }
     .hero-weather-music__toggle { min-width: 44px; min-height: 44px; }
+    :global(.now-weather__refresh button) { min-width: 44px; min-height: 44px; }
     :global(.now-player-card__meta a) { min-width: 44px; min-height: 44px; justify-content: center; }
     :global(.now-track-list button) { min-height: 44px; }
   }
@@ -259,6 +262,7 @@ const { tracks, content } = Astro.props;
   @media (prefers-reduced-motion: reduce) {
     .hero-weather-music__toggle,
     .hero-weather-music__panel,
+    :global(.now-weather__refresh button),
     :global(.now-track-list button) { transition: none; }
     :global(.now-vinyl[data-selected]) { animation: none; }
   }

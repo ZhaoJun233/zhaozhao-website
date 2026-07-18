@@ -7,7 +7,7 @@ async function login(page: Page) {
   await expect(page.getByRole("heading", { level: 1, name: "后台概览" })).toBeVisible();
 }
 
-test("homepage shows visitor weather and one selected NetEase player", async ({
+test("homepage uses visitor IP weather and shows one selected NetEase player", async ({
   page,
   context,
 }, testInfo) => {
@@ -17,7 +17,7 @@ test("homepage shows visitor weather and one selected NetEase player", async ({
   const weatherRequests: string[] = [];
 
   await context.grantPermissions(["geolocation"]);
-  await context.setGeolocation({ latitude: 30.2741, longitude: 120.1551 });
+  await context.setGeolocation({ latitude: 31.1837, longitude: 121.4365 });
   await page.route("**/api/weather**", async (route) => {
     weatherRequests.push(route.request().url());
     await route.fulfill({
@@ -66,9 +66,8 @@ test("homepage shows visitor weather and one selected NetEase player", async ({
     await expect(page.getByRole("region", { name: "233昭的今日选曲" })).toBeVisible();
     await expect(page.locator("[data-now-time], [data-now-date], [data-now-greeting]")).toHaveCount(0);
     await expect(page.getByText("杭州", { exact: true })).toBeVisible();
-    await expect.poll(() => weatherRequests.some((url) => (
-      url.includes("lat=30.2741") && url.includes("lon=120.1551")
-    ))).toBe(true);
+    await expect.poll(() => weatherRequests.length).toBeGreaterThan(0);
+    expect(weatherRequests.every((url) => !url.includes("lat=") && !url.includes("lon="))).toBe(true);
     await expect(page.locator("iframe[src*='music.163.com/outchain/player']")).toHaveCount(0);
 
     const track = page.getByRole("button", { name: new RegExp(title) });
@@ -130,6 +129,14 @@ test("Hero drawer defaults responsively and exposes an accessible toggle", async
     await expect(toggle).toHaveAttribute("aria-expanded", "true");
     await expect(panel).not.toHaveAttribute("inert", "");
   }
+
+  await expect.poll(async () => ({
+    toggle: await toggle.evaluate((element) => getComputedStyle(element).backgroundColor),
+    panel: await panel.evaluate((element) => getComputedStyle(element).backgroundColor),
+  })).toEqual({
+    toggle: "rgba(0, 0, 0, 0)",
+    panel: "rgba(0, 0, 0, 0)",
+  });
 });
 
 test("stored Hero drawer preference overrides the desktop default", async ({
@@ -148,14 +155,11 @@ test("stored Hero drawer preference overrides the desktop default", async ({
   await expect(panel).toHaveAttribute("inert", "");
 });
 
-test("mobile weather refreshes only while the Hero drawer is open and visible", async ({
+test("mobile IP weather refreshes only while the Hero drawer is open and visible", async ({
   page,
-  context,
 }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-390", "Mobile closed-default lifecycle coverage.");
   await page.clock.install({ time: new Date("2026-07-18T10:00:00+08:00") });
-  await context.grantPermissions(["geolocation"]);
-  await context.setGeolocation({ latitude: 31.1837, longitude: 121.4365 });
   const requests: string[] = [];
   await page.route("**/api/weather**", async (route) => {
     requests.push(route.request().url());
@@ -184,8 +188,8 @@ test("mobile weather refreshes only while the Hero drawer is open and visible", 
 
   await toggle.click();
   await expect.poll(() => requests.length).toBe(1);
-  expect(requests[0]).toContain("lat=31.1837");
-  expect(requests[0]).toContain("lon=121.4365");
+  expect(requests[0]).not.toContain("lat=");
+  expect(requests[0]).not.toContain("lon=");
 
   await page.clock.fastForward(600_000);
   await expect.poll(() => requests.length).toBe(2);
@@ -197,6 +201,46 @@ test("mobile weather refreshes only while the Hero drawer is open and visible", 
 
   await toggle.click();
   await expect.poll(() => requests.length).toBe(closedRequestCount + 1);
+});
+
+test("manual address refresh forces a new visitor IP lookup", async ({ page }, testInfo) => {
+  const requests: string[] = [];
+  await page.route("**/api/weather**", async (route) => {
+    requests.push(route.request().url());
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          area: requests.length === 1 ? "首次 IP 地址" : "更新后的 IP 地址",
+          code: 2,
+          condition: "多云",
+          temperature: 28.4,
+          apparentTemperature: 31.2,
+          humidity: 72,
+          windDirection: 135,
+          windSpeed: 11.6,
+          observedAt: "2026-07-18T10:00",
+        },
+      }),
+    });
+  });
+
+  await page.goto("/");
+  if (testInfo.project.name === "mobile-390") {
+    await page.locator("[data-weather-music-toggle]").click();
+  }
+  await expect(page.locator("[data-weather-area]")).toHaveText("首次 IP 地址");
+
+  const refreshLocation = page.getByRole("button", { name: "重新获取地址" });
+  await expect(refreshLocation).toBeVisible();
+  await refreshLocation.click();
+
+  await expect(page.locator("[data-weather-area]")).toHaveText("更新后的 IP 地址");
+  expect(requests).toHaveLength(2);
+  expect(requests[1]).toContain("refresh=1");
+  expect(requests[1]).not.toContain("lat=");
+  expect(requests[1]).not.toContain("lon=");
 });
 
 test("weather refresh failure preserves the last successful snapshot", async ({

@@ -18,6 +18,7 @@ if (section) {
   const toggle = section.querySelector<HTMLButtonElement>("[data-weather-music-toggle]");
   const panel = section.querySelector<HTMLElement>("[data-weather-music-panel]");
   const weatherPanel = section.querySelector<HTMLElement>("[data-weather-panel]");
+  const locationRefresh = section.querySelector<HTMLButtonElement>("[data-weather-location-refresh]");
   const notesElement = section.querySelector<HTMLScriptElement>("[data-weather-notes]");
   const notes = JSON.parse(notesElement?.textContent ?? "{}") as WeatherNotes;
   const endpoint = section.dataset.weatherEndpoint ?? "/api/weather/";
@@ -27,7 +28,6 @@ if (section) {
   let refreshTimer: number | undefined;
   let lastWeatherSuccess = 0;
   let hasWeatherSnapshot = false;
-  let preciseLocationUnavailable = false;
   let refreshGeneration = 0;
   let activeWeatherAbort: AbortController | undefined;
 
@@ -86,6 +86,7 @@ if (section) {
     activeWeatherAbort = controller;
     try {
       const response = await fetch(weatherEndpoint, {
+        cache: "no-store",
         headers: { accept: "application/json" },
         signal: controller.signal,
       });
@@ -107,50 +108,18 @@ if (section) {
     }
   };
 
-  const currentPosition = () => new Promise<GeolocationPosition>((resolve, reject) => {
-    navigator.geolocation.getCurrentPosition(resolve, reject, {
-      enableHighAccuracy: false,
-      timeout: 5_000,
-      maximumAge: weatherRefreshMs,
-    });
-  });
-
-  const refreshWeather = async () => {
+  const refreshWeather = async (forceLocation = false) => {
     if (!drawerIsOpen() || document.hidden) return;
     const generation = ++refreshGeneration;
     if (!hasWeatherSnapshot) weatherPanel?.setAttribute("aria-busy", "true");
-
-    if (preciseLocationUnavailable || !navigator.geolocation) {
-      preciseLocationUnavailable = true;
-      await loadWeather(endpoint, generation);
-      return;
-    }
-
-    if (navigator.permissions) {
-      try {
-        const permission = await navigator.permissions.query({ name: "geolocation" });
-        if (generation !== refreshGeneration || !drawerIsOpen() || document.hidden) return;
-        if (permission.state === "denied") {
-          preciseLocationUnavailable = true;
-          await loadWeather(endpoint, generation);
-          return;
-        }
-      } catch {
-        // Browsers without a geolocation permission descriptor continue normally.
-      }
-    }
-
+    const weatherEndpoint = new URL(endpoint, window.location.origin);
+    if (forceLocation) weatherEndpoint.searchParams.set("refresh", "1");
+    locationRefresh?.toggleAttribute("disabled", forceLocation);
+    if (forceLocation) setText("[data-weather-refresh-status]", "正在按 IP 重新获取地址…");
     try {
-      const { coords } = await currentPosition();
-      if (generation !== refreshGeneration || !drawerIsOpen() || document.hidden) return;
-      const preciseEndpoint = new URL(endpoint, window.location.origin);
-      preciseEndpoint.searchParams.set("lat", String(coords.latitude));
-      preciseEndpoint.searchParams.set("lon", String(coords.longitude));
-      await loadWeather(`${preciseEndpoint.pathname}${preciseEndpoint.search}`, generation);
-    } catch {
-      if (generation !== refreshGeneration || !drawerIsOpen() || document.hidden) return;
-      preciseLocationUnavailable = true;
-      await loadWeather(endpoint, generation);
+      await loadWeather(`${weatherEndpoint.pathname}${weatherEndpoint.search}`, generation);
+    } finally {
+      if (forceLocation) locationRefresh?.removeAttribute("disabled");
     }
   };
 
@@ -206,6 +175,9 @@ if (section) {
   setDrawerOpen(storedDrawerState() ?? !mobileQuery.matches, false);
   toggle?.addEventListener("click", () => {
     setDrawerOpen(!drawerIsOpen());
+  });
+  locationRefresh?.addEventListener("click", () => {
+    void refreshWeather(true);
   });
 
   document.addEventListener("visibilitychange", () => {

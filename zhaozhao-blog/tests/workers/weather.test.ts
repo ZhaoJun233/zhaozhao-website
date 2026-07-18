@@ -169,6 +169,31 @@ describe("weather API", () => {
     expect((await secondResponse.json()).data.area).toBe("杭州");
   });
 
+  it("bypasses the IP weather cache for a manual address refresh", async () => {
+    let weatherFetches = 0;
+    const fetcher = vi.fn(async () => {
+      weatherFetches += 1;
+      return weatherUpstream();
+    });
+    const route = createWeatherRoute({
+      fetcher: fetcher as typeof fetch,
+      cache: new MemoryWeatherCache(),
+    });
+    const cf = {
+      latitude: "30.2741",
+      longitude: "120.1551",
+      city: "杭州",
+    };
+
+    await route({ request: withCf(new Request("https://blog.example/api/weather"), cf) } as never);
+    const refreshed = await route({
+      request: withCf(new Request("https://blog.example/api/weather?refresh=1"), cf),
+    } as never);
+
+    expect(refreshed.status).toBe(200);
+    expect(weatherFetches).toBe(2);
+  });
+
   it("returns a stable local error when the upstream fails", async () => {
     const route = createWeatherRoute({
       fetcher: vi.fn(async () => new Response("upstream failed", { status: 502 })),

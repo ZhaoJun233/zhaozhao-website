@@ -26,6 +26,7 @@ interface CloudflareLocation {
 
 const fallbackCoordinates = { latitude: 30.2741, longitude: 120.1551 };
 const responseHeaders = { "cache-control": "public, max-age=600" };
+const refreshResponseHeaders = { "cache-control": "no-store" };
 const reverseResponseHeaders = { "cache-control": "public, max-age=3600" };
 
 type LocationSource = "precise" | "cloudflare" | "fallback";
@@ -97,7 +98,8 @@ export function createWeatherRoute({
       const activeCache = cache ?? weatherCache();
       const location = routeCoordinates(request);
       const key = cacheRequest(location.latitude, location.longitude, location.source);
-      const cached = await activeCache.match(key);
+      const forceRefresh = new URL(request.url).searchParams.has("refresh");
+      const cached = forceRefresh ? undefined : await activeCache.match(key);
       if (cached) return cached;
       let area = location.area;
       if (location.source === "precise") {
@@ -113,7 +115,10 @@ export function createWeatherRoute({
         }
       }
       const snapshot = await fetchWeatherSnapshot({ ...location, area, fetcher });
-      const response = Response.json({ data: snapshot }, { headers: responseHeaders });
+      const response = Response.json(
+        { data: snapshot },
+        { headers: forceRefresh ? refreshResponseHeaders : responseHeaders },
+      );
       await activeCache.put(key, response.clone());
       return response;
     } catch (error) {
