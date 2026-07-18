@@ -50,6 +50,8 @@ test("featured posts use a clean grid when the lead article has no cover", async
   const cards = featuredPosts.locator(".post-card");
 
   await expect(featuredPosts).toBeVisible();
+  await expect(featuredPosts.locator(".posts-layout")).toHaveAttribute("data-layout", "grid");
+  await expect(featuredPosts.locator(".posts-layout")).toHaveAttribute("data-post-count", "3");
   await expect(cards).toHaveCount(3);
   await expect(featuredPosts.locator(".posts-layout--grid .post-card")).toHaveCount(3);
   await expect(featuredPosts.locator(".post-card__media--placeholder")).toHaveCount(0);

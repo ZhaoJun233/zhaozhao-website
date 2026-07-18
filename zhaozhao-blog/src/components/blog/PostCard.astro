@@ -62,6 +62,11 @@ const hasCover = post.data.coverUrl !== undefined;
     min-height: clamp(21rem, 36vw, 30rem);
   }
 
+  .post-card--featured.post-card--without-cover {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: clamp(18rem, 30vw, 24rem);
+  }
+
   .post-card--standard {
     grid-template-columns: minmax(12rem, 0.74fr) minmax(0, 1.26fr);
     min-height: 15rem;
@@ -141,6 +146,11 @@ const hasCover = post.data.coverUrl !== undefined;
 
   .post-card--featured .post-card__content {
     padding-inline: clamp(1.6rem, 4vw, 3.6rem);
+  }
+
+  .post-card--featured.post-card--without-cover .post-card__content {
+    max-width: 56rem;
+    min-height: inherit;
   }
 
   .post-card__title {

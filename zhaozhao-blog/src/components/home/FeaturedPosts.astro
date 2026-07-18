@@ -1,5 +1,6 @@
 ---
 import { loadRuntimeEditorial, type RuntimePost } from "../../lib/runtime-content";
+import { resolveHomePostLayout } from "../../lib/home-post-layout";
 import PostCard from "../blog/PostCard.astro";
 
 interface Props {
@@ -8,7 +9,7 @@ interface Props {
 
 const { posts } = Astro.props;
 const [leadPost, ...supportingPosts] = posts;
-const useLeadLayout = leadPost?.data.coverUrl !== undefined;
+const layout = resolveHomePostLayout(posts.length, leadPost?.data.coverUrl !== undefined);
 const copy = (await loadRuntimeEditorial()).homepage.featuredPosts;
 ---
 
@@ -28,8 +29,16 @@ const copy = (await loadRuntimeEditorial()).homepage.featuredPosts;
     </header>
 
     {leadPost ? (
-      <div class:list={["posts-layout", { "posts-layout--grid": !useLeadLayout }]}>
-        {useLeadLayout ? (
+      <div
+        class:list={["posts-layout", `posts-layout--${layout}`]}
+        data-layout={layout}
+        data-post-count={posts.length}
+      >
+        {layout === "single" ? (
+          <div class="lead-post"><PostCard post={leadPost} prominence="featured" /></div>
+        ) : layout === "pair" ? (
+          posts.map((post) => <PostCard post={post} prominence="standard" />)
+        ) : layout === "lead" ? (
           <>
             <div class="lead-post"><PostCard post={leadPost} prominence="featured" /></div>
             {supportingPosts.length > 0 && (
@@ -123,9 +132,20 @@ const copy = (await loadRuntimeEditorial()).homepage.featuredPosts;
 
   .posts-layout {
     display: grid;
-    grid-template-columns: minmax(0, 1.42fr) minmax(17.5rem, 0.78fr);
     gap: clamp(1rem, 2.2vw, 1.7rem);
     align-items: stretch;
+  }
+
+  .posts-layout--lead {
+    grid-template-columns: minmax(0, 1.42fr) minmax(17.5rem, 0.78fr);
+  }
+
+  .posts-layout--single {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .posts-layout--pair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .lead-post,
@@ -134,6 +154,11 @@ const copy = (await loadRuntimeEditorial()).homepage.featuredPosts;
   }
 
   .lead-post :global(article) {
+    height: 100%;
+  }
+
+  .posts-layout--pair :global(article),
+  .posts-layout--single :global(article) {
     height: 100%;
   }
 
@@ -163,7 +188,8 @@ const copy = (await loadRuntimeEditorial()).homepage.featuredPosts;
   }
 
   @media (max-width: 860px) {
-    .posts-layout {
+    .posts-layout--lead,
+    .posts-layout--pair {
       grid-template-columns: 1fr;
     }
 
