@@ -268,6 +268,65 @@ test("administrator manages music tracks and cover images", async ({ page }, tes
   }
 });
 
+test("starting new music track ignores a delayed cover upload", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-1440", "上传竞态只在桌面项目执行一次。" );
+  let releaseUpload = () => {};
+  const uploadGate = new Promise<void>((resolve) => {
+    releaseUpload = resolve;
+  });
+  let markUploadStarted = () => {};
+  const uploadStarted = new Promise<void>((resolve) => {
+    markUploadStarted = resolve;
+  });
+
+  await page.route("**/api/admin/music/assets/", async (route) => {
+    markUploadStarted();
+    await uploadGate;
+    await route.continue();
+  });
+
+  try {
+    await loginAsAdministrator(page);
+    await page.getByRole("link", { name: "页面内容", exact: true }).click();
+    const title = page.getByLabel("歌曲名称");
+    const artist = page.getByLabel("歌手");
+    const songId = page.getByLabel("网易云歌曲 ID");
+    const draftToken = page.locator('input[name="draftToken"]');
+    const coverAssetId = page.locator('input[name="coverAssetId"]');
+
+    await title.fill("旧上传中的歌曲");
+    await artist.fill("旧歌手");
+    await songId.fill("123456789");
+    const oldDraftToken = await draftToken.inputValue();
+    await page.locator("[data-music-cover-input]").setInputFiles("tests/fixtures/post-cover.png");
+    await uploadStarted;
+
+    await page.getByRole("button", { name: "新增歌曲" }).click();
+    await expect(title).toHaveValue("");
+    await expect(artist).toHaveValue("");
+    await expect(songId).toHaveValue("");
+    await expect(draftToken).not.toHaveValue(oldDraftToken);
+
+    await title.fill("新歌曲");
+    await artist.fill("新歌手");
+    await songId.fill("987654321");
+    const cleanup = page.waitForResponse((response) =>
+      response.request().method() === "DELETE"
+      && response.url().endsWith(`/api/admin/post-assets/drafts/${oldDraftToken}/`));
+    releaseUpload();
+    await cleanup;
+
+    await expect(title).toHaveValue("新歌曲");
+    await expect(artist).toHaveValue("新歌手");
+    await expect(songId).toHaveValue("987654321");
+    await expect(coverAssetId).toHaveValue("");
+    await expect(page.locator("[data-music-cover-preview] img")).toBeHidden();
+    await expect(page.locator("[data-music-cover-status]")).toHaveText("");
+  } finally {
+    releaseUpload();
+  }
+});
+
 test("legacy music admin route redirects to page content", async ({ page }, testInfo) => {
   await loginAsAdministrator(page);
   await page.goto("/admin/music/");
