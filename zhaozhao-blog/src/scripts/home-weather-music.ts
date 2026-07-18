@@ -18,7 +18,7 @@ let cleanupActiveSection: (() => void) | undefined;
 
 function selectedTrackFromHeader(): MusicSelection | undefined {
   const root = document.querySelector<HTMLElement>("[data-header-music-player][data-track-id]");
-  const { trackId, trackTitle, trackArtist, trackEmbed, trackUrl } = root?.dataset ?? {};
+  const { trackId, trackTitle, trackArtist, trackCover, trackEmbed, trackUrl } = root?.dataset ?? {};
   if (!trackId || !trackTitle || !trackEmbed || !trackUrl) return undefined;
   return {
     id: trackId,
@@ -26,6 +26,7 @@ function selectedTrackFromHeader(): MusicSelection | undefined {
     artist: trackArtist ?? "",
     embedUrl: trackEmbed,
     neteaseUrl: trackUrl,
+    ...(trackCover ? { coverUrl: trackCover } : {}),
   };
 }
 
@@ -217,6 +218,7 @@ function initializeHomeWeatherMusic(): void {
       item.setAttribute("aria-pressed", String(item.dataset.trackId === track?.id));
     }
     const vinyl = player.querySelector<HTMLElement>("[data-music-vinyl]");
+    const vinylCover = player.querySelector<HTMLImageElement>("[data-music-vinyl-cover]");
     const currentTitle = player.querySelector<HTMLElement>("[data-current-track]");
     const currentArtist = player.querySelector<HTMLElement>("[data-current-artist]");
     const currentLink = player.querySelector<HTMLAnchorElement>("[data-current-link]");
@@ -225,6 +227,15 @@ function initializeHomeWeatherMusic(): void {
       if (currentArtist) currentArtist.textContent = `${track.artist} · 播放控制位于导航栏`;
       if (currentLink) currentLink.href = track.neteaseUrl;
       vinyl?.setAttribute("data-selected", "true");
+      if (track.coverUrl && vinylCover) {
+        vinylCover.src = track.coverUrl;
+        vinylCover.hidden = false;
+        vinyl?.setAttribute("data-has-cover", "true");
+      } else {
+        vinylCover?.removeAttribute("src");
+        if (vinylCover) vinylCover.hidden = true;
+        vinyl?.removeAttribute("data-has-cover");
+      }
     }
   };
 
@@ -240,6 +251,10 @@ function initializeHomeWeatherMusic(): void {
     startWeatherRefresh();
   };
   const handleMusicClick = (event: Event) => {
+    if ((event.target as HTMLElement).closest("[data-open-header-player]")) {
+      document.dispatchEvent(new CustomEvent("site:music-player-open"));
+      return;
+    }
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-track]");
     if (!button?.dataset.neteaseEmbed || !button.dataset.trackId) return;
     const track: MusicSelection = {
@@ -248,6 +263,7 @@ function initializeHomeWeatherMusic(): void {
       artist: button.dataset.trackArtist ?? "",
       embedUrl: button.dataset.neteaseEmbed,
       neteaseUrl: button.dataset.neteaseUrl ?? "https://music.163.com/",
+      ...(button.dataset.trackCover ? { coverUrl: button.dataset.trackCover } : {}),
     };
     applyMusicSelection(track);
     document.dispatchEvent(new CustomEvent<MusicSelection>("site:music-select", { detail: track }));

@@ -1,5 +1,5 @@
 ---
-import { ExternalLink, Music2, X } from "lucide-astro";
+import { ExternalLink, Music2, Search, X } from "lucide-astro";
 import type { AdminMusicTrack } from "../../lib/database/music-repository";
 
 interface Props {
@@ -41,16 +41,63 @@ const { tracks } = Astro.props;
     <div class="header-music-player__head">
       <div>
         <p>NOW PLAYING</p>
-        <h2 data-header-music-panel-title>从首页选一首歌</h2>
-        <span data-header-music-artist>播放后切换页面也不会中断</span>
+        <h2 data-header-music-panel-title>选择一首歌</h2>
+        <span data-header-music-artist>在任何页面选歌，切页不中断</span>
       </div>
       <button type="button" aria-label="隐藏音乐播放器" data-header-music-close>
         <X size={17} stroke-width={1.8} aria-hidden="true" />
       </button>
     </div>
     <div class="header-music-player__frame" data-header-music-frame>
-      <p><Music2 size={18} aria-hidden="true" />请在首页天气音乐卡片中选择歌曲</p>
+      <p><Music2 size={18} aria-hidden="true" />从下方曲目中选择歌曲</p>
     </div>
+    {tracks.length > 0 && (
+      <div class="header-music-player__library">
+        <label class="header-music-player__search">
+          <Search size={14} stroke-width={1.8} aria-hidden="true" />
+          <span class="sr-only">搜索音乐</span>
+          <input
+            type="search"
+            placeholder="搜索歌曲、歌手或关键词"
+            autocomplete="off"
+            data-header-music-search
+          />
+        </label>
+        <div class="header-music-player__tracks" aria-label="歌曲列表">
+          {tracks.map((track, index) => (
+            <button
+              type="button"
+              data-header-track
+              data-track-id={track.id}
+              data-track-title={track.title}
+              data-track-artist={track.artist}
+              data-track-note={track.note ?? ""}
+              data-track-cover={track.coverUrl ?? ""}
+              data-track-embed={track.embedUrl}
+              data-track-url={track.neteaseUrl}
+              aria-pressed="false"
+            >
+              <span class="header-music-player__track-index">{String(index + 1).padStart(2, "0")}</span>
+              <span class="header-music-player__track-cover" aria-hidden="true">
+                {track.coverUrl
+                  ? <img src={track.coverUrl} alt="" loading="lazy" />
+                  : <Music2 size={14} stroke-width={1.8} />}
+              </span>
+              <span class="header-music-player__track-copy">
+                <strong>{track.title}</strong>
+                <small>{track.artist}{track.note ? ` · ${track.note}` : ""}</small>
+              </span>
+            </button>
+          ))}
+        </div>
+        <p class="header-music-player__empty" data-header-music-empty hidden>
+          没有找到匹配的音乐
+        </p>
+      </div>
+    )}
+    {tracks.length === 0 && (
+      <p class="header-music-player__empty header-music-player__empty--static">后台暂未启用音乐</p>
+    )}
     <a
       class="header-music-player__link"
       href="https://music.163.com/"
@@ -215,6 +262,135 @@ const { tracks } = Astro.props;
     border: 0;
   }
 
+  .header-music-player__library {
+    display: grid;
+    gap: 0.48rem;
+    margin-block-start: 0.62rem;
+  }
+
+  .header-music-player__search {
+    display: flex;
+    min-block-size: 2.35rem;
+    align-items: center;
+    gap: 0.42rem;
+    padding-inline: 0.65rem;
+    border: 1px solid var(--color-border);
+    border-radius: 0.55rem;
+    background: color-mix(in srgb, var(--color-bg-soft) 72%, transparent);
+    color: var(--color-text-muted);
+  }
+
+  .header-music-player__search:focus-within {
+    border-color: color-mix(in srgb, var(--color-pink) 58%, var(--color-border));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-pink) 10%, transparent);
+  }
+
+  .header-music-player__search input {
+    min-inline-size: 0;
+    inline-size: 100%;
+    padding: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--color-text);
+    font: 650 0.66rem/1 var(--font-sans);
+  }
+
+  .header-music-player__search input::placeholder {
+    color: var(--color-text-muted);
+  }
+
+  .header-music-player__tracks {
+    display: grid;
+    max-block-size: 12rem;
+    gap: 0.25rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
+
+  .header-music-player__tracks button {
+    display: grid;
+    min-block-size: 3rem;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0.48rem;
+    padding: 0.38rem 0.48rem;
+    border: 1px solid transparent;
+    border-radius: 0.48rem;
+    background: transparent;
+    color: var(--color-text);
+    cursor: pointer;
+    text-align: start;
+  }
+
+  .header-music-player__tracks button:hover {
+    background: var(--color-bg-soft);
+  }
+
+  .header-music-player__tracks button[aria-pressed="true"] {
+    border-color: color-mix(in srgb, var(--color-pink) 30%, transparent);
+    background: color-mix(in srgb, var(--color-pink-soft) 48%, transparent);
+  }
+
+  .header-music-player__track-index {
+    color: var(--color-text-muted);
+    font: 700 0.52rem/1 var(--font-mono);
+  }
+
+  .header-music-player__track-cover {
+    display: grid;
+    inline-size: 2rem;
+    block-size: 2rem;
+    overflow: hidden;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--color-bg-soft);
+    color: var(--color-pink-strong);
+  }
+
+  .header-music-player__track-cover img {
+    inline-size: 100%;
+    block-size: 100%;
+    object-fit: cover;
+  }
+
+  .header-music-player__track-copy {
+    min-inline-size: 0;
+  }
+
+  .header-music-player__track-copy strong,
+  .header-music-player__track-copy small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .header-music-player__track-copy strong {
+    font-size: 0.67rem;
+  }
+
+  .header-music-player__track-copy small {
+    margin-block-start: 0.18rem;
+    color: var(--color-text-muted);
+    font-size: 0.56rem;
+  }
+
+  .header-music-player__empty {
+    margin: 0;
+    padding: 0.85rem 0.5rem;
+    color: var(--color-text-muted);
+    font-size: 0.62rem;
+    text-align: center;
+  }
+
+  .header-music-player__empty--static {
+    margin-block-start: 0.55rem;
+    border: 1px dashed var(--color-border);
+    border-radius: 0.5rem;
+  }
+
   .header-music-player__link {
     display: inline-flex;
     min-block-size: 2rem;
@@ -248,7 +424,11 @@ const { tracks } = Astro.props;
       position: fixed;
       inset-block-start: calc(var(--header-height) + 0.55rem);
       inset-inline-end: var(--page-gutter);
+      max-block-size: calc(100dvh - var(--header-height) - 1.1rem);
+      overflow-y: auto;
     }
+
+    .header-music-player__tracks button { min-block-size: 44px; }
   }
 
   @media (prefers-reduced-motion: reduce) {

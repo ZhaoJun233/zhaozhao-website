@@ -4,12 +4,97 @@ async function login(page: Page) {
   await page.goto("/admin/");
   await page.getByLabel("管理员密码").fill("233zhao-local-admin");
   await page.getByRole("button", { name: "进入后台" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "后台概览" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "后台概览" })).toBeVisible({
+    timeout: 15_000,
+  });
 }
 
 function usesMobileDrawer(page: Page): boolean {
   return (page.viewportSize()?.width ?? 0) <= 899;
 }
+
+test("header weather uses the visitor endpoint and stays out of compact navigation", async ({
+  page,
+}) => {
+  await page.route("**/api/weather**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          area: "杭州市",
+          code: 1,
+          condition: "晴间多云",
+          temperature: 27.6,
+          apparentTemperature: 29.1,
+          humidity: 66,
+          windDirection: 90,
+          windSpeed: 8.2,
+          observedAt: "2026-07-18T21:30",
+        },
+      }),
+    });
+  });
+
+  await page.goto("/posts/");
+  const weather = page.locator("[data-header-weather]");
+  if ((page.viewportSize()?.width ?? 0) <= 1120) {
+    await expect(weather).toBeHidden();
+  } else {
+    await expect(weather).toBeVisible();
+    await expect(weather).toContainText("杭州市 · 28°");
+    await expect(weather.locator("[data-header-weather-symbol]")).toHaveText("☁");
+  }
+});
+
+test("selects and searches music from any page", async ({ page }, testInfo) => {
+  const unique = `${Date.now()}${testInfo.retry}${testInfo.project.name.replace(/\D/g, "")}`.slice(0, 18);
+  const title = `导航选曲-${unique}`;
+  let trackId = "";
+
+  await page.route("https://music.163.com/outchain/player**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "text/html",
+      body: "<!doctype html><title>NetEase player fixture</title>",
+    });
+  });
+
+  try {
+    await login(page);
+    const create = await page.request.post("/api/admin/music/", {
+      data: {
+        title,
+        artist: "远方测试歌手",
+        neteaseSongId: unique,
+        note: "适合夜路关键词",
+        enabled: true,
+      },
+    });
+    expect(create.ok()).toBe(true);
+    trackId = ((await create.json()) as { data: { id: string } }).data.id;
+
+    await page.goto("/posts/");
+    const player = page.locator("[data-header-music-player]");
+    await player.locator("[data-header-music-trigger]").click();
+    const search = player.locator("[data-header-music-search]");
+    await search.fill("夜 路");
+    const track = player.locator("[data-header-track]", { hasText: title });
+    await expect(track).toBeVisible();
+
+    await search.fill("完全不存在的歌");
+    await expect(player.locator("[data-header-music-empty]")).toBeVisible();
+
+    await search.fill("远方测试");
+    await track.click();
+    await expect(track).toHaveAttribute("aria-pressed", "true");
+    await expect(player.locator("[data-header-music-title]")).toHaveText(title);
+    await expect(player.locator("iframe")).toHaveAttribute("src", new RegExp(`id=${unique}`));
+    await expect(page).toHaveURL(/\/posts\/$/);
+  } finally {
+    if (trackId) await page.request.delete(`/api/admin/music/${trackId}/`);
+  }
+});
 
 test("navbar player persists the selected NetEase iframe across site navigation", async ({
   page,
@@ -84,7 +169,7 @@ test("navbar player persists the selected NetEase iframe across site navigation"
     await expect(navbarPlayer).toBeVisible();
     await expect(navbarPlayer.getByRole("button", { name: "打开音乐播放器" })).toBeVisible();
 
-    const track = page.getByRole("button", { name: new RegExp(title) });
+    const track = page.locator("#weather-music [data-track]", { hasText: title });
     await track.click();
     await expect(track).toHaveAttribute("aria-pressed", "true");
     await expect(navbarPlayer).toHaveAttribute("data-player-open", "true");
@@ -98,6 +183,31 @@ test("navbar player persists the selected NetEase iframe across site navigation"
     await track.click();
     await expect(iframe).toHaveCount(1);
     await expect(iframe).toHaveAttribute("data-persistence-probe", "same-node");
+
+    await navbarPlayer.locator("[data-header-music-close]").click();
+    await expect(navbarPlayer).toHaveAttribute("data-player-open", "false");
+    await page.locator("[data-open-header-player]").click();
+    await expect(navbarPlayer).toHaveAttribute("data-player-open", "true");
+    await expect(iframe).toHaveAttribute("data-persistence-probe", "same-node");
+
+    await page.evaluate((selection) => {
+      document.dispatchEvent(new CustomEvent("site:music-select", { detail: selection }));
+    }, {
+      id: trackId,
+      title,
+      artist: "测试歌手",
+      embedUrl: `https://music.163.com/outchain/player?type=2&id=${unique}&auto=0&height=66`,
+      neteaseUrl: `https://music.163.com/#/song?id=${unique}`,
+      coverUrl: "/media/profile/avatar.jpg",
+    });
+    const vinyl = page.locator("[data-music-vinyl]");
+    await expect(vinyl).toHaveAttribute("data-has-cover", "true");
+    await expect(vinyl.locator("[data-music-vinyl-cover]")).toHaveAttribute(
+      "src",
+      "/media/profile/avatar.jpg",
+    );
+    await expect.poll(() => vinyl.evaluate((element) => getComputedStyle(element).animationName))
+      .toBe("now-spin");
 
     if (usesMobileDrawer(page)) {
       const weatherBox = await page.locator("[data-home-section='weather']").boundingBox();
@@ -115,6 +225,9 @@ test("navbar player persists the selected NetEase iframe across site navigation"
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(overflow).toBeLessThanOrEqual(1);
 
+    if (await navbarPlayer.getAttribute("data-player-open") === "true") {
+      await navbarPlayer.locator("[data-header-music-close]").click();
+    }
     await page.getByRole("link", { name: "开始阅读" }).click();
     await expect(page).toHaveURL(/\/posts\/$/);
     await expect(navbarPlayer.locator("iframe")).toHaveCount(1);

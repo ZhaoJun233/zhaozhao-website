@@ -15,6 +15,7 @@
 - Show compact header weather on desktop only; hide it when navigation space is constrained and on mobile.
 - Search locally by title, artist, and note; do not add an API or backend field.
 - Preserve `transition:persist="site-music-player"` playback across navigation.
+- Let the homepage playback entry open the same persisted iframe, and synchronize album cover display through `MusicSelection.coverUrl`.
 - Do not change third-party music copyright/playability behavior.
 
 ---
@@ -163,10 +164,11 @@ git commit -m "feat: add compact weather to desktop header"
 - Consumes: `musicTrackMatchesQuery` from Task 1.
 - Produces: `[data-header-music-search]`, `[data-header-track]`, and `[data-header-music-empty]`.
 - Continues producing: `site:music-select` and `site:music-change` events carrying `MusicSelection`.
+- Produces: `site:music-player-open` so the homepage can reveal the same persistent player.
 
 - [ ] **Step 1: Add failing browser coverage**
 
-Extend the seeded music test to navigate away from `/`, open `[data-header-music-trigger]`, filter using `[data-header-music-search]`, choose the matching `[data-header-track]`, and verify the iframe, compact title, and `aria-pressed` state update without returning home. Also verify an unmatched query displays `[data-header-music-empty]`.
+Extend the seeded music test to navigate away from `/`, open `[data-header-music-trigger]`, filter using `[data-header-music-search]`, choose the matching `[data-header-track]`, and verify the iframe, compact title, and `aria-pressed` state update without returning home. Also verify an unmatched query displays `[data-header-music-empty]`, the homepage playback entry reopens the same iframe, and a selected `coverUrl` appears on the rotating homepage record.
 
 - [ ] **Step 2: Run the focused test and verify it fails**
 

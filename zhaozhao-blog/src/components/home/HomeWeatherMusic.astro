@@ -184,6 +184,8 @@ const { tracks, content } = Astro.props;
   :global(.now-player-card) { display: grid; min-width: 0; grid-template-columns: 4.8rem minmax(0, 1fr); align-items: center; gap: .75rem; padding: .72rem; border: 1px solid var(--drawer-line); border-radius: .72rem; background: rgb(255 252 246 / 68%); }
   :global(.now-vinyl) { position: relative; display: grid; width: 4.5rem; aspect-ratio: 1; place-items: center; border-radius: 50%; background: repeating-radial-gradient(circle, #17262a 0 4px, #26383c 5px 6px, #17262a 7px 11px); box-shadow: 0 9px 19px rgb(23 38 42 / 18%); }
   :global(.now-vinyl::before) { position: absolute; width: 35%; aspect-ratio: 1; border-radius: 50%; background: #d98686; content: ""; }
+  :global(.now-vinyl img) { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+  :global(.now-vinyl[data-has-cover]::before) { z-index: 1; width: 24%; border: 2px solid rgb(255 255 255 / 52%); background: rgb(15 26 29 / 72%); }
   :global(.now-vinyl span) { position: relative; z-index: 1; width: 8%; aspect-ratio: 1; border-radius: 50%; background: #f8efe4; }
   :global(.now-vinyl[data-selected]) { animation: now-spin 8s linear infinite; }
   :global(.now-player-card__meta) { min-width: 0; }
@@ -192,7 +194,8 @@ const { tracks, content } = Astro.props;
   :global(.now-player-card__meta > span) { display: block; margin: .25rem 0 .42rem; overflow: hidden; color: var(--drawer-muted); font-size: .6rem; text-overflow: ellipsis; white-space: nowrap; }
   :global(.now-player-card__meta a) { display: inline-flex; min-height: 32px; align-items: center; gap: .3rem; color: #315e69; font-size: .6rem; font-weight: 760; }
   :global(.now-player-frame) { grid-column: 1 / -1; min-width: 0; min-height: 86px; overflow: hidden; border-radius: .5rem; background: rgb(255 255 255 / 82%); }
-  :global(.now-player-frame p) { display: flex; min-height: 86px; align-items: center; justify-content: center; gap: .45rem; margin: 0; color: #718084; font-size: .6rem; }
+  :global(.now-player-frame button) { display: flex; width: 100%; min-height: 86px; align-items: center; justify-content: center; gap: .45rem; padding: .75rem; border: 0; background: transparent; color: #3f6269; font: 760 .62rem/1 var(--font-sans); cursor: pointer; }
+  :global(.now-player-frame button:hover) { background: rgb(255 255 255 / 45%); color: #174f59; }
   :global(.now-player-frame iframe) { display: block; width: 100%; height: 86px; border: 0; }
   :global(.now-track-list) { display: grid; max-height: 12rem; align-content: start; gap: .35rem; overflow: auto; padding-right: .15rem; }
   :global(.now-track-list button) { display: grid; min-height: 3.45rem; min-width: 0; grid-template-columns: 1.7rem 2.35rem minmax(0, 1fr) auto; align-items: center; gap: .5rem; padding: .42rem .52rem; border: 1px solid transparent; border-radius: .58rem; background: rgb(255 255 255 / 45%); color: var(--drawer-ink); text-align: start; cursor: pointer; transition: border-color 180ms ease, background-color 180ms ease, transform 180ms ease; }

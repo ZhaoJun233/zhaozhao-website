@@ -5,6 +5,7 @@ import { listEnabledMusicTracks } from "../../lib/database/music-repository";
 import { loadRuntimeEditorial, loadRuntimeProfile } from "../../lib/runtime-content";
 import ThemeToggle from "../ui/ThemeToggle.astro";
 import HeaderMusicPlayer from "./HeaderMusicPlayer.astro";
+import HeaderWeather from "./HeaderWeather.astro";
 import MobileNav from "./MobileNav.astro";
 
 interface Props {
@@ -37,6 +38,7 @@ function isCurrent(href: string): boolean {
     <a class="site-brand" href="/" aria-label={`${profile.name} 首页`}>
       <span>{profile.name}</span>
     </a>
+    <HeaderWeather />
 
     <nav class="desktop-nav" aria-label="主导航">
       <ul>

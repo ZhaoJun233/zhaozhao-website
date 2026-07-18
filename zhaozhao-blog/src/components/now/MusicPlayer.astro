@@ -29,6 +29,7 @@ const { tracks, content } = Astro.props;
     <div class="now-music__body">
       <div class="now-player-card">
         <div class="now-vinyl" data-music-vinyl aria-hidden="true">
+          <img data-music-vinyl-cover alt="" hidden />
           <span></span>
         </div>
         <div class="now-player-card__meta">
@@ -40,7 +41,9 @@ const { tracks, content } = Astro.props;
           </a>
         </div>
         <div class="now-player-frame" data-player-frame>
-          <p><Music2 size={18} aria-hidden="true" />播放控制已固定在导航栏</p>
+          <button type="button" data-open-header-player>
+            <Music2 size={18} aria-hidden="true" />打开同一播放控制
+          </button>
         </div>
       </div>
 
