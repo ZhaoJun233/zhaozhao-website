@@ -22,6 +22,7 @@ describe("music track repository", () => {
       title: "第一首歌",
       artist: "歌手 A",
       neteaseSongId: "101",
+      audioUrl: "https://audio.example/first.mp3",
       enabled: true,
     });
     const second = await createMusicTrack(env.DB, {
@@ -36,6 +37,7 @@ describe("music track repository", () => {
     ]);
     expect(first.embedUrl).toContain("music.163.com/outchain/player");
     expect(first.neteaseUrl).toBe("https://music.163.com/#/song?id=101");
+    expect(first.audioUrl).toBe("https://audio.example/first.mp3");
 
     await expect(createMusicTrack(env.DB, {
       title: "重复",
@@ -48,11 +50,14 @@ describe("music track repository", () => {
       title: "第二首歌（更新）",
       artist: "歌手 B",
       neteaseSongId: "202",
+      audioUrl: "https://audio.example/second.mp3",
       note: "适合夜晚。",
       enabled: true,
     });
     await orderMusicTracks(env.DB, [second.id, first.id]);
     expect((await listMusicTracks(env.DB)).map(({ id }) => id)).toEqual([second.id, first.id]);
+    expect((await listMusicTracks(env.DB))[0]?.audioUrl)
+      .toBe("https://audio.example/second.mp3");
 
     await deleteMusicTrack(env.DB, first.id);
     expect((await listMusicTracks(env.DB)).map(({ id }) => id)).toEqual([second.id]);

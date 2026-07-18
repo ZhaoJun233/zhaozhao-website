@@ -29,13 +29,25 @@ describe("administrator payload contracts", () => {
     })).toThrow("封面与说明必须同时填写");
   });
 
-  it("accepts numeric NetEase song ids and rejects copied song URLs", () => {
+  it("accepts numeric NetEase song ids and direct audio URLs", () => {
     expect(musicTrackInputSchema.parse({
       title: "夜晚的歌",
       artist: "歌手",
       neteaseSongId: "123456789",
+      audioUrl: "https://audio.example/night.mp3",
       enabled: true,
-    })).toMatchObject({ neteaseSongId: "123456789" });
+    })).toMatchObject({
+      neteaseSongId: "123456789",
+      audioUrl: "https://audio.example/night.mp3",
+    });
+
+    expect(() => musicTrackInputSchema.parse({
+      title: "错误音源",
+      artist: "歌手",
+      neteaseSongId: "1",
+      audioUrl: "not-a-url",
+      enabled: true,
+    })).toThrow("链接必须以 http:// 或 https:// 开头");
 
     expect(() => musicTrackInputSchema.parse({
       title: "错误歌曲",

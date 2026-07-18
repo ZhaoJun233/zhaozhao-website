@@ -23,7 +23,7 @@ const { tracks } = Astro.props;
   <div class="admin-panel__header">
     <div>
       <h2 id="home-music-heading">首页音乐</h2>
-      <p>维护首页展示的网易云选曲、封面、推荐语和顺序。</p>
+      <p>维护全站选曲、同步播放音源、封面、推荐语和顺序。</p>
     </div>
   </div>
   <div class="admin-split admin-music" data-music-page>
@@ -57,7 +57,10 @@ const { tracks } = Astro.props;
                   </div>
                 </td>
                 <td><code>{track.neteaseSongId}</code></td>
-                <td><span class:list={["admin-badge", { "admin-badge--muted": !track.enabled }]}>{track.enabled ? "展示中" : "已停用"}</span></td>
+                <td>
+                  <span class:list={["admin-badge", { "admin-badge--muted": !track.enabled }]}>{track.enabled ? "展示中" : "已停用"}</span>
+                  <span class:list={["admin-badge", { "admin-badge--muted": !track.audioUrl }]}>{track.audioUrl ? "可播放" : "待填音源"}</span>
+                </td>
                 <td>{String(index + 1).padStart(2, "0")}</td>
                 <td>
                   <div class="admin-actions">
@@ -78,7 +81,7 @@ const { tracks } = Astro.props;
     <aside class="admin-editor admin-music__editor">
       <p class="admin-music__kicker">NOW PLAYING DESK</p>
       <h2 data-music-editor-title>新增歌曲</h2>
-      <p>只填写网易云歌曲页面中的数字 ID；播放器链接会自动生成。</p>
+      <p>网易云 ID 用于歌曲信息与封面；音频地址用于首页和导航栏同步播放。</p>
       <form class="admin-form" data-music-form>
         <input type="hidden" name="id" />
         <input type="hidden" name="draftToken" />
@@ -107,6 +110,11 @@ const { tracks } = Astro.props;
             </button>
           </div>
           <p class="admin-status admin-music-metadata-status" data-music-metadata-status aria-live="polite"></p>
+        </div>
+        <div class="admin-field">
+          <label for="music-audio-url">音频播放地址</label>
+          <input id="music-audio-url" name="audioUrl" type="url" maxlength="2000" placeholder="https://example.com/song.mp3" autocomplete="off" />
+          <small>填写可直接播放的 MP3、M4A、OGG 等音频地址；网易云歌曲页面链接不能作为音源。</small>
         </div>
         <div class="admin-field"><label for="music-note">推荐语</label><textarea id="music-note" name="note" maxlength="500" placeholder="写一句此刻想分享这首歌的理由。"></textarea></div>
         <label class="admin-field--check"><input name="enabled" type="checkbox" checked />在前台展示</label>

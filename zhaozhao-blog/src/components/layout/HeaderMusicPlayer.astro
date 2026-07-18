@@ -13,6 +13,7 @@ const { tracks } = Astro.props;
   class="header-music-player"
   data-header-music-player
   data-player-open="false"
+  data-cover-endpoint="/api/music/covers/"
   transition:persist="site-music-player"
 >
   <button
@@ -48,8 +49,20 @@ const { tracks } = Astro.props;
         <X size={17} stroke-width={1.8} aria-hidden="true" />
       </button>
     </div>
-    <div class="header-music-player__frame" data-header-music-frame>
-      <p><Music2 size={18} aria-hidden="true" />从下方曲目中选择歌曲</p>
+    <div class="header-music-player__playback" data-header-music-playback>
+      <button type="button" aria-label="播放音乐" aria-pressed="false" data-header-music-toggle disabled>
+        <span data-header-music-toggle-icon aria-hidden="true">▶</span>
+      </button>
+      <div class="header-music-player__timeline">
+        <span data-header-music-status>从下方曲目中选择歌曲</span>
+        <input type="range" min="0" max="1000" value="0" aria-label="播放进度" data-header-music-progress disabled />
+        <div><time data-header-music-current>0:00</time><time data-header-music-duration>0:00</time></div>
+      </div>
+      <label class="header-music-player__volume">
+        <span class="sr-only">音量</span>
+        <span aria-hidden="true">VOL</span>
+        <input type="range" min="0" max="100" value="100" aria-label="音量" data-header-music-volume />
+      </label>
     </div>
     {tracks.length > 0 && (
       <div class="header-music-player__library">
@@ -73,6 +86,7 @@ const { tracks } = Astro.props;
               data-track-artist={track.artist}
               data-track-note={track.note ?? ""}
               data-track-cover={track.coverUrl ?? ""}
+              data-track-audio={track.audioUrl ?? ""}
               data-track-embed={track.embedUrl}
               data-track-url={track.neteaseUrl}
               aria-pressed="false"
@@ -108,6 +122,7 @@ const { tracks } = Astro.props;
       在网易云音乐打开<ExternalLink size={13} aria-hidden="true" />
     </a>
   </section>
+  <audio data-site-audio preload="metadata"></audio>
 </div>
 
 <script>
@@ -234,32 +249,78 @@ const { tracks } = Astro.props;
     place-items: center;
   }
 
-  .header-music-player__frame {
-    min-block-size: 86px;
-    overflow: hidden;
+  .header-music-player__playback {
+    display: grid;
+    min-block-size: 5.4rem;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.65rem;
     border: 1px solid var(--color-border);
     border-radius: 0.55rem;
     background: var(--color-bg-soft);
   }
 
-  .header-music-player__frame p {
-    display: flex;
-    min-block-size: 86px;
-    align-items: center;
-    justify-content: center;
-    gap: 0.45rem;
-    margin: 0;
-    padding: 0.75rem;
-    color: var(--color-text-muted);
-    font-size: 0.64rem;
-    text-align: center;
+  .header-music-player__playback > button {
+    display: grid;
+    inline-size: 2.7rem;
+    block-size: 2.7rem;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: var(--color-pink);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-pink) 12%, transparent);
+    color: #fff;
+    cursor: pointer;
+    font-size: 0.86rem;
+    place-items: center;
   }
 
-  .header-music-player__frame iframe {
-    display: block;
+  .header-music-player__playback > button:disabled {
+    background: var(--color-border);
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+
+  .header-music-player__timeline {
+    display: grid;
+    min-inline-size: 0;
+    gap: 0.35rem;
+  }
+
+  .header-music-player__timeline > span {
+    overflow: hidden;
+    color: var(--color-text-muted);
+    font-size: 0.59rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .header-music-player__timeline input,
+  .header-music-player__volume input {
     inline-size: 100%;
-    block-size: 86px;
-    border: 0;
+    accent-color: var(--color-pink-strong);
+  }
+
+  .header-music-player__timeline > div {
+    display: flex;
+    justify-content: space-between;
+    color: var(--color-text-muted);
+    font: 650 0.5rem/1 var(--font-mono);
+  }
+
+  .header-music-player__volume {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0.45rem;
+    color: var(--color-text-muted);
+    font: 700 0.48rem/1 var(--font-mono);
+  }
+
+  .header-music-player > audio {
+    display: none;
   }
 
   .header-music-player__library {

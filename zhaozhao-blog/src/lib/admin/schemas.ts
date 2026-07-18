@@ -74,6 +74,7 @@ export const musicTrackInputSchema = z.object({
   title: text,
   artist: text,
   neteaseSongId: text.regex(/^\d{1,20}$/, "网易云歌曲 ID 只能填写数字。"),
+  audioUrl: httpUrl.optional(),
   note: optionalText,
   enabled: z.boolean().default(true),
   draftToken: uuid.optional(),

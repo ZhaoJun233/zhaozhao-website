@@ -689,6 +689,7 @@ const blogBackupMusicTrackSchema = z.object({
   title: z.string().min(1),
   artist: z.string().min(1),
   neteaseSongId: z.string().regex(/^\d{1,20}$/),
+  audioUrl: z.url().optional(),
   coverAssetId: z.uuid().optional(),
   coverUrl: z.string().min(1).optional(),
   note: z.string().min(1).optional(),
@@ -1021,13 +1022,14 @@ export async function importBlogData(database: D1Database, backup: BlogBackup): 
       ).bind(timestamp, linkJson),
       database.prepare(
         `INSERT INTO music_tracks
-         (id, title, artist, netease_song_id, cover_asset_id, note, sort_order,
-          enabled, created_at, updated_at)
+         (id, title, artist, netease_song_id, audio_url, cover_asset_id, note,
+          sort_order, enabled, created_at, updated_at)
          SELECT
            json_extract(item.value, '$.id'),
            json_extract(item.value, '$.title'),
            json_extract(item.value, '$.artist'),
            json_extract(item.value, '$.neteaseSongId'),
+           json_extract(item.value, '$.audioUrl'),
            asset.id,
            json_extract(item.value, '$.note'),
            json_extract(item.value, '$.sortOrder'),

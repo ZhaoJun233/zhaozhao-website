@@ -40,10 +40,19 @@ const { tracks, content } = Astro.props;
             {content.openLabel}<ExternalLink size={14} aria-hidden="true" />
           </a>
         </div>
-        <div class="now-player-frame" data-player-frame>
-          <button type="button" data-open-header-player>
-            <Music2 size={18} aria-hidden="true" />打开同一播放控制
+        <div class="now-player-frame" data-home-music-playback>
+          <button type="button" aria-label="播放音乐" aria-pressed="false" data-home-music-toggle disabled>
+            <span data-home-music-toggle-icon aria-hidden="true">▶</span>
           </button>
+          <div class="now-player-frame__timeline">
+            <span data-home-music-status>从唱片架选择一首歌</span>
+            <input type="range" min="0" max="1000" value="0" aria-label="播放进度" data-home-music-progress disabled />
+            <div><time data-home-music-current>0:00</time><time data-home-music-duration>0:00</time></div>
+          </div>
+          <label class="now-player-frame__volume">
+            <span>VOL</span>
+            <input type="range" min="0" max="100" value="100" aria-label="音量" data-home-music-volume />
+          </label>
         </div>
       </div>
 
@@ -56,6 +65,7 @@ const { tracks, content } = Astro.props;
             data-track-title={track.title}
             data-track-artist={track.artist}
             data-track-cover={track.coverUrl ?? ""}
+            data-audio-url={track.audioUrl ?? ""}
             data-netease-embed={track.embedUrl}
             data-netease-url={track.neteaseUrl}
             aria-pressed="false"

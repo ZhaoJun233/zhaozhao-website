@@ -4,7 +4,7 @@
 
 **Goal:** Add compact desktop weather beside the site brand and searchable song selection inside the persistent navigation music player.
 
-**Architecture:** A small shared browser-safe helper module owns weather formatting and music keyword matching. `HeaderWeather.astro` and its client script reuse `/api/weather/`; `HeaderMusicPlayer.astro` renders the already-loaded enabled tracks and its existing persistent controller handles filtering and selection.
+**Architecture:** A small shared browser-safe helper module owns weather formatting and music keyword matching. `HeaderWeather.astro` and its client script reuse `/api/weather/`; one persistent native `<audio>` lives in `HeaderMusicPlayer.astro`, while independent homepage and header controls exchange commands and state through shared music events.
 
 **Tech Stack:** Astro 7, TypeScript 6, Vitest, Playwright, Cloudflare Workers/D1
 
@@ -14,8 +14,10 @@
 - Reuse `/api/weather/`, the header's enabled-track query, and existing music events.
 - Show compact header weather on desktop only; hide it when navigation space is constrained and on mobile.
 - Search locally by title, artist, and note; do not add an API or backend field.
-- Preserve `transition:persist="site-music-player"` playback across navigation.
-- Let the homepage playback entry open the same persisted iframe, and synchronize album cover display through `MusicSelection.coverUrl`.
+- Preserve the single native `<audio data-site-audio>` with `transition:persist="site-music-player"` across navigation.
+- Keep independent homepage and header control UIs synchronized through `site:music-command`, `site:music-state`, and `site:music-state-request`.
+- Add a backend `audioUrl` field for direct playback; tracks without it remain selectable and keep their NetEase link but cannot play.
+- Resolve missing enabled-track covers through cached read-only `/api/music/covers/` metadata lookups; never expose a user-controlled proxy.
 - Do not change third-party music copyright/playability behavior.
 
 ---
@@ -168,7 +170,7 @@ git commit -m "feat: add compact weather to desktop header"
 
 - [ ] **Step 1: Add failing browser coverage**
 
-Extend the seeded music test to navigate away from `/`, open `[data-header-music-trigger]`, filter using `[data-header-music-search]`, choose the matching `[data-header-track]`, and verify the iframe, compact title, and `aria-pressed` state update without returning home. Also verify an unmatched query displays `[data-header-music-empty]`, the homepage playback entry reopens the same iframe, and a selected `coverUrl` appears on the rotating homepage record.
+Extend the seeded music test to navigate away from `/`, open `[data-header-music-trigger]`, filter using `[data-header-music-search]`, choose the matching `[data-header-track]`, and verify the persistent audio source, compact title, and `aria-pressed` state update without returning home. Also verify an unmatched query displays `[data-header-music-empty]`; homepage and header controls synchronize playback, progress, and volume without sharing a UI; and a selected `coverUrl` appears on the rotating homepage record.
 
 - [ ] **Step 2: Run the focused test and verify it fails**
 

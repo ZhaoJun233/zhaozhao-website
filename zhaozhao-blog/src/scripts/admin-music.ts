@@ -3,6 +3,7 @@ type MusicTrack = {
   title: string;
   artist: string;
   neteaseSongId: string;
+  audioUrl?: string;
   coverAssetId?: string;
   coverUrl?: string;
   note?: string;
@@ -114,6 +115,7 @@ if (page) {
     input("title").value = track.title;
     input("artist").value = track.artist;
     input("neteaseSongId").value = track.neteaseSongId;
+    input("audioUrl").value = track.audioUrl ?? "";
     input("note").value = track.note ?? "";
     (input("enabled") as HTMLInputElement).checked = track.enabled;
     coverAssetInput.value = track.coverAssetId ?? "";
@@ -126,6 +128,7 @@ if (page) {
     title: input("title").value.trim(),
     artist: input("artist").value.trim(),
     neteaseSongId: input("neteaseSongId").value.trim(),
+    ...(input("audioUrl").value.trim() ? { audioUrl: input("audioUrl").value.trim() } : {}),
     ...(input("note").value.trim() ? { note: input("note").value.trim() } : {}),
     enabled: (input("enabled") as HTMLInputElement).checked,
     draftToken: draftTokenInput.value,

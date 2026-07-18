@@ -61,6 +61,7 @@ export interface MusicTrackRow {
   title: string;
   artist: string;
   netease_song_id: string;
+  audio_url: string | null;
   cover_asset_id: string | null;
   note: string | null;
   sort_order: number;

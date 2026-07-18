@@ -109,10 +109,10 @@ export async function fetchNeteaseSongMetadata(
   };
 }
 
-async function resolveSongMetadata(
+export async function resolveNeteaseSongMetadata(
   songId: string,
-  fetcher: typeof fetch,
-  cache: MetadataCache | undefined,
+  fetcher: typeof fetch = fetch,
+  cache: MetadataCache | undefined = defaultMetadataCache(),
 ): Promise<NeteaseSongMetadata> {
   const key = metadataCacheRequest(songId);
   if (cache) {
@@ -167,7 +167,7 @@ export async function importNeteaseSongMetadata({
   cache = defaultMetadataCache(),
 }: ImportNeteaseSongMetadataOptions): Promise<ImportedNeteaseSongMetadata> {
   const value = musicMetadataInputSchema.parse(input);
-  const metadata = await resolveSongMetadata(value.neteaseSongId, fetcher, cache);
+  const metadata = await resolveNeteaseSongMetadata(value.neteaseSongId, fetcher, cache);
   const base = { title: metadata.title, artist: metadata.artist };
   if (!metadata.coverSourceUrl || !isAllowedNeteaseCoverUrl(metadata.coverSourceUrl)) {
     return { ...base, warning: coverWarning };

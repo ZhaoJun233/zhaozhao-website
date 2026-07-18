@@ -1,4 +1,8 @@
-import type { MusicSelection } from "./music-events";
+import type {
+  MusicPlaybackCommand,
+  MusicPlaybackState,
+  MusicSelection,
+} from "./music-events";
 
 type WeatherSnapshot = {
   area: string;
@@ -18,7 +22,15 @@ let cleanupActiveSection: (() => void) | undefined;
 
 function selectedTrackFromHeader(): MusicSelection | undefined {
   const root = document.querySelector<HTMLElement>("[data-header-music-player][data-track-id]");
-  const { trackId, trackTitle, trackArtist, trackCover, trackEmbed, trackUrl } = root?.dataset ?? {};
+  const {
+    trackId,
+    trackTitle,
+    trackArtist,
+    trackCover,
+    trackAudio,
+    trackEmbed,
+    trackUrl,
+  } = root?.dataset ?? {};
   if (!trackId || !trackTitle || !trackEmbed || !trackUrl) return undefined;
   return {
     id: trackId,
@@ -27,6 +39,7 @@ function selectedTrackFromHeader(): MusicSelection | undefined {
     embedUrl: trackEmbed,
     neteaseUrl: trackUrl,
     ...(trackCover ? { coverUrl: trackCover } : {}),
+    ...(trackAudio ? { audioUrl: trackAudio } : {}),
   };
 }
 
@@ -224,7 +237,7 @@ function initializeHomeWeatherMusic(): void {
     const currentLink = player.querySelector<HTMLAnchorElement>("[data-current-link]");
     if (track) {
       if (currentTitle) currentTitle.textContent = track.title;
-      if (currentArtist) currentArtist.textContent = `${track.artist} · 播放控制位于导航栏`;
+      if (currentArtist) currentArtist.textContent = `${track.artist} · 首页与导航同步控制`;
       if (currentLink) currentLink.href = track.neteaseUrl;
       vinyl?.setAttribute("data-selected", "true");
       if (track.coverUrl && vinylCover) {
@@ -239,6 +252,55 @@ function initializeHomeWeatherMusic(): void {
     }
   };
 
+  const formatTime = (seconds: number) => {
+    if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
+    const rounded = Math.floor(seconds);
+    return `${Math.floor(rounded / 60)}:${String(rounded % 60).padStart(2, "0")}`;
+  };
+
+  const applyPlaybackState = (state: MusicPlaybackState) => {
+    const toggle = section.querySelector<HTMLButtonElement>("[data-home-music-toggle]");
+    const icon = section.querySelector<HTMLElement>("[data-home-music-toggle-icon]");
+    const status = section.querySelector<HTMLElement>("[data-home-music-status]");
+    const progress = section.querySelector<HTMLInputElement>("[data-home-music-progress]");
+    const volume = section.querySelector<HTMLInputElement>("[data-home-music-volume]");
+    const current = section.querySelector<HTMLElement>("[data-home-music-current]");
+    const duration = section.querySelector<HTMLElement>("[data-home-music-duration]");
+    const vinyl = section.querySelector<HTMLElement>("[data-music-vinyl]");
+    const progressValue = state.duration > 0
+      ? Math.round((state.currentTime / state.duration) * 1000)
+      : 0;
+    if (state.track) applyMusicSelection(state.track);
+    if (toggle) {
+      toggle.disabled = !state.canPlay;
+      toggle.setAttribute("aria-pressed", String(state.playing));
+      toggle.setAttribute("aria-label", state.playing ? "暂停音乐" : "播放音乐");
+    }
+    if (icon) icon.textContent = state.playing ? "❚❚" : "▶";
+    if (status) {
+      status.textContent = state.error
+        ?? (!state.track
+          ? "从唱片架选择一首歌"
+          : !state.canPlay
+            ? "这首歌尚未配置音频地址"
+            : state.playing ? "正在播放" : "已暂停");
+    }
+    if (progress) {
+      progress.disabled = !state.canPlay || state.duration <= 0;
+      progress.value = String(progressValue);
+    }
+    if (volume) volume.value = String(Math.round(state.volume * 100));
+    if (current) current.textContent = formatTime(state.currentTime);
+    if (duration) duration.textContent = formatTime(state.duration);
+    vinyl?.toggleAttribute("data-playing", state.playing);
+  };
+
+  const sendPlaybackCommand = (command: MusicPlaybackCommand) => {
+    document.dispatchEvent(new CustomEvent<MusicPlaybackCommand>("site:music-command", {
+      detail: command,
+    }));
+  };
+
   const handleToggle = () => setDrawerOpen(!drawerIsOpen());
   const handleLocationRefresh = () => void refreshWeather(true);
   const handleVisibility = () => {
@@ -251,8 +313,8 @@ function initializeHomeWeatherMusic(): void {
     startWeatherRefresh();
   };
   const handleMusicClick = (event: Event) => {
-    if ((event.target as HTMLElement).closest("[data-open-header-player]")) {
-      document.dispatchEvent(new CustomEvent("site:music-player-open"));
+    if ((event.target as HTMLElement).closest("[data-home-music-toggle]")) {
+      sendPlaybackCommand({ action: "toggle" });
       return;
     }
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-track]");
@@ -264,19 +326,35 @@ function initializeHomeWeatherMusic(): void {
       embedUrl: button.dataset.neteaseEmbed,
       neteaseUrl: button.dataset.neteaseUrl ?? "https://music.163.com/",
       ...(button.dataset.trackCover ? { coverUrl: button.dataset.trackCover } : {}),
+      ...(button.dataset.audioUrl ? { audioUrl: button.dataset.audioUrl } : {}),
     };
     applyMusicSelection(track);
     document.dispatchEvent(new CustomEvent<MusicSelection>("site:music-select", { detail: track }));
   };
   const handleMusicChange = (event: CustomEvent<MusicSelection>) => applyMusicSelection(event.detail);
+  const handleMusicState = (event: CustomEvent<MusicPlaybackState>) => applyPlaybackState(event.detail);
+  const handleProgressInput = (event: Event) => sendPlaybackCommand({
+    action: "seek",
+    value: Number((event.currentTarget as HTMLInputElement).value),
+  });
+  const handleVolumeInput = (event: Event) => sendPlaybackCommand({
+    action: "volume",
+    value: Number((event.currentTarget as HTMLInputElement).value),
+  });
 
   toggle?.addEventListener("click", handleToggle);
   locationRefresh?.addEventListener("click", handleLocationRefresh);
   section.addEventListener("click", handleMusicClick);
+  section.querySelector<HTMLInputElement>("[data-home-music-progress]")
+    ?.addEventListener("input", handleProgressInput);
+  section.querySelector<HTMLInputElement>("[data-home-music-volume]")
+    ?.addEventListener("input", handleVolumeInput);
   document.addEventListener("visibilitychange", handleVisibility);
   document.addEventListener("site:music-change", handleMusicChange);
+  document.addEventListener("site:music-state", handleMusicState);
 
   applyMusicSelection(selectedTrackFromHeader());
+  document.dispatchEvent(new CustomEvent("site:music-state-request"));
   setDrawerOpen(storedDrawerState() ?? !mobileQuery.matches, false);
 
   cleanupActiveSection = () => {
@@ -284,8 +362,13 @@ function initializeHomeWeatherMusic(): void {
     toggle?.removeEventListener("click", handleToggle);
     locationRefresh?.removeEventListener("click", handleLocationRefresh);
     section.removeEventListener("click", handleMusicClick);
+    section.querySelector<HTMLInputElement>("[data-home-music-progress]")
+      ?.removeEventListener("input", handleProgressInput);
+    section.querySelector<HTMLInputElement>("[data-home-music-volume]")
+      ?.removeEventListener("input", handleVolumeInput);
     document.removeEventListener("visibilitychange", handleVisibility);
     document.removeEventListener("site:music-change", handleMusicChange);
+    document.removeEventListener("site:music-state", handleMusicState);
     delete section.dataset.weatherMusicReady;
     cleanupActiveSection = undefined;
   };

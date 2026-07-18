@@ -22,6 +22,7 @@ export interface AdminMusicTrack {
   title: string;
   artist: string;
   neteaseSongId: string;
+  audioUrl?: string;
   coverAssetId?: string;
   coverUrl?: string;
   note?: string;
@@ -55,6 +56,7 @@ function trackFromRow(row: MusicTrackJoinedRow): AdminMusicTrack {
     title: row.title,
     artist: row.artist,
     neteaseSongId: row.netease_song_id,
+    ...(row.audio_url ? { audioUrl: row.audio_url } : {}),
     ...(row.cover_asset_id ? { coverAssetId: row.cover_asset_id } : {}),
     ...(row.cover_key ? { coverUrl: mediaUrlFromKey(row.cover_key) } : {}),
     ...(row.note ? { note: row.note } : {}),
@@ -154,11 +156,11 @@ export async function createMusicTrack(
     await database.batch([
       session.prepare(
       `INSERT INTO music_tracks
-       (id, title, artist, netease_song_id, cover_asset_id, note, sort_order,
-        enabled, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(id, value.title, value.artist, value.neteaseSongId, cover?.id ?? null,
-        value.note ?? null, await nextOrder(session), value.enabled ? 1 : 0,
+       (id, title, artist, netease_song_id, audio_url, cover_asset_id, note,
+        sort_order, enabled, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(id, value.title, value.artist, value.neteaseSongId, value.audioUrl ?? null,
+        cover?.id ?? null, value.note ?? null, await nextOrder(session), value.enabled ? 1 : 0,
         timestamp, timestamp),
       ...(cover && value.draftToken ? [database.prepare(
         `UPDATE media_assets SET draft_token = NULL
@@ -188,9 +190,9 @@ export async function updateMusicTrack(
     await database.batch([
       database.prepare(
         `UPDATE music_tracks SET title = ?, artist = ?, netease_song_id = ?,
-         cover_asset_id = ?, note = ?, enabled = ?, updated_at = ? WHERE id = ?`,
-      ).bind(value.title, value.artist, value.neteaseSongId, cover?.id ?? null,
-        value.note ?? null, value.enabled ? 1 : 0, timestamp, id),
+         audio_url = ?, cover_asset_id = ?, note = ?, enabled = ?, updated_at = ? WHERE id = ?`,
+      ).bind(value.title, value.artist, value.neteaseSongId, value.audioUrl ?? null,
+        cover?.id ?? null, value.note ?? null, value.enabled ? 1 : 0, timestamp, id),
       ...(cover && value.draftToken ? [database.prepare(
         `UPDATE media_assets SET draft_token = NULL
          WHERE id = ? AND draft_token = ? AND state = 'ready'`,

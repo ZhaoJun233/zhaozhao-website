@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type Route } from "@playwright/test";
 
 async function login(page: Page) {
   await page.goto("/admin/");
@@ -11,6 +11,52 @@ async function login(page: Page) {
 
 function usesMobileDrawer(page: Page): boolean {
   return (page.viewportSize()?.width ?? 0) <= 899;
+}
+
+function silentWav(seconds = 60): Buffer {
+  const sampleRate = 8_000;
+  const dataSize = sampleRate * seconds * 2;
+  const buffer = Buffer.alloc(44 + dataSize);
+  buffer.write("RIFF", 0);
+  buffer.writeUInt32LE(36 + dataSize, 4);
+  buffer.write("WAVEfmt ", 8);
+  buffer.writeUInt32LE(16, 16);
+  buffer.writeUInt16LE(1, 20);
+  buffer.writeUInt16LE(1, 22);
+  buffer.writeUInt32LE(sampleRate, 24);
+  buffer.writeUInt32LE(sampleRate * 2, 28);
+  buffer.writeUInt16LE(2, 32);
+  buffer.writeUInt16LE(16, 34);
+  buffer.write("data", 36);
+  buffer.writeUInt32LE(dataSize, 40);
+  return buffer;
+}
+
+async function fulfillSilentAudio(route: Route): Promise<void> {
+  const audio = silentWav();
+  const range = route.request().headers().range?.match(/bytes=(\d+)-(\d*)/);
+  if (!range) {
+    await route.fulfill({
+      status: 200,
+      contentType: "audio/wav",
+      headers: { "Accept-Ranges": "bytes", "Content-Length": String(audio.length) },
+      body: audio,
+    });
+    return;
+  }
+  const start = Number(range[1]);
+  const end = range[2] ? Math.min(Number(range[2]), audio.length - 1) : audio.length - 1;
+  const body = audio.subarray(start, end + 1);
+  await route.fulfill({
+    status: 206,
+    contentType: "audio/wav",
+    headers: {
+      "Accept-Ranges": "bytes",
+      "Content-Length": String(body.length),
+      "Content-Range": `bytes ${start}-${end}/${audio.length}`,
+    },
+    body,
+  });
 }
 
 test("header weather uses the visitor endpoint and stays out of compact navigation", async ({
@@ -52,11 +98,16 @@ test("selects and searches music from any page", async ({ page }, testInfo) => {
   const title = `导航选曲-${unique}`;
   let trackId = "";
 
-  await page.route("https://music.163.com/outchain/player**", async (route) => {
+  await page.route("https://audio.example/**", async (route) => {
+    await fulfillSilentAudio(route);
+  });
+  await page.route("**/api/music/covers**", async (route) => {
     await route.fulfill({
       status: 200,
-      contentType: "text/html",
-      body: "<!doctype html><title>NetEase player fixture</title>",
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: trackId ? { [trackId]: "/media/profile/avatar.jpg" } : {},
+      }),
     });
   });
 
@@ -67,6 +118,7 @@ test("selects and searches music from any page", async ({ page }, testInfo) => {
         title,
         artist: "远方测试歌手",
         neteaseSongId: unique,
+        audioUrl: `https://audio.example/${unique}.wav`,
         note: "适合夜路关键词",
         enabled: true,
       },
@@ -89,17 +141,21 @@ test("selects and searches music from any page", async ({ page }, testInfo) => {
     await track.click();
     await expect(track).toHaveAttribute("aria-pressed", "true");
     await expect(player.locator("[data-header-music-title]")).toHaveText(title);
-    await expect(player.locator("iframe")).toHaveAttribute("src", new RegExp(`id=${unique}`));
+    await expect(player.locator("[data-site-audio]")).toHaveAttribute(
+      "src",
+      `https://audio.example/${unique}.wav`,
+    );
     await expect(page).toHaveURL(/\/posts\/$/);
   } finally {
     if (trackId) await page.request.delete(`/api/admin/music/${trackId}/`);
   }
 });
 
-test("navbar player persists the selected NetEase iframe across site navigation", async ({
+test("home and navbar controls share one persistent audio player", async ({
   page,
   context,
 }, testInfo) => {
+  test.setTimeout(60_000);
   const unique = `${Date.now()}${testInfo.retry}${testInfo.project.name.replace(/\D/g, "")}`.slice(0, 18);
   const title = `此刻选曲-${unique}`;
   let trackId = "";
@@ -107,11 +163,16 @@ test("navbar player persists the selected NetEase iframe across site navigation"
 
   await context.grantPermissions(["geolocation"]);
   await context.setGeolocation({ latitude: 31.1837, longitude: 121.4365 });
-  await page.route("https://music.163.com/outchain/player**", async (route) => {
+  await page.route("https://audio.example/**", async (route) => {
+    await fulfillSilentAudio(route);
+  });
+  await page.route("**/api/music/covers**", async (route) => {
     await route.fulfill({
       status: 200,
-      contentType: "text/html",
-      body: "<!doctype html><title>NetEase player fixture</title>",
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: trackId ? { [trackId]: "/media/profile/avatar.jpg" } : {},
+      }),
     });
   });
   await page.route("**/api/weather**", async (route) => {
@@ -142,6 +203,7 @@ test("navbar player persists the selected NetEase iframe across site navigation"
         title,
         artist: "测试歌手",
         neteaseSongId: unique,
+        audioUrl: `https://audio.example/${unique}.wav`,
         note: "让海风替我播放。",
         enabled: true,
       },
@@ -164,7 +226,7 @@ test("navbar player persists the selected NetEase iframe across site navigation"
     await expect(page.getByText("杭州", { exact: true })).toBeVisible();
     await expect.poll(() => weatherRequests.length).toBeGreaterThan(0);
     expect(weatherRequests.every((url) => !url.includes("lat=") && !url.includes("lon="))).toBe(true);
-    await expect(page.locator("iframe[src*='music.163.com/outchain/player']")).toHaveCount(0);
+    await expect(page.locator("[data-site-audio]")).toHaveCount(1);
     const navbarPlayer = page.locator("[data-header-music-player]");
     await expect(navbarPlayer).toBeVisible();
     await expect(navbarPlayer.getByRole("button", { name: "打开音乐播放器" })).toBeVisible();
@@ -172,34 +234,43 @@ test("navbar player persists the selected NetEase iframe across site navigation"
     const track = page.locator("#weather-music [data-track]", { hasText: title });
     await track.click();
     await expect(track).toHaveAttribute("aria-pressed", "true");
-    await expect(navbarPlayer).toHaveAttribute("data-player-open", "true");
-    await expect(page.locator("#weather-music iframe")).toHaveCount(0);
-    const iframe = navbarPlayer.locator("iframe[src*='music.163.com/outchain/player']");
-    await expect(iframe).toHaveCount(1);
-    await expect(iframe).toHaveAttribute("src", new RegExp(`id=${unique}`));
-    await iframe.evaluate((element) => {
+    await expect(navbarPlayer).toHaveAttribute("data-player-open", "false");
+    const audio = navbarPlayer.locator("[data-site-audio]");
+    await expect(audio).toHaveAttribute("src", `https://audio.example/${unique}.wav`);
+    await audio.evaluate((element) => {
       element.setAttribute("data-persistence-probe", "same-node");
     });
     await track.click();
-    await expect(iframe).toHaveCount(1);
-    await expect(iframe).toHaveAttribute("data-persistence-probe", "same-node");
+    await expect(audio).toHaveAttribute("data-persistence-probe", "same-node");
 
-    await navbarPlayer.locator("[data-header-music-close]").click();
-    await expect(navbarPlayer).toHaveAttribute("data-player-open", "false");
-    await page.locator("[data-open-header-player]").click();
+    const headerToggle = navbarPlayer.locator("[data-header-music-toggle]");
+    const homeToggle = page.locator("[data-home-music-toggle]");
+    await homeToggle.click();
+    await expect(headerToggle).toHaveAttribute("aria-pressed", "true");
+    await expect(homeToggle).toHaveAttribute("aria-pressed", "true");
+    await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.paused))
+      .toBe(false);
+
+    await navbarPlayer.locator("[data-header-music-trigger]").click();
     await expect(navbarPlayer).toHaveAttribute("data-player-open", "true");
-    await expect(iframe).toHaveAttribute("data-persistence-probe", "same-node");
+    await expect(headerToggle).toBeVisible();
+    await headerToggle.click();
+    await expect(headerToggle).toHaveAttribute("aria-pressed", "false");
+    await expect(homeToggle).toHaveAttribute("aria-pressed", "false");
 
-    await page.evaluate((selection) => {
-      document.dispatchEvent(new CustomEvent("site:music-select", { detail: selection }));
-    }, {
-      id: trackId,
-      title,
-      artist: "测试歌手",
-      embedUrl: `https://music.163.com/outchain/player?type=2&id=${unique}&auto=0&height=66`,
-      neteaseUrl: `https://music.163.com/#/song?id=${unique}`,
-      coverUrl: "/media/profile/avatar.jpg",
+    await page.locator("[data-home-music-progress]").evaluate((element: HTMLInputElement) => {
+      element.value = "500";
+      element.dispatchEvent(new Event("input", { bubbles: true }));
     });
+    await expect(navbarPlayer.locator("[data-header-music-progress]")).toHaveValue("500");
+    await page.locator("[data-home-music-volume]").evaluate((element: HTMLInputElement) => {
+      element.value = "25";
+      element.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await expect(navbarPlayer.locator("[data-header-music-volume]")).toHaveValue("25");
+    await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.volume))
+      .toBeCloseTo(0.25);
+
     const vinyl = page.locator("[data-music-vinyl]");
     await expect(vinyl).toHaveAttribute("data-has-cover", "true");
     await expect(vinyl.locator("[data-music-vinyl-cover]")).toHaveAttribute(
@@ -225,33 +296,39 @@ test("navbar player persists the selected NetEase iframe across site navigation"
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(overflow).toBeLessThanOrEqual(1);
 
-    if (await navbarPlayer.getAttribute("data-player-open") === "true") {
-      await navbarPlayer.locator("[data-header-music-close]").click();
-    }
-    await page.getByRole("link", { name: "开始阅读" }).click();
-    await expect(page).toHaveURL(/\/posts\/$/);
-    await expect(navbarPlayer.locator("iframe")).toHaveCount(1);
-    await expect(navbarPlayer.locator("iframe")).toHaveAttribute(
-      "data-persistence-probe",
-      "same-node",
-    );
-    await expect(navbarPlayer.locator("[data-header-music-title]")).toHaveText(title);
+    if (usesMobileDrawer(page)) {
+      await homeToggle.evaluate((element: HTMLButtonElement) => element.click());
+      await expect(headerToggle).toHaveAttribute("aria-pressed", "true");
+      await homeToggle.evaluate((element: HTMLButtonElement) => element.click());
+      await expect(headerToggle).toHaveAttribute("aria-pressed", "false");
+    } else {
+      await homeToggle.click();
+      await page.getByRole("link", { name: "开始阅读" }).click();
+      await expect(page).toHaveURL(/\/posts\/$/);
+      await expect(navbarPlayer.locator("[data-site-audio]")).toHaveAttribute(
+        "data-persistence-probe",
+        "same-node",
+      );
+      await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.paused))
+        .toBe(false);
+      await expect(navbarPlayer.locator("[data-header-music-title]")).toHaveText(title);
 
-    await page.getByRole("link", { name: "233昭 首页" }).click();
-    await expect(page).toHaveURL(/\/$/);
-    const returnedToggle = page.locator("[data-weather-music-toggle]");
-    const expandedBeforeClick = await returnedToggle.getAttribute("aria-expanded");
-    await returnedToggle.click();
-    await expect(returnedToggle).toHaveAttribute(
-      "aria-expanded",
-      expandedBeforeClick === "true" ? "false" : "true",
-    );
-    await expect(navbarPlayer.locator("iframe")).toHaveAttribute(
-      "data-persistence-probe",
-      "same-node",
-    );
+      await page.getByRole("link", { name: "233昭 首页" }).click();
+      await expect(page).toHaveURL(/\/$/);
+      const returnedToggle = page.locator("[data-weather-music-toggle]");
+      const expandedBeforeClick = await returnedToggle.getAttribute("aria-expanded");
+      await returnedToggle.click();
+      await expect(returnedToggle).toHaveAttribute(
+        "aria-expanded",
+        expandedBeforeClick === "true" ? "false" : "true",
+      );
+      await expect(navbarPlayer.locator("[data-site-audio]")).toHaveAttribute(
+        "data-persistence-probe",
+        "same-node",
+      );
+    }
   } finally {
-    if (trackId) {
+    if (trackId && testInfo.status !== "timedOut") {
       const status = await page.evaluate(async (id) => {
         const response = await fetch(`/api/admin/music/${id}/`, { method: "DELETE" });
         return response.status;
