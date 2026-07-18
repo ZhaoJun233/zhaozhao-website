@@ -41,10 +41,22 @@ test("home composition exposes its discovery landmarks", async ({ page }) => {
   );
 });
 
-test("featured posts use a clean grid when the lead article has no cover", async ({ page }) => {
+test("featured posts use three linked cards without an empty state", async ({ page }) => {
   await page.goto("/");
 
-  await expect(page.locator(".posts-layout--grid .post-card")).toHaveCount(3);
-  await expect(page.locator(".post-card__media--placeholder")).toHaveCount(0);
-  await expect(page.locator(".post-card__wordmark")).toHaveCount(0);
+  const featuredPosts = page.getByTestId("featured-posts");
+  const cards = featuredPosts.locator(".post-card");
+
+  await expect(featuredPosts).toBeVisible();
+  await expect(cards).toHaveCount(3);
+  await expect(featuredPosts.locator(".empty-state")).toHaveCount(0);
+
+  for (let index = 0; index < 3; index += 1) {
+    const card = cards.nth(index);
+    const titleLink = card.locator(".post-card__title a");
+    await expect(card).toBeVisible();
+    await expect(titleLink).toBeVisible();
+    await expect(titleLink).toHaveText(/\S/);
+    await expect(titleLink).toHaveAttribute("href", /^\/posts\/.+\/$/);
+  }
 });
