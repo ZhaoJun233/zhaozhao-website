@@ -1,5 +1,8 @@
 import type { APIRoute } from "astro";
+import { env } from "cloudflare:workers";
 import {
+  fetchAmapIpLocation,
+  fetchAmapReverseGeocode,
   fetchReverseGeocode,
   fetchWeatherSnapshot,
   normalizeCoordinates,
@@ -16,6 +19,7 @@ interface WeatherCache {
 interface WeatherRouteDependencies {
   fetcher?: typeof fetch;
   cache?: WeatherCache;
+  amapKey?: string;
 }
 
 interface CloudflareLocation {
@@ -28,8 +32,9 @@ const fallbackCoordinates = { latitude: 30.2741, longitude: 120.1551 };
 const responseHeaders = { "cache-control": "public, max-age=600" };
 const refreshResponseHeaders = { "cache-control": "no-store" };
 const reverseResponseHeaders = { "cache-control": "public, max-age=3600" };
+const ipLocationResponseHeaders = { "cache-control": "public, max-age=21600" };
 
-type LocationSource = "precise" | "cloudflare" | "fallback";
+type LocationSource = "precise" | "amap-ip" | "cloudflare" | "fallback";
 
 function requestLocation(request: Request): CloudflareLocation {
   return ((request as Request & { cf?: CloudflareLocation }).cf ?? {});
@@ -40,13 +45,32 @@ function cacheRequest(latitude: number, longitude: number, source: LocationSourc
   return new Request(`https://weather-cache.internal/${source}/${key}`);
 }
 
-function reverseCacheRequest(latitude: number, longitude: number): Request {
+function reverseCacheRequest(
+  latitude: number,
+  longitude: number,
+  provider: "amap" | "bigdatacloud",
+): Request {
   const key = reverseGeocodeCacheKey(latitude, longitude).replaceAll(":", "/");
-  return new Request(`https://reverse-geocode-cache.internal/${key}`);
+  return new Request(`https://reverse-geocode-cache.internal/${provider}-v1/${key}`);
 }
 
 function weatherCache(): WeatherCache {
   return (caches as CacheStorage & { default: Cache }).default as unknown as WeatherCache;
+}
+
+function runtimeAmapKey(): string | undefined {
+  const value = (env as Cloudflare.Env & { AMAP_WEB_SERVICE_KEY?: string })
+    .AMAP_WEB_SERVICE_KEY?.trim();
+  return value || undefined;
+}
+
+async function hashedIpCacheRequest(ip: string): Promise<Request> {
+  const bytes = new TextEncoder().encode(ip);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  const hash = [...new Uint8Array(digest)]
+    .map((value) => value.toString(16).padStart(2, "0"))
+    .join("");
+  return new Request(`https://ip-location-cache.internal/amap-v1/${hash}`);
 }
 
 function routeCoordinates(request: Request): {
@@ -75,28 +99,86 @@ function routeCoordinates(request: Request): {
   return { ...fallbackCoordinates, area: "访客所在区域", source: "fallback" };
 }
 
+async function resolveAmapIpLocation(
+  request: Request,
+  fallback: ReturnType<typeof routeCoordinates>,
+  amapKey: string | undefined,
+  cache: WeatherCache,
+  fetcher: typeof fetch,
+): Promise<ReturnType<typeof routeCoordinates>> {
+  if (fallback.source === "precise" || !amapKey) return fallback;
+  const ip = request.headers.get("CF-Connecting-IP")?.trim();
+  if (!ip) return fallback;
+  try {
+    const key = await hashedIpCacheRequest(ip);
+    const cached = await cache.match(key);
+    if (cached) {
+      const value = await cached.json() as { latitude: number; longitude: number; area: string };
+      return {
+        ...normalizeCoordinates(value.latitude, value.longitude),
+        area: value.area.trim() || fallback.area,
+        source: "amap-ip",
+      };
+    }
+    const location = await fetchAmapIpLocation({ ip, key: amapKey, fetcher });
+    await cache.put(key, Response.json(location, { headers: ipLocationResponseHeaders }));
+    return { ...location, source: "amap-ip" };
+  } catch {
+    return fallback;
+  }
+}
+
+async function resolveCachedArea(
+  latitude: number,
+  longitude: number,
+  provider: "amap" | "bigdatacloud",
+  cache: WeatherCache,
+  resolver: () => Promise<string>,
+): Promise<string> {
+  const key = reverseCacheRequest(latitude, longitude, provider);
+  const cached = await cache.match(key);
+  if (cached) return cached.text();
+  const area = await resolver();
+  await cache.put(key, new Response(area, { headers: reverseResponseHeaders }));
+  return area;
+}
+
 async function resolvePreciseArea(
   latitude: number,
   longitude: number,
   cache: WeatherCache,
   fetcher: typeof fetch,
+  amapKey?: string,
 ): Promise<string> {
-  const key = reverseCacheRequest(latitude, longitude);
-  const cached = await cache.match(key);
-  if (cached) return cached.text();
-  const area = await fetchReverseGeocode({ latitude, longitude, fetcher });
-  await cache.put(key, new Response(area, { headers: reverseResponseHeaders }));
-  return area;
+  if (amapKey) {
+    try {
+      return await resolveCachedArea(latitude, longitude, "amap", cache, () => (
+        fetchAmapReverseGeocode({ latitude, longitude, key: amapKey, fetcher })
+      ));
+    } catch {
+      // Fall through to the existing keyless provider when Amap is unavailable.
+    }
+  }
+  return resolveCachedArea(latitude, longitude, "bigdatacloud", cache, () => (
+    fetchReverseGeocode({ latitude, longitude, fetcher })
+  ));
 }
 
 export function createWeatherRoute({
   fetcher = fetch,
   cache,
+  amapKey = runtimeAmapKey(),
 }: WeatherRouteDependencies = {}): APIRoute {
   return async ({ request }) => {
     try {
       const activeCache = cache ?? weatherCache();
-      const location = routeCoordinates(request);
+      const location = await resolveAmapIpLocation(
+        request,
+        routeCoordinates(request),
+        amapKey?.trim() || undefined,
+        activeCache,
+        fetcher,
+      );
       const key = cacheRequest(location.latitude, location.longitude, location.source);
       const forceRefresh = new URL(request.url).searchParams.has("refresh");
       const cached = forceRefresh ? undefined : await activeCache.match(key);
@@ -109,6 +191,7 @@ export function createWeatherRoute({
             location.longitude,
             activeCache,
             fetcher,
+            amapKey?.trim() || undefined,
           );
         } catch {
           area = "当前位置";

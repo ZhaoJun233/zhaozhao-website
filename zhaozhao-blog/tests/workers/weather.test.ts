@@ -33,6 +33,116 @@ function withCf(request: Request, cf: Record<string, unknown>): Request {
 }
 
 describe("weather API", () => {
+  it("prefers Amap IP coordinates over an inaccurate Cloudflare city", async () => {
+    const fetched: string[] = [];
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      fetched.push(url.toString());
+      if (url.origin === "https://restapi.amap.com") {
+        return Response.json({
+          status: "1",
+          info: "OK",
+          infocode: "10000",
+          province: "上海市",
+          city: "上海市",
+          adcode: "310000",
+          rectangle: "121.1062,30.7798;121.9225,31.6688",
+        });
+      }
+      return weatherUpstream();
+    });
+    const request = withCf(new Request("https://blog.example/api/weather", {
+      headers: { "CF-Connecting-IP": "203.0.113.8" },
+    }), {
+      latitude: "35.6764",
+      longitude: "139.6500",
+      city: "Tokyo",
+    });
+
+    const response = await createWeatherRoute({
+      fetcher: fetcher as typeof fetch,
+      cache: new MemoryWeatherCache(),
+      amapKey: "test-key",
+    })({ request } as never);
+
+    expect(response.status).toBe(200);
+    expect(new URL(fetched[0]!).pathname).toBe("/v3/ip");
+    const weatherUrl = new URL(fetched[1]!);
+    expect(weatherUrl.origin).toBe("https://api.open-meteo.com");
+    expect(weatherUrl.searchParams.get("latitude")).toBe("31.2243");
+    expect(weatherUrl.searchParams.get("longitude")).toBe("121.51435");
+    expect(await response.json()).toMatchObject({ data: { area: "上海市" } });
+  });
+
+  it("uses Amap to reverse geocode precise browser coordinates", async () => {
+    const fetched: string[] = [];
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      fetched.push(url.toString());
+      if (url.origin === "https://restapi.amap.com") {
+        return Response.json({
+          status: "1",
+          info: "OK",
+          infocode: "10000",
+          regeocode: {
+            formatted_address: "上海市徐汇区漕河泾街道",
+            addressComponent: {
+              province: "上海市",
+              city: [],
+              district: "徐汇区",
+              adcode: "310104",
+            },
+          },
+        });
+      }
+      return weatherUpstream();
+    });
+    const request = new Request(
+      "https://blog.example/api/weather?lat=31.1837&lon=121.4365",
+    );
+
+    const response = await createWeatherRoute({
+      fetcher: fetcher as typeof fetch,
+      cache: new MemoryWeatherCache(),
+      amapKey: "test-key",
+    })({ request } as never);
+
+    expect(new URL(fetched[0]!).pathname).toBe("/v3/geocode/regeo");
+    expect(new URL(fetched[1]!).origin).toBe("https://api.open-meteo.com");
+    expect(await response.json()).toMatchObject({ data: { area: "徐汇区 · 上海市" } });
+  });
+
+  it("falls back to Cloudflare coordinates when Amap IP lookup fails", async () => {
+    const fetched: string[] = [];
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      fetched.push(url.toString());
+      if (url.origin === "https://restapi.amap.com") {
+        return new Response("amap unavailable", { status: 502 });
+      }
+      return weatherUpstream();
+    });
+    const request = withCf(new Request("https://blog.example/api/weather", {
+      headers: { "CF-Connecting-IP": "203.0.113.8" },
+    }), {
+      latitude: "30.2741",
+      longitude: "120.1551",
+      city: "杭州",
+    });
+
+    const response = await createWeatherRoute({
+      fetcher: fetcher as typeof fetch,
+      cache: new MemoryWeatherCache(),
+      amapKey: "test-key",
+    })({ request } as never);
+
+    expect(new URL(fetched[0]!).pathname).toBe("/v3/ip");
+    const weatherUrl = new URL(fetched[1]!);
+    expect(weatherUrl.searchParams.get("latitude")).toBe("30.2741");
+    expect(weatherUrl.searchParams.get("longitude")).toBe("120.1551");
+    expect(await response.json()).toMatchObject({ data: { area: "杭州" } });
+  });
+
   it("reverse geocodes browser coordinates instead of using the Cloudflare city", async () => {
     const fetched: string[] = [];
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {

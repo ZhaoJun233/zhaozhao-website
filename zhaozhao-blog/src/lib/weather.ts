@@ -27,6 +27,23 @@ export interface ReverseGeocodeInput {
   timeoutMs?: number;
 }
 
+export interface AmapIpLocationInput {
+  ip: string;
+  key: string;
+  fetcher?: typeof fetch;
+  timeoutMs?: number;
+}
+
+export interface AmapReverseGeocodeInput extends ReverseGeocodeInput {
+  key: string;
+}
+
+export interface AmapIpLocation {
+  latitude: number;
+  longitude: number;
+  area: string;
+}
+
 const upstreamSchema = z.object({
   current: z.object({
     time: z.string().min(1),
@@ -43,6 +60,28 @@ const reverseGeocodeSchema = z.object({
   locality: z.string().trim().max(120).optional().nullable(),
   city: z.string().trim().max(120).optional().nullable(),
   principalSubdivision: z.string().trim().max(120).optional().nullable(),
+});
+
+const amapIpSchema = z.object({
+  status: z.string(),
+  info: z.string().optional(),
+  province: z.unknown(),
+  city: z.unknown(),
+  rectangle: z.unknown(),
+});
+
+const amapReverseGeocodeSchema = z.object({
+  status: z.string(),
+  info: z.string().optional(),
+  regeocode: z.object({
+    formatted_address: z.string().optional(),
+    addressComponent: z.object({
+      province: z.unknown(),
+      city: z.unknown(),
+      district: z.unknown(),
+      adcode: z.unknown().optional(),
+    }),
+  }),
 });
 
 export class WeatherCoordinateError extends Error {
@@ -98,6 +137,93 @@ export function weatherCondition(code: number): string {
   if ([71, 73, 75, 77, 85, 86].includes(code)) return "雪";
   if ([95, 96, 99].includes(code)) return "雷雨";
   return "天气变化中";
+}
+
+function amapText(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  if (Array.isArray(value)) {
+    return value.find((item): item is string => typeof item === "string" && item.trim() !== "")
+      ?.trim() ?? "";
+  }
+  return "";
+}
+
+function requiredAmapKey(key: string): string {
+  const value = key.trim();
+  if (!value) throw new Error("Amap key is missing.");
+  return value;
+}
+
+function rectangleCenter(rectangle: string): { latitude: number; longitude: number } {
+  const corners = rectangle.split(";").map((corner) => corner.split(",").map(Number));
+  if (
+    corners.length !== 2
+    || corners.some((corner) => corner.length !== 2 || corner.some((value) => !Number.isFinite(value)))
+  ) {
+    throw new Error("Amap IP rectangle is invalid.");
+  }
+  const [[west, south], [east, north]] = corners as [[number, number], [number, number]];
+  return normalizeCoordinates(
+    Number(((south + north) / 2).toFixed(6)),
+    Number(((west + east) / 2).toFixed(6)),
+  );
+}
+
+export async function fetchAmapIpLocation({
+  ip,
+  key,
+  fetcher = fetch,
+  timeoutMs = 5_000,
+}: AmapIpLocationInput): Promise<AmapIpLocation> {
+  const address = ip.trim();
+  if (!address || address.length > 128) throw new Error("Visitor IP is invalid.");
+  const url = new URL("https://restapi.amap.com/v3/ip");
+  url.searchParams.set("key", requiredAmapKey(key));
+  url.searchParams.set("ip", address);
+
+  const response = await fetcher(url, {
+    headers: { accept: "application/json" },
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (!response.ok) throw new Error(`Amap IP returned ${response.status}.`);
+  const value = amapIpSchema.parse(await response.json());
+  if (value.status !== "1") throw new Error(`Amap IP failed: ${value.info ?? "unknown"}.`);
+  const coordinates = rectangleCenter(amapText(value.rectangle));
+  const city = amapText(value.city);
+  const province = amapText(value.province);
+  return { ...coordinates, area: city || province || "访客所在区域" };
+}
+
+export async function fetchAmapReverseGeocode({
+  latitude,
+  longitude,
+  key,
+  fetcher = fetch,
+  timeoutMs = 5_000,
+}: AmapReverseGeocodeInput): Promise<string> {
+  normalizeCoordinates(latitude, longitude);
+  const url = new URL("https://restapi.amap.com/v3/geocode/regeo");
+  url.searchParams.set("key", requiredAmapKey(key));
+  url.searchParams.set("location", `${longitude},${latitude}`);
+  url.searchParams.set("extensions", "base");
+  url.searchParams.set("radius", "1000");
+
+  const response = await fetcher(url, {
+    headers: { accept: "application/json" },
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (!response.ok) throw new Error(`Amap reverse geocode returned ${response.status}.`);
+  const value = amapReverseGeocodeSchema.parse(await response.json());
+  if (value.status !== "1") {
+    throw new Error(`Amap reverse geocode failed: ${value.info ?? "unknown"}.`);
+  }
+  const component = value.regeocode.addressComponent;
+  const district = amapText(component.district);
+  const city = amapText(component.city);
+  const province = amapText(component.province);
+  const region = city || province;
+  if (district && region && district !== region) return `${district} · ${region}`;
+  return district || region || value.regeocode.formatted_address?.trim() || "当前位置";
 }
 
 export async function fetchReverseGeocode({
