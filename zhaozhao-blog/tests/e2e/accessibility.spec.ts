@@ -32,3 +32,22 @@ test("主题选择会持久化且保持正确的颜色模式", async ({ page }) 
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
 });
+
+test("后台页面内容设置没有自动检测到的 WCAG A/AA 问题", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-1440", "认证后台检查只执行一次。");
+
+  await page.goto("/admin/");
+  await page.getByLabel("管理员密码").fill("233zhao-local-admin");
+  await page.getByRole("button", { name: "进入后台" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "后台概览" })).toBeVisible();
+  await page.goto("/admin/content/");
+  await page.getByRole("button", { name: "首页天气与音乐" }).click();
+  await expect(page.locator('[data-setting-editor][data-setting-key="now_page"]')).toBeVisible();
+
+  const results = await new AxeBuilder({ page })
+    .include("#admin-main")
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .analyze();
+
+  expect(results.violations).toEqual([]);
+});

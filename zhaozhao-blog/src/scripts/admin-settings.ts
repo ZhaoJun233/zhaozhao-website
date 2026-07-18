@@ -38,6 +38,15 @@ function titleFor(key: string) {
   return fieldLabels[key] ?? key.replaceAll("_", " ");
 }
 
+function controlIdFor(path: Array<string | number>) {
+  const safePath = path.map((segment) => {
+    const value = String(segment);
+    const safeValue = value.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "field";
+    return `${typeof segment === "number" ? "number" : "string"}-${value.length}-${safeValue}`;
+  }).join("--");
+  return `admin-setting-${safePath}`;
+}
+
 function addMediaUpload(wrapper: HTMLElement, control: HTMLInputElement | HTMLTextAreaElement) {
   const upload = document.createElement("div");
   upload.className = "admin-media-upload";
@@ -101,6 +110,9 @@ function createControl(value: unknown, path: Array<string | number>): HTMLElemen
   const control = complexArray || longText || array
     ? document.createElement("textarea")
     : document.createElement("input");
+  const controlId = controlIdFor(path);
+  control.id = controlId;
+  label.htmlFor = controlId;
   control.dataset.settingPath = pathValue;
   control.dataset.valueKind = complexArray ? "json" : array ? "lines" : typeof value;
   control.value = complexArray
