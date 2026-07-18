@@ -8,6 +8,13 @@ import {
   orderMusicTracks,
   updateMusicTrack,
 } from "../../src/lib/database/music-repository";
+import {
+  beginMediaUpload,
+  listMediaCleanupJobs,
+  markMediaReady,
+} from "../../src/lib/database/media-repository";
+
+const draftToken = "11111111-1111-4111-8111-111111111111";
 
 describe("music track repository", () => {
   it("creates, filters, updates, orders, and deletes tracks", async () => {
@@ -49,5 +56,63 @@ describe("music track repository", () => {
 
     await deleteMusicTrack(env.DB, first.id);
     expect((await listMusicTracks(env.DB)).map(({ id }) => id)).toEqual([second.id]);
+  });
+
+  it("links draft covers and only queues an unshared final reference", async () => {
+    const firstCover = await beginMediaUpload(env.DB, {
+      key: "uploads/2026/07/music-cover-one.png",
+      originalName: "music-cover-one.png",
+      contentType: "image/png",
+      sizeBytes: 4,
+      draftToken,
+    });
+    await markMediaReady(env.DB, firstCover.id);
+
+    const wrongDraftCover = await beginMediaUpload(env.DB, {
+      key: "uploads/2026/07/music-cover-wrong.png",
+      originalName: "music-cover-wrong.png",
+      contentType: "image/png",
+      sizeBytes: 4,
+      draftToken,
+    });
+    await markMediaReady(env.DB, wrongDraftCover.id);
+    await expect(createMusicTrack(env.DB, {
+      title: "错误归属",
+      artist: "歌手",
+      neteaseSongId: "300",
+      enabled: true,
+      draftToken: "22222222-2222-4222-8222-222222222222",
+      coverAssetId: wrongDraftCover.id,
+    })).rejects.toThrow("临时图片不属于当前编辑会话");
+
+    const first = await createMusicTrack(env.DB, {
+      title: "共享封面一",
+      artist: "歌手",
+      neteaseSongId: "301",
+      enabled: true,
+      draftToken,
+      coverAssetId: firstCover.id,
+    });
+    expect(first.coverUrl).toBe("/media/uploads/2026/07/music-cover-one.png/");
+    expect((await env.DB.prepare(
+      "SELECT draft_token FROM media_assets WHERE id = ?",
+    ).bind(firstCover.id).first<{ draft_token: string | null }>())?.draft_token).toBeNull();
+
+    const second = await createMusicTrack(env.DB, {
+      title: "共享封面二",
+      artist: "歌手",
+      neteaseSongId: "302",
+      enabled: true,
+      coverAssetId: firstCover.id,
+    });
+    await deleteMusicTrack(env.DB, first.id);
+    expect(await listMediaCleanupJobs(env.DB)).toHaveLength(0);
+
+    await deleteMusicTrack(env.DB, second.id);
+    expect(await listMediaCleanupJobs(env.DB)).toContainEqual(expect.objectContaining({
+      asset_id: firstCover.id,
+      kv_key: "uploads/2026/07/music-cover-one.png",
+      reason: "manual_remove",
+    }));
   });
 });

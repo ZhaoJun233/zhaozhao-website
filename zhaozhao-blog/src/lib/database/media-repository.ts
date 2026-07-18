@@ -418,14 +418,16 @@ export async function failMediaUpload(
     database.prepare(
       `UPDATE media_assets SET state = 'pending_delete'
        WHERE id = ?
-         AND NOT EXISTS (SELECT 1 FROM post_asset_links WHERE asset_id = ?)`,
-    ).bind(assetId, assetId),
+         AND NOT EXISTS (SELECT 1 FROM post_asset_links WHERE asset_id = ?)
+         AND NOT EXISTS (SELECT 1 FROM music_tracks WHERE cover_asset_id = ?)`,
+    ).bind(assetId, assetId, assetId),
     database.prepare(
       `INSERT INTO media_cleanup_jobs (asset_id, kv_key, reason, queued_at)
        SELECT asset.id, asset.kv_key, 'upload_failed', ?
        FROM media_assets asset
        WHERE asset.id = ? AND asset.state = 'pending_delete'
          AND NOT EXISTS (SELECT 1 FROM post_asset_links WHERE asset_id = asset.id)
+         AND NOT EXISTS (SELECT 1 FROM music_tracks WHERE cover_asset_id = asset.id)
        ON CONFLICT(asset_id) DO NOTHING`,
     ).bind(timestamp, assetId),
   ]);
@@ -640,6 +642,9 @@ export async function removePostAsset(
            WHERE other.asset_id = asset.id
              AND (other.post_id <> ? OR other.usage <> 'library')
          )
+         AND NOT EXISTS (
+           SELECT 1 FROM music_tracks track WHERE track.cover_asset_id = asset.id
+         )
        ON CONFLICT(asset_id) DO NOTHING`,
     ).bind(timestamp, assetId, postId, postId),
     database.prepare(
@@ -653,8 +658,11 @@ export async function removePostAsset(
            SELECT 1 FROM post_asset_links other
            WHERE other.asset_id = ?
              AND (other.post_id <> ? OR other.usage <> 'library')
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM music_tracks track WHERE track.cover_asset_id = ?
          )`,
-    ).bind(assetId, postId, assetId, assetId, postId),
+    ).bind(assetId, postId, assetId, assetId, postId, assetId),
     database.prepare(
       `DELETE FROM post_asset_links
        WHERE post_id = ? AND asset_id = ? AND usage = 'library'
@@ -690,10 +698,14 @@ export async function previewPostDelete(
        COUNT(DISTINCT CASE WHEN NOT EXISTS (
          SELECT 1 FROM post_asset_links other
          WHERE other.asset_id = link.asset_id AND other.post_id <> ?
+       ) AND NOT EXISTS (
+         SELECT 1 FROM music_tracks track WHERE track.cover_asset_id = link.asset_id
        ) THEN link.asset_id END) AS exclusive,
        COUNT(DISTINCT CASE WHEN EXISTS (
          SELECT 1 FROM post_asset_links other
          WHERE other.asset_id = link.asset_id AND other.post_id <> ?
+       ) OR EXISTS (
+         SELECT 1 FROM music_tracks track WHERE track.cover_asset_id = link.asset_id
        ) THEN link.asset_id END) AS shared
      FROM post_asset_links link
      WHERE link.post_id = ?`,
@@ -718,10 +730,14 @@ export async function queuePostDelete(
          COUNT(DISTINCT CASE WHEN NOT EXISTS (
            SELECT 1 FROM post_asset_links other
            WHERE other.asset_id = link.asset_id AND other.post_id <> ?
+         ) AND NOT EXISTS (
+           SELECT 1 FROM music_tracks track WHERE track.cover_asset_id = link.asset_id
          ) THEN link.asset_id END) AS exclusive,
          COUNT(DISTINCT CASE WHEN EXISTS (
            SELECT 1 FROM post_asset_links other
            WHERE other.asset_id = link.asset_id AND other.post_id <> ?
+         ) OR EXISTS (
+           SELECT 1 FROM music_tracks track WHERE track.cover_asset_id = link.asset_id
          ) THEN link.asset_id END) AS shared
        FROM post_asset_links link
        WHERE link.post_id = ?`,
@@ -736,6 +752,9 @@ export async function queuePostDelete(
              WHERE other.asset_id = link.asset_id
                AND other.post_id <> ?
            )
+           AND NOT EXISTS (
+             SELECT 1 FROM music_tracks track WHERE track.cover_asset_id = link.asset_id
+           )
        )`,
     ).bind(postId, postId),
     database.prepare(
@@ -748,6 +767,9 @@ export async function queuePostDelete(
            SELECT 1 FROM post_asset_links other
            WHERE other.asset_id = link.asset_id
              AND other.post_id <> ?
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM music_tracks track WHERE track.cover_asset_id = link.asset_id
          )
        ON CONFLICT(asset_id) DO NOTHING`,
     ).bind(timestamp, postId, postId),
@@ -800,6 +822,9 @@ export async function claimMediaCleanupJobs(
          AND NOT EXISTS (
            SELECT 1 FROM post_asset_links link WHERE link.asset_id = asset.id
          )
+         AND NOT EXISTS (
+           SELECT 1 FROM music_tracks track WHERE track.cover_asset_id = asset.id
+         )
        ORDER BY job.queued_at, job.asset_id
        LIMIT ?
      )
@@ -820,6 +845,7 @@ export async function completeMediaCleanup(
      WHERE id = ?
        AND state = 'pending_delete'
        AND NOT EXISTS (SELECT 1 FROM post_asset_links WHERE asset_id = ?)
+       AND NOT EXISTS (SELECT 1 FROM music_tracks WHERE cover_asset_id = ?)
        AND EXISTS (
          SELECT 1 FROM media_cleanup_jobs job
          WHERE job.asset_id = media_assets.id
@@ -829,8 +855,8 @@ export async function completeMediaCleanup(
        )`,
   ).bind(
     ...(claimed
-      ? [assetId, assetId, claimToken, claimGeneration]
-      : [assetId, assetId]),
+      ? [assetId, assetId, assetId, claimToken, claimGeneration]
+      : [assetId, assetId, assetId]),
   ).run();
   if (claimed && Number(result.meta.changes ?? 0) === 0) {
     throw new AdminConflictError("清理任务状态已变更。", { assetId });
@@ -883,6 +909,9 @@ export async function queueExpiredDraftCleanup(
            AND NOT EXISTS (
              SELECT 1 FROM post_asset_links link WHERE link.asset_id = asset.id
            )
+           AND NOT EXISTS (
+             SELECT 1 FROM music_tracks track WHERE track.cover_asset_id = asset.id
+           )
          ORDER BY asset.created_at, asset.id
          LIMIT ?
        )`,
@@ -896,6 +925,9 @@ export async function queueExpiredDraftCleanup(
          AND asset.created_at < ?
          AND NOT EXISTS (
            SELECT 1 FROM post_asset_links link WHERE link.asset_id = asset.id
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM music_tracks track WHERE track.cover_asset_id = asset.id
          )
          AND NOT EXISTS (
            SELECT 1 FROM media_cleanup_jobs job WHERE job.asset_id = asset.id
@@ -920,6 +952,9 @@ export async function queueDraftCleanup(
        WHERE draft_token = ? AND state <> 'pending_delete'
          AND NOT EXISTS (
            SELECT 1 FROM post_asset_links WHERE asset_id = media_assets.id
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM music_tracks WHERE cover_asset_id = media_assets.id
          )`,
     ).bind(token),
     database.prepare(
@@ -928,6 +963,7 @@ export async function queueDraftCleanup(
        FROM media_assets asset
        WHERE asset.draft_token = ? AND asset.state = 'pending_delete'
          AND NOT EXISTS (SELECT 1 FROM post_asset_links WHERE asset_id = asset.id)
+         AND NOT EXISTS (SELECT 1 FROM music_tracks WHERE cover_asset_id = asset.id)
        ON CONFLICT(asset_id) DO NOTHING`,
     ).bind(reason, timestamp, token),
   ]);
