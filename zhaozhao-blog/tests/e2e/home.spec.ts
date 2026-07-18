@@ -30,6 +30,8 @@ test("home composition exposes its discovery landmarks", async ({ page }) => {
   await page.goto("/");
 
   await expect(page.locator("#weather-music")).toBeVisible();
+  await expect(page.locator(".home-hero #weather-music")).toHaveCount(1);
+  await expect(page.locator(".site-status + #weather-music")).toHaveCount(0);
   await expect(page.getByTestId("featured-posts")).toBeVisible();
   await expect(page.getByTestId("home-introduction")).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");

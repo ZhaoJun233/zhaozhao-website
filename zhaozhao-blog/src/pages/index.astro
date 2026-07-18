@@ -71,7 +71,13 @@ const status = editorial.homepage.status;
   page="home"
   headerOverlay={true}
 >
-  <HomeHero />
+  <HomeHero>
+    <HomeWeatherMusic
+      slot="weather-music"
+      tracks={tracks}
+      content={editorial.nowPage}
+    />
+  </HomeHero>
 
   <aside class="site-status" aria-label="站点近况">
     <div class="status-inner">
@@ -84,8 +90,6 @@ const status = editorial.homepage.status;
       <p class="status-note">{topics.map(({ label }) => label).join(" · ")}</p>
     </div>
   </aside>
-
-  <HomeWeatherMusic tracks={tracks} content={editorial.nowPage} />
 
   <FeaturedPosts posts={homePosts} />
   <TopicBand topics={topics} />

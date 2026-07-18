@@ -56,6 +56,11 @@ test("homepage shows visitor weather and one selected NetEase player", async ({
     await page.goto("/");
     await expect(page.locator("#weather-music")).toBeVisible();
     await expect(page.locator("#weather-music")).toHaveAttribute("aria-label", "天气与音乐");
+    const drawerToggle = page.locator("[data-weather-music-toggle]");
+    if (testInfo.project.name === "mobile-390") {
+      await expect(drawerToggle).toHaveAttribute("aria-expanded", "false");
+      await drawerToggle.click();
+    }
     await expect(page.locator("#weather-music iframe")).toHaveCount(0);
     await expect(page.getByRole("region", { name: "访客天气" })).toBeVisible();
     await expect(page.getByRole("region", { name: "233昭的今日选曲" })).toBeVisible();
@@ -99,6 +104,48 @@ test("homepage shows visitor weather and one selected NetEase player", async ({
       expect(status).toBe(200);
     }
   }
+});
+
+test("Hero drawer defaults responsively and exposes an accessible toggle", async ({
+  page,
+}, testInfo) => {
+  await page.goto("/");
+  const toggle = page.locator("[data-weather-music-toggle]");
+  const panel = page.locator("#hero-weather-music-panel");
+
+  await expect(page.locator(".home-hero #weather-music")).toHaveCount(1);
+  await expect(toggle).toHaveAttribute("aria-controls", "hero-weather-music-panel");
+
+  if (testInfo.project.name === "mobile-390") {
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await expect(panel).toHaveAttribute("inert", "");
+    const box = await toggle.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.width).toBeGreaterThanOrEqual(44);
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await expect(panel).not.toHaveAttribute("inert", "");
+  } else {
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await expect(panel).not.toHaveAttribute("inert", "");
+  }
+});
+
+test("stored Hero drawer preference overrides the desktop default", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name === "mobile-390", "Desktop default coverage only.");
+  await page.goto("/");
+  const toggle = page.locator("[data-weather-music-toggle]");
+  const panel = page.locator("#hero-weather-music-panel");
+
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await page.reload();
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(panel).toHaveAttribute("inert", "");
 });
 
 test("legacy now route redirects to the homepage section", async ({ page }) => {

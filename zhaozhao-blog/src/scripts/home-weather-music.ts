@@ -16,6 +16,39 @@ const section = document.querySelector<HTMLElement>("[data-home-weather-music]")
 const geolocationSessionKey = "home-weather-geolocation-attempted";
 
 if (section) {
+  const toggle = section.querySelector<HTMLButtonElement>("[data-weather-music-toggle]");
+  const panel = section.querySelector<HTMLElement>("[data-weather-music-panel]");
+  const drawerStorageKey = "hero-weather-music-open";
+  const mobileQuery = window.matchMedia("(max-width: 899px)");
+
+  const storedDrawerState = (): boolean | undefined => {
+    try {
+      const value = localStorage.getItem(drawerStorageKey);
+      return value === "true" ? true : value === "false" ? false : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+
+  const setDrawerOpen = (open: boolean, persist = true) => {
+    section.dataset.drawerOpen = String(open);
+    toggle?.setAttribute("aria-expanded", String(open));
+    if (toggle) toggle.textContent = open ? "隐藏天气音乐" : "天气 · 音乐";
+    panel?.toggleAttribute("inert", !open);
+    if (persist) {
+      try {
+        localStorage.setItem(drawerStorageKey, String(open));
+      } catch {
+        // Storage may be unavailable in private browsing; the drawer still works for this page.
+      }
+    }
+  };
+
+  setDrawerOpen(storedDrawerState() ?? !mobileQuery.matches, false);
+  toggle?.addEventListener("click", () => {
+    setDrawerOpen(section.dataset.drawerOpen !== "true");
+  });
+
   const weatherPanel = section.querySelector<HTMLElement>("[data-weather-panel]");
   const notesElement = section.querySelector<HTMLScriptElement>("[data-weather-notes]");
   const notes = JSON.parse(notesElement?.textContent ?? "{}") as WeatherNotes;
