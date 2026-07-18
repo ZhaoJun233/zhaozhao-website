@@ -55,6 +55,10 @@ test("about page prominently presents the author and approved artwork source", a
 
   await expect(page.getByRole("heading", { level: 1, name: profile.name })).toBeVisible();
   await expect(page.getByRole("img", { name: `${profile.name} 的头像` })).toBeVisible();
+  await expect(page.getByRole("link", { name: "zhaozhao7991@gmail.com" })).toHaveAttribute(
+    "href",
+    "mailto:zhaozhao7991@gmail.com",
+  );
   await expect(page.getByRole("img", { name: "粉紫色海边的白发少女插画" })).toBeVisible();
   await expect(page.getByRole("link", { name: /查看《【动态壁纸】夏日白色绮梦》来源/ }))
     .toHaveAttribute("href", "https://www.bilibili.com/video/BV1NCjx6oEhj/");

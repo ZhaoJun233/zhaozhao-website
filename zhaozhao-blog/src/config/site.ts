@@ -27,6 +27,7 @@ export const siteConfig: SiteConfig = {
     name: profile.name,
     bio: profile.bio,
     avatar: profile.avatar,
+    email: profile.email || undefined,
   },
   navigation: navigationContent.items,
   giscus: {
