@@ -362,6 +362,165 @@ test("starting new music track ignores a delayed cover upload", async ({ page },
   }
 });
 
+test("music metadata fills managed fields and preserves manual track state", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-1440", "元数据写入流程只执行一次。" );
+  const originalTitle = `元数据原歌曲-${Date.now()}`;
+  let trackId = "";
+  let mode: "success" | "failure" = "success";
+  let requestedBody: { neteaseSongId: string; draftToken: string } | undefined;
+
+  await page.route("**/api/admin/music/metadata/", async (route) => {
+    requestedBody = route.request().postDataJSON() as typeof requestedBody;
+    if (mode === "failure") {
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "网易云歌曲信息暂时不可用。" }),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          title: "海阔天空",
+          artist: "Beyond",
+          coverAssetId: "33333333-3333-4333-8333-333333333333",
+          coverUrl: "/media/uploads/2026/07/netease-cover.jpg/",
+        },
+      }),
+    });
+  });
+
+  try {
+    await loginAsAdministrator(page);
+    const created = await page.request.post("/api/admin/music/", {
+      data: {
+        title: originalTitle,
+        artist: "原歌手",
+        neteaseSongId: "347230",
+        note: "这句推荐语必须保留。",
+        enabled: false,
+      },
+    });
+    expect(created.ok()).toBe(true);
+    trackId = ((await created.json()) as { data: { id: string } }).data.id;
+
+    await page.getByRole("link", { name: "页面内容", exact: true }).click();
+    await page.locator("tr").filter({ hasText: originalTitle })
+      .getByRole("button", { name: `编辑 ${originalTitle}` }).click();
+    const draftToken = await page.locator('input[name="draftToken"]').inputValue();
+    await page.getByRole("button", { name: "自动获取歌曲信息" }).click();
+
+    expect(requestedBody).toEqual({ neteaseSongId: "347230", draftToken });
+    await expect(page.getByLabel("歌曲名称")).toHaveValue("海阔天空");
+    await expect(page.getByLabel("歌手")).toHaveValue("Beyond");
+    await expect(page.getByLabel("推荐语")).toHaveValue("这句推荐语必须保留。");
+    await expect(page.getByLabel("在前台展示")).not.toBeChecked();
+    await expect(page.locator('input[name="id"]')).toHaveValue(trackId);
+    await expect(page.locator('input[name="coverAssetId"]'))
+      .toHaveValue("33333333-3333-4333-8333-333333333333");
+    await expect(page.locator("[data-music-cover-preview] img"))
+      .toHaveAttribute("src", "/media/uploads/2026/07/netease-cover.jpg/");
+    await expect(page.locator("[data-music-metadata-status]")).toContainText("已获取");
+
+    mode = "failure";
+    await page.getByLabel("歌曲名称").fill("手动标题不应丢失");
+    await page.getByLabel("歌手").fill("手动歌手不应丢失");
+    await page.getByRole("button", { name: "自动获取歌曲信息" }).click();
+    await expect(page.locator("[data-music-metadata-status]"))
+      .toHaveText("网易云歌曲信息暂时不可用。");
+    await expect(page.getByLabel("歌曲名称")).toHaveValue("手动标题不应丢失");
+    await expect(page.getByLabel("歌手")).toHaveValue("手动歌手不应丢失");
+    await expect(page.getByLabel("推荐语")).toHaveValue("这句推荐语必须保留。");
+    await expect(page.getByLabel("在前台展示")).not.toBeChecked();
+    await expect(page.locator('input[name="id"]')).toHaveValue(trackId);
+  } finally {
+    if (trackId) await page.request.delete(`/api/admin/music/${trackId}/`);
+  }
+});
+
+test("a delayed music metadata response cannot overwrite a new draft", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-1440", "元数据竞态只在桌面项目执行一次。" );
+  test.setTimeout(90_000);
+  let releaseMetadata = () => {};
+  const metadataGate = new Promise<void>((resolve) => {
+    releaseMetadata = resolve;
+  });
+  const metadataRoute = async (route: Route) => {
+    await metadataGate;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          title: "旧响应标题",
+          artist: "旧响应歌手",
+          coverAssetId: "44444444-4444-4444-8444-444444444444",
+          coverUrl: "/media/uploads/2026/07/stale-cover.jpg/",
+        },
+      }),
+    });
+  };
+  await page.route("**/api/admin/music/metadata/", metadataRoute);
+
+  try {
+    await loginAsAdministrator(page);
+    await page.getByRole("link", { name: "页面内容", exact: true }).click();
+    const title = page.getByLabel("歌曲名称");
+    const artist = page.getByLabel("歌手");
+    const songId = page.getByLabel("网易云歌曲 ID");
+    const draftToken = page.locator('input[name="draftToken"]');
+    await expect(draftToken).toHaveValue(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+    const oldDraftToken = await draftToken.inputValue();
+    const cleanupStatuses: number[] = [];
+    page.on("response", (response) => {
+      if (
+        response.request().method() === "DELETE"
+        && response.url().endsWith(`/api/admin/post-assets/drafts/${oldDraftToken}/`)
+      ) cleanupStatuses.push(response.status());
+    });
+    await songId.fill("347230");
+
+    const metadataStarted = page.waitForRequest((request) =>
+      request.method() === "POST"
+      && request.url().endsWith("/api/admin/music/metadata/"), { timeout: 15_000 });
+    await page.getByRole("button", { name: "自动获取歌曲信息" }).click();
+    const metadataRequest = await metadataStarted;
+    const metadataFinished = page.waitForResponse((response) =>
+      response.request() === metadataRequest, { timeout: 60_000 });
+
+    await page.getByRole("button", { name: "新增歌曲" }).click();
+    await expect(draftToken).not.toHaveValue(oldDraftToken);
+    await expect.poll(() => cleanupStatuses).toEqual([200]);
+    await title.fill("新歌曲");
+    await artist.fill("新歌手");
+    await songId.fill("987654321");
+
+    releaseMetadata();
+    const metadataResponse = await metadataFinished;
+    expect(metadataResponse.ok()).toBe(true);
+    await expect.poll(() => cleanupStatuses).toEqual([200, 200]);
+
+    await expect(title).toHaveValue("新歌曲");
+    await expect(artist).toHaveValue("新歌手");
+    await expect(songId).toHaveValue("987654321");
+    await expect(page.locator('input[name="coverAssetId"]')).toHaveValue("");
+    await expect(page.locator("[data-music-cover-preview] img")).toBeHidden();
+    await expect(page.locator("[data-music-metadata-status]")).toHaveText("");
+  } finally {
+    releaseMetadata();
+    await page.unroute("**/api/admin/music/metadata/", metadataRoute);
+  }
+});
+
 test("legacy music admin route redirects to page content", async ({ page }, testInfo) => {
   await loginAsAdministrator(page);
   await page.goto("/admin/music/");

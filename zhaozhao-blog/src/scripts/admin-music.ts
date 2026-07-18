@@ -17,6 +17,14 @@ type ApiResult<T> = {
 
 type UploadedAsset = { id: string; url: string };
 
+type ImportedMusicMetadata = {
+  title: string;
+  artist: string;
+  coverAssetId?: string;
+  coverUrl?: string;
+  warning?: string;
+};
+
 const page = document.querySelector<HTMLElement>("[data-music-page]");
 
 if (page) {
@@ -30,6 +38,8 @@ if (page) {
   const coverImage = page.querySelector<HTMLImageElement>("[data-music-cover-preview] img")!;
   const coverEmpty = page.querySelector<HTMLElement>("[data-music-cover-empty]")!;
   const coverStatus = page.querySelector<HTMLElement>("[data-music-cover-status]")!;
+  const metadataButton = page.querySelector<HTMLButtonElement>("[data-fetch-music-metadata]")!;
+  const metadataStatus = page.querySelector<HTMLElement>("[data-music-metadata-status]")!;
   const status = page.querySelector<HTMLElement>("[data-music-status]")!;
   const editorTitle = page.querySelector<HTMLElement>("[data-music-editor-title]")!;
   let uploadPromise: Promise<void> | undefined;
@@ -84,10 +94,12 @@ if (page) {
     coverAssetInput.value = "";
     coverFileInput.value = "";
     coverFileInput.disabled = false;
+    metadataButton.disabled = false;
     editorTitle.textContent = "新增歌曲";
     showCover();
     setStatus(status, "");
     setStatus(coverStatus, "");
+    setStatus(metadataStatus, "");
     if (clean && oldToken) {
       if (oldUpload) await oldUpload.catch(() => undefined);
       await cleanupDraft(oldToken);
@@ -181,6 +193,65 @@ if (page) {
           uploadPromise = undefined;
         }
       });
+  });
+
+  metadataButton.addEventListener("click", () => {
+    const songIdInput = input("neteaseSongId") as HTMLInputElement;
+    if (!songIdInput.checkValidity()) {
+      songIdInput.reportValidity();
+      setStatus(metadataStatus, "请先填写有效的网易云歌曲 ID。", true);
+      return;
+    }
+    const requestedGeneration = formGeneration;
+    const requestedDraftToken = draftTokenInput.value;
+    const isCurrentRequest = () => (
+      requestedGeneration === formGeneration
+      && requestedDraftToken === draftTokenInput.value
+    );
+    metadataButton.disabled = true;
+    setStatus(metadataStatus, "正在获取歌曲信息…");
+
+    void (async () => {
+      try {
+        const response = await fetch("/api/admin/music/metadata/", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            neteaseSongId: songIdInput.value.trim(),
+            draftToken: requestedDraftToken,
+          }),
+        });
+        const result = await response.json() as ApiResult<ImportedMusicMetadata>;
+        if (!response.ok || !result.data) {
+          throw new Error(messageFrom(result, "歌曲信息获取失败。"));
+        }
+        if (!isCurrentRequest()) {
+          await cleanupDraft(requestedDraftToken).catch(() => undefined);
+          return;
+        }
+        input("title").value = result.data.title;
+        input("artist").value = result.data.artist;
+        if (result.data.coverAssetId && result.data.coverUrl) {
+          coverAssetInput.value = result.data.coverAssetId;
+          coverFileInput.value = "";
+          showCover(result.data.coverUrl);
+          setStatus(coverStatus, "封面已获取，保存歌曲后正式关联。");
+        }
+        setStatus(metadataStatus, result.data.warning ?? "歌曲信息已获取。");
+      } catch (error) {
+        if (!isCurrentRequest()) {
+          await cleanupDraft(requestedDraftToken).catch(() => undefined);
+          return;
+        }
+        setStatus(
+          metadataStatus,
+          error instanceof Error ? error.message : "歌曲信息获取失败。",
+          true,
+        );
+      } finally {
+        if (isCurrentRequest()) metadataButton.disabled = false;
+      }
+    })();
   });
 
   page.addEventListener("click", (event) => {

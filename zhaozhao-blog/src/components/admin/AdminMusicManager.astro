@@ -100,7 +100,13 @@ const { tracks } = Astro.props;
         <div class="admin-field">
           <label for="music-song-id">网易云歌曲 ID</label>
           <input id="music-song-id" name="neteaseSongId" required inputmode="numeric" pattern="[0-9]{1,20}" maxlength="20" placeholder="例如：123456789" autocomplete="off" />
-          <small>打开歌曲页，复制地址中 <code>id=</code> 后面的数字。</small>
+          <div class="admin-music-metadata-row">
+            <small>打开歌曲页，复制地址中 <code>id=</code> 后面的数字。</small>
+            <button class="admin-button" type="button" data-fetch-music-metadata>
+              自动获取歌曲信息
+            </button>
+          </div>
+          <p class="admin-status admin-music-metadata-status" data-music-metadata-status aria-live="polite"></p>
         </div>
         <div class="admin-field"><label for="music-note">推荐语</label><textarea id="music-note" name="note" maxlength="500" placeholder="写一句此刻想分享这首歌的理由。"></textarea></div>
         <label class="admin-field--check"><input name="enabled" type="checkbox" checked />在前台展示</label>
@@ -114,3 +120,32 @@ const { tracks } = Astro.props;
     <script is:inline type="application/json" data-music-records set:html={JSON.stringify(tracks)}></script>
   </div>
 </section>
+
+<style>
+  .admin-music-metadata-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+  }
+
+  .admin-music-metadata-row small {
+    min-width: 0;
+  }
+
+  .admin-music-metadata-status {
+    min-height: 1.25rem;
+    margin: .35rem 0 0;
+  }
+
+  @media (max-width: 700px) {
+    .admin-music-metadata-row {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .admin-music-metadata-row .admin-button {
+      min-height: 44px;
+    }
+  }
+</style>
