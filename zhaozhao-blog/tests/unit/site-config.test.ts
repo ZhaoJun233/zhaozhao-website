@@ -8,7 +8,7 @@ describe("siteConfig", () => {
     expect(siteConfig.pageSize).toBe(8);
     expect(siteConfig.navigation.map((item) => item.href)).toEqual([
       "/", "/posts/", "/categories/", "/archive/", "/projects/",
-      "/friends/", "/about/", "/guestbook/"
+      "/friends/", "/now/", "/about/", "/guestbook/"
     ]);
   });
 });

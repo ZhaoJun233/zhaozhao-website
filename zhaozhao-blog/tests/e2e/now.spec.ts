@@ -84,6 +84,12 @@ test("sea window shows local time, visitor weather, and one selected NetEase pla
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(overflow).toBeLessThanOrEqual(1);
   } finally {
-    if (trackId) await page.request.delete(`/api/admin/music/${trackId}/`);
+    if (trackId) {
+      const status = await page.evaluate(async (id) => {
+        const response = await fetch(`/api/admin/music/${id}/`, { method: "DELETE" });
+        return response.status;
+      }, trackId);
+      expect(status).toBe(200);
+    }
   }
 });
