@@ -189,14 +189,13 @@ tags: 测试, Markdown
   }
 });
 
-test("administrator manages music tracks and cover images", async ({ page }, testInfo) => {
+test("administrator manages music tracks", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-1440", "数据库写入流程只执行一次。" );
   test.setTimeout(180_000);
   const unique = `${Date.now()}${testInfo.retry}`;
   const firstTitle = `海边选曲-${unique}`;
   const secondTitle = `夜色选曲-${unique}`;
   const songIds = [`${unique}1`, `${unique}2`];
-  let coverUrl = "";
 
   try {
     await loginAsAdministrator(page);
@@ -214,11 +213,6 @@ test("administrator manages music tracks and cover images", async ({ page }, tes
     await page.getByLabel("歌手").fill("测试歌手 A");
     await page.getByLabel("网易云歌曲 ID").fill(songIds[0]);
     await page.getByLabel("推荐语").fill("适合海风轻轻吹过的时候。");
-    await page.locator("[data-music-cover-input]").setInputFiles("tests/fixtures/post-cover.png");
-    const coverImage = page.locator("[data-music-cover-preview] img");
-    await expect(coverImage).toBeVisible();
-    await expect(page.locator("[data-music-cover-status]")).toContainText("封面已上传");
-    coverUrl = await coverImage.getAttribute("src") ?? "";
     await page.getByRole("button", { name: "保存歌曲" }).click();
     await expect(page.getByText(firstTitle, { exact: true })).toBeVisible();
 
@@ -254,7 +248,6 @@ test("administrator manages music tracks and cover images", async ({ page }, tes
     await page.locator("tr").filter({ hasText: firstTitle })
       .getByRole("button", { name: `删除 ${firstTitle}` }).click();
     await expect(page.getByText(firstTitle, { exact: true })).toHaveCount(0);
-    if (coverUrl) expect(await waitForMediaStatus(page.request, coverUrl, 404)).toBe(true);
   } finally {
     try {
       const response = await page.request.get("/api/admin/music/");
@@ -267,98 +260,6 @@ test("administrator manages music tracks and cover images", async ({ page }, tes
     } catch {
       // Best-effort cleanup is sufficient; test failures retain the original assertion.
     }
-  }
-});
-
-test("starting new music track ignores a delayed cover upload", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop-1440", "上传竞态只在桌面项目执行一次。" );
-  test.setTimeout(90_000);
-  const uploadRoute = "**/api/admin/music/assets/";
-  let releaseUpload = () => {};
-  const uploadGate = new Promise<void>((resolve) => {
-    releaseUpload = resolve;
-  });
-  let uploadFinished: Promise<Response> | undefined;
-  let oldDraftCleanupFinished: Promise<Response> | undefined;
-
-  const delayUpload = async (route: Route) => {
-    await uploadGate;
-    await route.continue();
-  };
-
-  await page.route(uploadRoute, delayUpload);
-
-  try {
-    const title = page.getByLabel("歌曲名称");
-    const artist = page.getByLabel("歌手");
-    const songId = page.getByLabel("网易云歌曲 ID");
-    const draftToken = page.locator('input[name="draftToken"]');
-    const coverAssetId = page.locator('input[name="coverAssetId"]');
-    let oldDraftToken = "";
-
-    await test.step("prepare an existing music draft", async () => {
-      await loginAsAdministrator(page);
-      await page.getByRole("link", { name: "页面内容", exact: true }).click();
-      await title.fill("旧上传中的歌曲");
-      await artist.fill("旧歌手");
-      await songId.fill("123456789");
-      oldDraftToken = await draftToken.inputValue();
-    });
-
-    await test.step("hold the old draft cover upload", async () => {
-      const uploadStarted = page.waitForRequest((request) =>
-        request.method() === "POST"
-        && request.url().endsWith("/api/admin/music/assets/"), { timeout: 15_000 });
-
-      await page.locator("[data-music-cover-input]").setInputFiles("tests/fixtures/post-cover.png");
-      const uploadRequest = await uploadStarted;
-      uploadFinished = page.waitForResponse((response) =>
-        response.request() === uploadRequest, { timeout: 60_000 });
-    });
-
-    await test.step("start a new music draft while the upload is pending", async () => {
-      await page.getByRole("button", { name: "新增歌曲" }).click();
-      await expect(title).toHaveValue("");
-      await expect(artist).toHaveValue("");
-      await expect(songId).toHaveValue("");
-      await expect(draftToken).not.toHaveValue(oldDraftToken);
-
-      await title.fill("新歌曲");
-      await artist.fill("新歌手");
-      await songId.fill("987654321");
-    });
-
-    await test.step("finish the stale upload and clean its old draft", async () => {
-      oldDraftCleanupFinished = page.waitForResponse((response) =>
-        response.request().method() === "DELETE"
-        && response.url().endsWith(`/api/admin/post-assets/drafts/${oldDraftToken}/`),
-      { timeout: 60_000 });
-
-      releaseUpload();
-      const [uploadResponse, cleanupResponse] = await Promise.all([
-        uploadFinished!,
-        oldDraftCleanupFinished,
-      ]);
-      expect(uploadResponse.ok()).toBe(true);
-      expect(cleanupResponse.ok()).toBe(true);
-    });
-
-    await test.step("keep the new draft untouched by the stale upload", async () => {
-      await expect(title).toHaveValue("新歌曲");
-      await expect(artist).toHaveValue("新歌手");
-      await expect(songId).toHaveValue("987654321");
-      await expect(coverAssetId).toHaveValue("");
-      await expect(page.locator("[data-music-cover-preview] img")).toBeHidden();
-      await expect(page.locator("[data-music-cover-status]")).toHaveText("");
-    });
-  } finally {
-    releaseUpload();
-    await page.unroute(uploadRoute, delayUpload);
-    await Promise.allSettled(
-      [uploadFinished, oldDraftCleanupFinished].filter(
-        (pending): pending is Promise<Response> => pending !== undefined,
-      ),
-    );
   }
 });
 

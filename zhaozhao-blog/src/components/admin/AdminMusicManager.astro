@@ -3,7 +3,6 @@ import {
   ArrowDown,
   ArrowUp,
   Disc3,
-  ImagePlus,
   Pencil,
   Plus,
   Save,
@@ -23,7 +22,7 @@ const { tracks } = Astro.props;
   <div class="admin-panel__header">
     <div>
       <h2 id="home-music-heading">首页音乐</h2>
-      <p>维护全站选曲、同步播放音源、封面、推荐语和顺序。</p>
+      <p>维护全站选曲、同步播放音源、自动封面、推荐语和顺序。</p>
     </div>
   </div>
   <div class="admin-split admin-music" data-music-page>
@@ -81,7 +80,7 @@ const { tracks } = Astro.props;
     <aside class="admin-editor admin-music__editor">
       <p class="admin-music__kicker">NOW PLAYING DESK</p>
       <h2 data-music-editor-title>新增歌曲</h2>
-      <p>网易云 ID 用于歌曲信息、封面和在线音频；自定义音频地址可覆盖默认音源。</p>
+      <p>网易云 ID 用于自动获取歌曲名称、歌手和封面；自定义音频地址可覆盖默认音源。</p>
       <form class="admin-form" data-music-form>
         <input type="hidden" name="id" />
         <input type="hidden" name="draftToken" />
@@ -89,12 +88,7 @@ const { tracks } = Astro.props;
 
         <div class="admin-music-cover" data-music-cover-preview>
           <img src="" alt="歌曲封面预览" hidden />
-          <div data-music-cover-empty><Disc3 size={30} aria-hidden="true" /><span>可选封面</span></div>
-        </div>
-        <div class="admin-music-cover__actions">
-          <label class="admin-button" for="music-cover-input"><ImagePlus size={15} />上传封面</label>
-          <input id="music-cover-input" class="admin-post-file-input" type="file" accept="image/*" data-music-cover-input />
-          <button class="admin-button admin-button--danger" type="button" data-remove-music-cover><Trash2 size={15} />移除</button>
+          <div data-music-cover-empty><Disc3 size={30} aria-hidden="true" /><span>填写网易云 ID 后自动获取</span></div>
         </div>
         <p class="admin-status admin-music-cover__status" data-music-cover-status aria-live="polite"></p>
 

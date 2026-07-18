@@ -116,6 +116,7 @@ test("selects and searches music from any page", async ({ page }, testInfo) => {
     await page.goto("/admin/music/");
     await expect(page.getByText("留空时自动使用网易云在线音频；填写后优先使用自定义地址。"))
       .toBeVisible();
+    await expect(page.locator("[data-music-cover-input]")).toHaveCount(0);
     const create = await page.request.post("/api/admin/music/", {
       data: {
         title,
@@ -234,6 +235,10 @@ test("home and navbar controls share one persistent audio player", async ({
     await expect(navbarPlayer.getByRole("button", { name: "打开音乐播放器" })).toBeVisible();
 
     const track = page.locator("#weather-music [data-track]", { hasText: title });
+    await expect(track.locator(".now-track-list__cover img")).toHaveAttribute(
+      "src",
+      "/media/profile/avatar.jpg",
+    );
     await track.click();
     await expect(track).toHaveAttribute("aria-pressed", "true");
     await expect(navbarPlayer).toHaveAttribute("data-player-open", "false");

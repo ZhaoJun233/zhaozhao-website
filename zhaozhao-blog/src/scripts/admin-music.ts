@@ -16,8 +16,6 @@ type ApiResult<T> = {
   fieldErrors?: Record<string, string[]>;
 };
 
-type UploadedAsset = { id: string; url: string };
-
 type ImportedMusicMetadata = {
   title: string;
   artist: string;
@@ -35,7 +33,6 @@ if (page) {
   const idInput = form.elements.namedItem("id") as HTMLInputElement;
   const draftTokenInput = form.elements.namedItem("draftToken") as HTMLInputElement;
   const coverAssetInput = form.elements.namedItem("coverAssetId") as HTMLInputElement;
-  const coverFileInput = page.querySelector<HTMLInputElement>("[data-music-cover-input]")!;
   const coverImage = page.querySelector<HTMLImageElement>("[data-music-cover-preview] img")!;
   const coverEmpty = page.querySelector<HTMLElement>("[data-music-cover-empty]")!;
   const coverStatus = page.querySelector<HTMLElement>("[data-music-cover-status]")!;
@@ -43,8 +40,6 @@ if (page) {
   const metadataStatus = page.querySelector<HTMLElement>("[data-music-metadata-status]")!;
   const status = page.querySelector<HTMLElement>("[data-music-status]")!;
   const editorTitle = page.querySelector<HTMLElement>("[data-music-editor-title]")!;
-  let uploadPromise: Promise<void> | undefined;
-  let previewObjectUrl: string | undefined;
   let formGeneration = 0;
 
   const messageFrom = (result: ApiResult<unknown>, fallback: string) => {
@@ -59,13 +54,7 @@ if (page) {
 
   const input = (name: string) => form.elements.namedItem(name) as HTMLInputElement | HTMLTextAreaElement;
 
-  const revokePreview = () => {
-    if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
-    previewObjectUrl = undefined;
-  };
-
   const showCover = (url?: string) => {
-    revokePreview();
     if (url) {
       coverImage.src = url;
       coverImage.hidden = false;
@@ -86,15 +75,11 @@ if (page) {
 
   const resetForm = async (clean = true) => {
     const oldToken = draftTokenInput.value;
-    const oldUpload = uploadPromise;
     const resetGeneration = ++formGeneration;
-    uploadPromise = undefined;
     form.reset();
     idInput.value = "";
     draftTokenInput.value = crypto.randomUUID();
     coverAssetInput.value = "";
-    coverFileInput.value = "";
-    coverFileInput.disabled = false;
     metadataButton.disabled = false;
     editorTitle.textContent = "新增歌曲";
     showCover();
@@ -102,7 +87,6 @@ if (page) {
     setStatus(coverStatus, "");
     setStatus(metadataStatus, "");
     if (clean && oldToken) {
-      if (oldUpload) await oldUpload.catch(() => undefined);
       await cleanupDraft(oldToken);
     }
     return resetGeneration;
@@ -147,57 +131,6 @@ if (page) {
     });
   });
 
-  page.querySelector<HTMLElement>("[data-remove-music-cover]")?.addEventListener("click", () => {
-    coverAssetInput.value = "";
-    coverFileInput.value = "";
-    showCover();
-    setStatus(coverStatus, "封面将在保存后移除。");
-  });
-
-  coverFileInput.addEventListener("change", () => {
-    const file = coverFileInput.files?.[0];
-    if (!file) return;
-    revokePreview();
-    previewObjectUrl = URL.createObjectURL(file);
-    coverImage.src = previewObjectUrl;
-    coverImage.hidden = false;
-    coverEmpty.hidden = true;
-    setStatus(coverStatus, "正在上传封面…");
-    coverFileInput.disabled = true;
-    const uploadToken = draftTokenInput.value;
-    const uploadGeneration = formGeneration;
-    const isCurrentUpload = () => (
-      uploadGeneration === formGeneration && draftTokenInput.value === uploadToken
-    );
-    const body = new FormData();
-    body.set("file", file);
-    body.set("draftToken", uploadToken);
-    uploadPromise = fetch("/api/admin/music/assets/", { method: "POST", body })
-      .then(async (response) => {
-        const result = await response.json() as ApiResult<{ asset: UploadedAsset }>;
-        if (!response.ok || !result.data?.asset) {
-          throw new Error(messageFrom(result, "封面上传失败。"));
-        }
-        if (!isCurrentUpload()) return;
-        coverAssetInput.value = result.data.asset.id;
-        showCover(result.data.asset.url);
-        setStatus(coverStatus, "封面已上传，保存歌曲后正式关联。");
-      })
-      .catch((error: unknown) => {
-        if (isCurrentUpload()) {
-          coverAssetInput.value = "";
-          setStatus(coverStatus, error instanceof Error ? error.message : "封面上传失败。", true);
-        }
-        throw error;
-      })
-      .finally(() => {
-        if (isCurrentUpload()) {
-          coverFileInput.disabled = false;
-          uploadPromise = undefined;
-        }
-      });
-  });
-
   metadataButton.addEventListener("click", () => {
     const songIdInput = input("neteaseSongId") as HTMLInputElement;
     if (!songIdInput.checkValidity()) {
@@ -236,9 +169,8 @@ if (page) {
         input("artist").value = result.data.artist;
         if (result.data.coverAssetId && result.data.coverUrl) {
           coverAssetInput.value = result.data.coverAssetId;
-          coverFileInput.value = "";
           showCover(result.data.coverUrl);
-          setStatus(coverStatus, "封面已获取，保存歌曲后正式关联。");
+          setStatus(coverStatus, "封面已自动获取，保存歌曲后正式关联。");
         }
         setStatus(metadataStatus, result.data.warning ?? "歌曲信息已获取。");
       } catch (error) {
@@ -315,9 +247,8 @@ if (page) {
     event.preventDefault();
     const submit = form.querySelector<HTMLButtonElement>("button[type='submit']")!;
     submit.disabled = true;
-    setStatus(status, uploadPromise ? "正在等待封面上传完成…" : "正在保存歌曲…");
+    setStatus(status, "正在保存歌曲…");
     void (async () => {
-      if (uploadPromise) await uploadPromise;
       const id = idInput.value;
       const response = await fetch(id ? `/api/admin/music/${id}/` : "/api/admin/music/", {
         method: id ? "PUT" : "POST",

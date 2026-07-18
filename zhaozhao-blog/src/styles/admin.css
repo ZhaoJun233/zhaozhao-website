@@ -91,7 +91,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .admin-music-cover img { inline-size: 100%; block-size: 100%; max-block-size: 17rem; aspect-ratio: 1 / 1; object-fit: cover; }
 .admin-music-cover [data-music-cover-empty] { display: grid; place-items: center; gap: .35rem; color: #777169; font-size: .68rem; }
 .admin-music-cover [data-music-cover-empty][hidden] { display: none; }
-.admin-music-cover__actions { display: flex; flex-wrap: wrap; gap: .5rem; }
 .admin-music-cover__status { margin-block-start: -.5rem; }
 .admin-content-music { scroll-margin-top: 1rem; }
 .admin-content-music > .admin-panel__header { margin-block: 1.5rem 1rem; }

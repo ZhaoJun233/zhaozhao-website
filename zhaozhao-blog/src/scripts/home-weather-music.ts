@@ -56,6 +56,7 @@ function initializeHomeWeatherMusic(): void {
   const notesElement = section.querySelector<HTMLScriptElement>("[data-weather-notes]");
   const notes = JSON.parse(notesElement?.textContent ?? "{}") as WeatherNotes;
   const endpoint = section.dataset.weatherEndpoint ?? "/api/weather/";
+  const coverEndpoint = section.dataset.coverEndpoint ?? "/api/music/covers/";
   const drawerStorageKey = "hero-weather-music-open";
   const mobileQuery = window.matchMedia("(max-width: 899px)");
   const weatherRefreshMs = 10 * 60 * 1000;
@@ -252,6 +253,36 @@ function initializeHomeWeatherMusic(): void {
     }
   };
 
+  const showTrackCover = (button: HTMLButtonElement, coverUrl: string) => {
+    button.dataset.trackCover = coverUrl;
+    const cover = button.querySelector<HTMLElement>(".now-track-list__cover");
+    if (!cover) return;
+    const image = document.createElement("img");
+    image.src = coverUrl;
+    image.alt = "";
+    image.loading = "lazy";
+    cover.replaceChildren(image);
+  };
+
+  const loadTrackCovers = async () => {
+    try {
+      const response = await fetch(coverEndpoint, {
+        headers: { accept: "application/json" },
+      });
+      const result = await response.json() as { data?: Record<string, string> };
+      if (!response.ok || !result.data) throw new Error("专辑封面读取失败");
+      for (const button of section.querySelectorAll<HTMLButtonElement>("[data-track]")) {
+        const coverUrl = button.dataset.trackId ? result.data[button.dataset.trackId] : undefined;
+        if (coverUrl?.trim()) showTrackCover(button, coverUrl);
+      }
+      const selected = selectedTrackFromHeader();
+      const selectedCover = selected ? result.data[selected.id] : undefined;
+      if (selected && selectedCover?.trim()) applyMusicSelection({ ...selected, coverUrl: selectedCover });
+    } catch {
+      // Keep the music list usable when automatic cover lookup is unavailable.
+    }
+  };
+
   const formatTime = (seconds: number) => {
     if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
     const rounded = Math.floor(seconds);
@@ -354,6 +385,7 @@ function initializeHomeWeatherMusic(): void {
   document.addEventListener("site:music-state", handleMusicState);
 
   applyMusicSelection(selectedTrackFromHeader());
+  void loadTrackCovers();
   document.dispatchEvent(new CustomEvent("site:music-state-request"));
   setDrawerOpen(storedDrawerState() ?? !mobileQuery.matches, false);
 
