@@ -3,10 +3,13 @@ import FeaturedPosts from "../components/home/FeaturedPosts.astro";
 import FeaturedProjects from "../components/home/FeaturedProjects.astro";
 import HomeHero from "../components/home/HomeHero.astro";
 import HomeIntroduction from "../components/home/HomeIntroduction.astro";
+import HomeWeatherMusic from "../components/home/HomeWeatherMusic.astro";
 import TopicBand, { type HomeTopic } from "../components/home/TopicBand.astro";
 import { siteConfig } from "../config/site";
 import BaseLayout from "../layouts/BaseLayout.astro";
+import { getDatabase } from "../lib/cloudflare/bindings";
 import { buildCategoryIndex, sortPostEntries } from "../lib/content";
+import { listEnabledMusicTracks } from "../lib/database/music-repository";
 import {
   loadRuntimeEditorial,
   loadRuntimePosts,
@@ -35,7 +38,11 @@ const homeProjects = [...projects]
   )
   .slice(0, 3);
 
-const [profile, editorial] = await Promise.all([loadRuntimeProfile(), loadRuntimeEditorial()]);
+const [profile, editorial, tracks] = await Promise.all([
+  loadRuntimeProfile(),
+  loadRuntimeEditorial(),
+  listEnabledMusicTracks(getDatabase()),
+]);
 const topics: HomeTopic[] = buildCategoryIndex(
   editorial.taxonomy.categories,
   publishedPosts.map(({ data }) => data.category),
@@ -77,6 +84,8 @@ const status = editorial.homepage.status;
       <p class="status-note">{topics.map(({ label }) => label).join(" · ")}</p>
     </div>
   </aside>
+
+  <HomeWeatherMusic tracks={tracks} content={editorial.nowPage} />
 
   <FeaturedPosts posts={homePosts} />
   <TopicBand topics={topics} />

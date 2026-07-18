@@ -7,7 +7,7 @@ async function login(page: Page) {
   await expect(page.getByRole("heading", { level: 1, name: "后台概览" })).toBeVisible();
 }
 
-test("sea window shows local time, visitor weather, and one selected NetEase player", async ({
+test("homepage shows visitor weather and one selected NetEase player", async ({
   page,
   context,
 }, testInfo) => {
@@ -53,14 +53,15 @@ test("sea window shows local time, visitor weather, and one selected NetEase pla
     expect(create.ok()).toBe(true);
     trackId = ((await create.json()) as { data: { id: string } }).data.id;
 
-    await page.goto("/now/");
-    await expect(page.getByRole("heading", { level: 1, name: "此刻" })).toBeVisible();
-    await expect(page.getByLabel("当前时间")).toBeVisible();
+    await page.goto("/");
+    await expect(page.locator("#weather-music")).toBeVisible();
     await expect(page.getByRole("region", { name: "访客天气" })).toBeVisible();
     await expect(page.getByRole("region", { name: "233昭的今日选曲" })).toBeVisible();
+    await expect(page.locator("[data-now-time], [data-now-date], [data-now-greeting]")).toHaveCount(0);
     await expect(page.getByText("杭州", { exact: true })).toBeVisible();
-    await expect.poll(() => weatherRequests.some((url) => url.includes("lat=30.2741") && url.includes("lon=120.1551")))
-      .toBe(true);
+    await expect.poll(() => weatherRequests.some((url) => (
+      url.includes("lat=30.2741") && url.includes("lon=120.1551")
+    ))).toBe(true);
     await expect(page.locator("iframe[src*='music.163.com/outchain/player']")).toHaveCount(0);
 
     const track = page.getByRole("button", { name: new RegExp(title) });
@@ -73,10 +74,10 @@ test("sea window shows local time, visitor weather, and one selected NetEase pla
     await expect(iframe).toHaveCount(1);
 
     if (testInfo.project.name === "mobile-390") {
-      const timeBox = await page.locator("[data-now-section='time']").boundingBox();
-      const weatherBox = await page.locator("[data-now-section='weather']").boundingBox();
-      const musicBox = await page.locator("[data-now-section='music']").boundingBox();
-      expect(timeBox!.y).toBeLessThan(weatherBox!.y);
+      const weatherBox = await page.locator("[data-home-section='weather']").boundingBox();
+      const musicBox = await page.locator("[data-home-section='music']").boundingBox();
+      expect(weatherBox).not.toBeNull();
+      expect(musicBox).not.toBeNull();
       expect(weatherBox!.y).toBeLessThan(musicBox!.y);
       expect((await track.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     }
@@ -92,4 +93,11 @@ test("sea window shows local time, visitor weather, and one selected NetEase pla
       expect(status).toBe(200);
     }
   }
+});
+
+test("legacy now route redirects to the homepage section", async ({ page }) => {
+  const response = await page.goto("/now/");
+  expect(response?.status()).toBe(200);
+  await expect(page).toHaveURL(/\/#weather-music$/);
+  await expect(page.locator("#weather-music")).toBeVisible();
 });

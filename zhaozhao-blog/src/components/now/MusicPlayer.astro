@@ -16,7 +16,7 @@ interface Props {
 const { tracks, content } = Astro.props;
 ---
 
-<section class="now-music" data-now-section="music" data-music-player aria-label={content.eyebrow}>
+<section class="now-music" data-home-section="music" data-music-player aria-label={content.eyebrow}>
   <div class="now-music__heading">
     <div>
       <p class="now-eyebrow">{content.eyebrow}</p>
@@ -28,7 +28,7 @@ const { tracks, content } = Astro.props;
   {tracks.length > 0 ? (
     <div class="now-music__body">
       <div class="now-player-card">
-        <div class="now-vinyl" data-now-vinyl aria-hidden="true">
+        <div class="now-vinyl" data-music-vinyl aria-hidden="true">
           <span></span>
         </div>
         <div class="now-player-card__meta">

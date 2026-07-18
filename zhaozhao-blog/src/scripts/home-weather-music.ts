@@ -12,55 +12,12 @@ type WeatherSnapshot = {
 
 type WeatherNotes = Record<"clear" | "cloudy" | "rain" | "snow" | "storm" | "fallback", string>;
 
-const page = document.querySelector<HTMLElement>("[data-now-page]");
+const section = document.querySelector<HTMLElement>("[data-home-weather-music]");
+const geolocationSessionKey = "home-weather-geolocation-attempted";
 
-if (page) {
-  const time = page.querySelector<HTMLTimeElement>("[data-now-time]")!;
-  const date = page.querySelector<HTMLElement>("[data-now-date]")!;
-  const greeting = page.querySelector<HTMLElement>("[data-now-greeting]")!;
-
-  const dayPart = (hour: number) => {
-    if (hour >= 5 && hour < 9) return "dawn";
-    if (hour >= 9 && hour < 17) return "day";
-    if (hour >= 17 && hour < 20) return "dusk";
-    return "night";
-  };
-
-  const greetingFor = (hour: number) => {
-    if (hour >= 5 && hour < 11) return "早上好，愿今天从一阵轻柔的海风开始。";
-    if (hour >= 11 && hour < 14) return "中午好，暂时把忙碌放在窗外。";
-    if (hour >= 14 && hour < 18) return "下午好，光正在海面上慢慢移动。";
-    if (hour >= 18 && hour < 23) return "晚上好，选一首歌陪晚霞退场。";
-    return "夜深了，让旋律替海面留一盏灯。";
-  };
-
-  const updateClock = () => {
-    const now = new Date();
-    time.dateTime = now.toISOString();
-    time.textContent = new Intl.DateTimeFormat("zh-CN", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hourCycle: "h23",
-    }).format(now);
-    date.textContent = new Intl.DateTimeFormat("zh-CN", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      weekday: "long",
-    }).format(now);
-    greeting.textContent = greetingFor(now.getHours());
-    document.documentElement.dataset.dayPart = dayPart(now.getHours());
-  };
-
-  updateClock();
-  const minuteTimer = window.setInterval(updateClock, 60_000);
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") updateClock();
-  });
-  window.addEventListener("pagehide", () => window.clearInterval(minuteTimer), { once: true });
-
-  const weatherPanel = page.querySelector<HTMLElement>("[data-weather-panel]");
-  const notesElement = page.querySelector<HTMLScriptElement>("[data-weather-notes]");
+if (section) {
+  const weatherPanel = section.querySelector<HTMLElement>("[data-weather-panel]");
+  const notesElement = section.querySelector<HTMLScriptElement>("[data-weather-notes]");
   const notes = JSON.parse(notesElement?.textContent ?? "{}") as WeatherNotes;
   let weatherRequest = 0;
 
@@ -81,7 +38,7 @@ if (page) {
   };
 
   const setText = (selector: string, value: string) => {
-    const element = page.querySelector<HTMLElement>(selector);
+    const element = section.querySelector<HTMLElement>(selector);
     if (element) element.textContent = value;
   };
 
@@ -113,11 +70,11 @@ if (page) {
     }
   };
 
-  const endpoint = page.dataset.weatherEndpoint ?? "/api/weather";
+  const endpoint = section.dataset.weatherEndpoint ?? "/api/weather/";
   void loadWeather(endpoint);
 
   const requestPreciseWeather = async () => {
-    if (!navigator.geolocation || sessionStorage.getItem("now-geolocation-attempted")) return;
+    if (!navigator.geolocation || sessionStorage.getItem(geolocationSessionKey)) return;
     if (navigator.permissions) {
       try {
         const permission = await navigator.permissions.query({ name: "geolocation" });
@@ -126,7 +83,7 @@ if (page) {
         // Browsers without a geolocation permission descriptor continue with one normal request.
       }
     }
-    sessionStorage.setItem("now-geolocation-attempted", "1");
+    sessionStorage.setItem(geolocationSessionKey, "1");
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
         const url = new URL(endpoint, window.location.origin);
@@ -140,10 +97,10 @@ if (page) {
   };
   void requestPreciseWeather();
 
-  const player = page.querySelector<HTMLElement>("[data-music-player]");
+  const player = section.querySelector<HTMLElement>("[data-music-player]");
   if (player) {
     const frame = player.querySelector<HTMLElement>("[data-player-frame]");
-    const vinyl = player.querySelector<HTMLElement>("[data-now-vinyl]");
+    const vinyl = player.querySelector<HTMLElement>("[data-music-vinyl]");
     const currentTitle = player.querySelector<HTMLElement>("[data-current-track]");
     const currentArtist = player.querySelector<HTMLElement>("[data-current-artist]");
     const currentLink = player.querySelector<HTMLAnchorElement>("[data-current-link]");

@@ -29,6 +29,7 @@ test("mobile moves copy below the artwork", async ({ page }) => {
 test("home composition exposes its discovery landmarks", async ({ page }) => {
   await page.goto("/");
 
+  await expect(page.locator("#weather-music")).toBeVisible();
   await expect(page.getByTestId("featured-posts")).toBeVisible();
   await expect(page.getByTestId("home-introduction")).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
