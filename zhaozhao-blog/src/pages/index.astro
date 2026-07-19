@@ -70,8 +70,11 @@ const status = editorial.homepage.status;
   image={editorial.artwork.homeHero.imageUrl}
   page="home"
   headerOverlay={true}
+  runtimeProfile={profile}
+  runtimeNavigation={editorial.navigation}
+  musicTracks={tracks}
 >
-  <HomeHero>
+  <HomeHero profile={profile} hero={editorial.homepage.hero} heroArtwork={editorial.artwork.homeHero}>
     <HomeWeatherMusic
       slot="weather-music"
       tracks={tracks}
@@ -91,10 +94,14 @@ const status = editorial.homepage.status;
     </div>
   </aside>
 
-  <FeaturedPosts posts={homePosts} />
-  <TopicBand topics={topics} />
-  <FeaturedProjects projects={homeProjects} />
-  <HomeIntroduction />
+  <FeaturedPosts posts={homePosts} copy={editorial.homepage.featuredPosts} />
+  <TopicBand topics={topics} copy={editorial.homepage.topics} />
+  <FeaturedProjects projects={homeProjects} copy={editorial.homepage.featuredProjects} />
+  <HomeIntroduction
+    profile={profile}
+    copy={editorial.homepage.introduction}
+    artwork={editorial.artwork.aboutSummerDream}
+  />
 </BaseLayout>
 
 <style>

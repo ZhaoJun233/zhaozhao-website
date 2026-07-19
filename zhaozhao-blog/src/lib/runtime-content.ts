@@ -13,9 +13,7 @@ import {
   pageCopySchema,
 } from "../data/content";
 import {
-  readCategories,
-  readFriendPage,
-  readFriends,
+  readEditorialSource,
   readPosts,
   readProjects,
   readSetting,
@@ -84,6 +82,7 @@ const projectDataSchema = z.object({
 });
 
 export type RuntimeProfile = z.infer<typeof profileSchema> & { avatarUrl: string };
+export type RuntimeNavigation = z.infer<typeof navigationSchema>;
 export type RuntimePost = {
   id: string;
   body: string;
@@ -139,32 +138,26 @@ export async function loadRuntimeProfile(): Promise<RuntimeProfile> {
   return { ...profile, avatarUrl: mediaUrl(profile.avatar)! };
 }
 
+export async function loadRuntimeNavigation(): Promise<RuntimeNavigation> {
+  return navigationSchema.parse(await readSetting("navigation"));
+}
+
 export async function loadRuntimeEditorial() {
-  const [
-    navigationValue,
-    homepageValue,
-    aboutValue,
-    guestbookValue,
-    nowPageValue,
-    creditsValue,
-    pageCopyValue,
-    categoryRows,
+  const {
+    settings: {
+      navigation: navigationValue,
+      homepage: homepageValue,
+      about: aboutValue,
+      guestbook: guestbookValue,
+      now_page: nowPageValue,
+      credits: creditsValue,
+      page_copy: pageCopyValue,
+      artwork: artworkValue,
+    },
+    categories: categoryRows,
     friendPage,
-    friendRows,
-    artworkValue,
-  ] = await Promise.all([
-    readSetting("navigation"),
-    readSetting("homepage"),
-    readSetting("about"),
-    readSetting("guestbook"),
-    readSetting("now_page"),
-    readSetting("credits"),
-    readSetting("page_copy"),
-    readCategories(),
-    readFriendPage<Record<string, unknown>>(),
-    readFriends(),
-    readSetting("artwork"),
-  ]);
+    friends: friendRows,
+  } = await readEditorialSource();
   const navigation = navigationSchema.parse(navigationValue);
   const homepage = homepageSchema.parse(homepageValue);
   const about = aboutSchema.parse(aboutValue);

@@ -1,12 +1,13 @@
 ---
-import { loadRuntimeEditorial, type RuntimeProject } from "../../lib/runtime-content";
+import type { HomepageContent } from "../../data/content";
+import type { RuntimeProject } from "../../lib/runtime-content";
 
 interface Props {
   projects: RuntimeProject[];
+  copy: HomepageContent["featuredProjects"];
 }
 
-const { projects } = Astro.props;
-const copy = (await loadRuntimeEditorial()).homepage.featuredProjects;
+const { projects, copy } = Astro.props;
 const statusLabels = copy.statusLabels;
 ---
 

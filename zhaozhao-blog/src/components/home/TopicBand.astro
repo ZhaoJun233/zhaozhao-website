@@ -1,5 +1,5 @@
 ---
-import { loadRuntimeEditorial } from "../../lib/runtime-content";
+import type { HomepageContent } from "../../data/content";
 
 export type HomeTopic = {
   label: string;
@@ -9,10 +9,10 @@ export type HomeTopic = {
 
 interface Props {
   topics: HomeTopic[];
+  copy: HomepageContent["topics"];
 }
 
-const { topics } = Astro.props;
-const copy = (await loadRuntimeEditorial()).homepage.topics;
+const { topics, copy } = Astro.props;
 ---
 
 <section class="topic-band" aria-labelledby="topic-band-title">

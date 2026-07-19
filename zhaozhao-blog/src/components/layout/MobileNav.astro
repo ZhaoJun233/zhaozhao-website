@@ -1,13 +1,13 @@
 ---
 import { ExternalLink, X } from "lucide-astro";
-import { loadRuntimeEditorial } from "../../lib/runtime-content";
+import type { RuntimeNavigation } from "../../lib/runtime-content";
 
 interface Props {
   currentPath: string;
+  navigation: RuntimeNavigation;
 }
 
-const { currentPath } = Astro.props;
-const { navigation } = await loadRuntimeEditorial();
+const { currentPath, navigation } = Astro.props;
 const { mobile } = navigation;
 
 function normalizePath(path: string): string {
@@ -47,7 +47,7 @@ function isCurrent(href: string): boolean {
       <ul>
         {navigation.items.map((item, index) => (
           <li>
-            <a href={item.href} aria-current={isCurrent(item.href) ? "page" : undefined} data-nav-link>
+            <a href={item.href} data-astro-prefetch="hover" aria-current={isCurrent(item.href) ? "page" : undefined} data-nav-link>
               <span aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
               <strong>{item.label}</strong>
             </a>

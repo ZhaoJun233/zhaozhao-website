@@ -1,16 +1,17 @@
 ---
-import { loadRuntimeEditorial, type RuntimePost } from "../../lib/runtime-content";
+import type { HomepageContent } from "../../data/content";
+import type { RuntimePost } from "../../lib/runtime-content";
 import { resolveHomePostLayout } from "../../lib/home-post-layout";
 import PostCard from "../blog/PostCard.astro";
 
 interface Props {
   posts: RuntimePost[];
+  copy: HomepageContent["featuredPosts"];
 }
 
-const { posts } = Astro.props;
+const { posts, copy } = Astro.props;
 const [leadPost, ...supportingPosts] = posts;
 const layout = resolveHomePostLayout(posts.length, leadPost?.data.coverUrl !== undefined);
-const copy = (await loadRuntimeEditorial()).homepage.featuredPosts;
 ---
 
 <section

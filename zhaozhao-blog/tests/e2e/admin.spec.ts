@@ -4,7 +4,6 @@ import {
   type APIRequestContext,
   type Page,
   type Route,
-  type Response,
   type TestInfo,
 } from "@playwright/test";
 

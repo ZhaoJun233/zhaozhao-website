@@ -26,6 +26,37 @@ test("client navigation keeps the page alive and initializes guestbook behavior"
   await expect(page.getByText("测试留言已提交。", { exact: true })).toBeVisible();
 });
 
+test("client navigation registers the global scroll handler only once", async ({ page }) => {
+  await page.addInitScript(() => {
+    const original = window.addEventListener.bind(window);
+    let scrollRegistrations = 0;
+    window.addEventListener = ((type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions) => {
+      if (type === "scroll") scrollRegistrations += 1;
+      original(type, listener, options);
+    }) as typeof window.addEventListener;
+    Object.defineProperty(window, "__scrollRegistrations", {
+      configurable: true,
+      get: () => scrollRegistrations,
+    });
+  });
+
+  await page.goto("/");
+  const initial = await page.evaluate(() => (
+    window as typeof window & { __scrollRegistrations: number }
+  ).__scrollRegistrations);
+
+  for (const path of ["/posts/", "/categories/", "/archive/", "/"]) {
+    await page.evaluate((href) => {
+      document.querySelector<HTMLAnchorElement>(`header a[href='${href}']`)?.click();
+    }, path);
+    await expect(page).toHaveURL(new RegExp(path === "/" ? "/$" : path));
+  }
+
+  await expect.poll(() => page.evaluate(() => (
+    window as typeof window & { __scrollRegistrations: number }
+  ).__scrollRegistrations)).toBe(initial);
+});
+
 test("project filters expose one active status and a live result count", async ({ page }) => {
   await page.goto("/projects/");
 

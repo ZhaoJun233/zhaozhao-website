@@ -1,10 +1,14 @@
 ---
 import { ExternalLink, Rss } from "lucide-astro";
-import { loadRuntimeEditorial, loadRuntimeProfile } from "../../lib/runtime-content";
+import type { RuntimeNavigation, RuntimeProfile } from "../../lib/runtime-content";
 
 const year = new Date().getFullYear();
-const [profile, editorial] = await Promise.all([loadRuntimeProfile(), loadRuntimeEditorial()]);
-const { footer, items: navigation } = editorial.navigation;
+interface Props {
+  profile: RuntimeProfile;
+  navigation: RuntimeNavigation;
+}
+const { profile, navigation } = Astro.props;
+const { footer, items } = navigation;
 ---
 
 <footer class="site-footer">
@@ -17,8 +21,8 @@ const { footer, items: navigation } = editorial.navigation;
     <nav aria-label="页脚导航">
       <span>{footer.navigationLabel}</span>
       <ul>
-        {navigation.slice(1).map((item) => (
-          <li><a href={item.href}>{item.label}</a></li>
+        {items.slice(1).map((item) => (
+          <li><a href={item.href} data-astro-prefetch="hover">{item.label}</a></li>
         ))}
       </ul>
     </nav>

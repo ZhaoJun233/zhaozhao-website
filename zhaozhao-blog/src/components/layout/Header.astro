@@ -1,8 +1,7 @@
 ---
 import { Menu, Search } from "lucide-astro";
-import { getDatabase } from "../../lib/cloudflare/bindings";
-import { listEnabledMusicTracks } from "../../lib/database/music-repository";
-import { loadRuntimeEditorial, loadRuntimeProfile } from "../../lib/runtime-content";
+import type { AdminMusicTrack } from "../../lib/database/music-repository";
+import type { RuntimeNavigation, RuntimeProfile } from "../../lib/runtime-content";
 import ThemeToggle from "../ui/ThemeToggle.astro";
 import HeaderMusicPlayer from "./HeaderMusicPlayer.astro";
 import HeaderWeather from "./HeaderWeather.astro";
@@ -11,15 +10,18 @@ import MobileNav from "./MobileNav.astro";
 interface Props {
   currentPath?: string;
   overlay?: boolean;
+  profile: RuntimeProfile;
+  navigation: RuntimeNavigation;
+  tracks: AdminMusicTrack[];
 }
 
-const { currentPath = Astro.url.pathname, overlay = false } = Astro.props;
-const [profile, editorial, tracks] = await Promise.all([
-  loadRuntimeProfile(),
-  loadRuntimeEditorial(),
-  listEnabledMusicTracks(getDatabase()),
-]);
-const navigation = editorial.navigation.items;
+const {
+  currentPath = Astro.url.pathname,
+  overlay = false,
+  profile,
+  navigation,
+  tracks,
+} = Astro.props;
 
 function normalizePath(path: string): string {
   return path === "/" ? path : `${path.replace(/\/+$/, "")}/`;
@@ -42,9 +44,9 @@ function isCurrent(href: string): boolean {
 
     <nav class="desktop-nav" aria-label="主导航">
       <ul>
-        {navigation.map((item) => (
+        {navigation.items.map((item) => (
           <li>
-            <a href={item.href} aria-current={isCurrent(item.href) ? "page" : undefined}>
+            <a href={item.href} data-astro-prefetch="hover" aria-current={isCurrent(item.href) ? "page" : undefined}>
               {item.label}
             </a>
           </li>
@@ -77,7 +79,7 @@ function isCurrent(href: string): boolean {
   </div>
 </header>
 
-<MobileNav currentPath={currentPath} />
+<MobileNav currentPath={currentPath} navigation={navigation} />
 
 <style>
   .site-header {
@@ -87,9 +89,9 @@ function isCurrent(href: string): boolean {
     inset-inline: 0;
     block-size: var(--header-height);
     border-block-end: 1px solid var(--color-border);
-    background: color-mix(in srgb, var(--color-bg) 92%, transparent);
+    background: color-mix(in srgb, var(--color-bg) 98%, var(--color-bg-soft));
     color: var(--color-text);
-    backdrop-filter: blur(18px) saturate(1.18);
+    backdrop-filter: none;
     transition:
       background-color var(--transition-base),
       border-color var(--transition-base),
@@ -231,9 +233,9 @@ function isCurrent(href: string): boolean {
     .site-header,
     .site-header--overlay:not([data-scrolled="true"]) {
       border-block-end-color: var(--color-border);
-      background: color-mix(in srgb, var(--color-bg) 92%, transparent);
+      background: color-mix(in srgb, var(--color-bg) 98%, var(--color-bg-soft));
       color: var(--color-text);
-      backdrop-filter: blur(18px) saturate(1.18);
+      backdrop-filter: none;
     }
 
     .site-header--overlay:not([data-scrolled="true"]) :global(.icon-button) {

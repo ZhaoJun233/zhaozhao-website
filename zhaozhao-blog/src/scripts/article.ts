@@ -80,34 +80,60 @@ function initializeCopyLink(article: HTMLElement): void {
   });
 }
 
-function initializeProgress(article: HTMLElement): void {
+function initializeProgress(article: HTMLElement, signal: AbortSignal): () => void {
   const body = article.querySelector<HTMLElement>("[data-article-body]");
   const progress = document.querySelector<HTMLElement>("[data-reading-progress]");
-  if (!body || !progress || article.dataset.progressReady === "true") return;
-  article.dataset.progressReady = "true";
+  if (!body || !progress) return () => undefined;
 
   let frame = 0;
+  let start = 0;
+  let end = 1;
+  let lastValue = "";
+  let lastPercent = "";
+  const measure = (): void => {
+    const bounds = body.getBoundingClientRect();
+    start = bounds.top + window.scrollY - window.innerHeight * 0.22;
+    end = bounds.bottom + window.scrollY - window.innerHeight * 0.78;
+  };
   const update = (): void => {
     frame = 0;
-    const start = body.getBoundingClientRect().top + window.scrollY - window.innerHeight * 0.22;
-    const end = body.getBoundingClientRect().bottom + window.scrollY - window.innerHeight * 0.78;
     const range = Math.max(1, end - start);
     const value = Math.min(1, Math.max(0, (window.scrollY - start) / range));
-    document.documentElement.style.setProperty("--reading-progress", value.toFixed(4));
-    progress.setAttribute("aria-valuenow", String(Math.round(value * 100)));
+    const nextValue = value.toFixed(4);
+    const nextPercent = String(Math.round(value * 100));
+    if (nextValue !== lastValue) {
+      document.documentElement.style.setProperty("--reading-progress", nextValue);
+      lastValue = nextValue;
+    }
+    if (nextPercent !== lastPercent) {
+      progress.setAttribute("aria-valuenow", nextPercent);
+      lastPercent = nextPercent;
+    }
   };
 
   const scheduleUpdate = (): void => {
-    if (frame !== 0) return;
+    if (signal.aborted || frame !== 0) return;
     frame = window.requestAnimationFrame(update);
   };
 
+  const measureAndUpdate = (): void => {
+    measure();
+    scheduleUpdate();
+  };
+
+  measure();
   update();
-  window.addEventListener("scroll", scheduleUpdate, { passive: true });
-  window.addEventListener("resize", scheduleUpdate, { passive: true });
+  window.addEventListener("scroll", scheduleUpdate, { passive: true, signal });
+  window.addEventListener("resize", measureAndUpdate, { passive: true, signal });
+  const observer = new ResizeObserver(measureAndUpdate);
+  observer.observe(body);
+  return () => {
+    observer.disconnect();
+    if (frame !== 0) window.cancelAnimationFrame(frame);
+  };
 }
 
-function initializeTableOfContents(article: HTMLElement): void {
+function initializeTableOfContents(article: HTMLElement, signal: AbortSignal): () => void {
   const links = [...article.querySelectorAll<HTMLAnchorElement>("[data-toc-link]")];
   const headings = [...new Set(
     links
@@ -115,17 +141,27 @@ function initializeTableOfContents(article: HTMLElement): void {
       .map((id) => document.getElementById(id))
       .filter((heading): heading is HTMLElement => heading !== null),
   )];
-  if (headings.length === 0 || article.dataset.tocReady === "true") return;
-  article.dataset.tocReady = "true";
+  if (headings.length === 0) return () => undefined;
+
+  let headingOffsets: Array<{ id: string; top: number }> = [];
+  let activeId = "";
+  const measureHeadings = (): void => {
+    headingOffsets = headings.map((heading) => ({
+      id: heading.id,
+      top: heading.getBoundingClientRect().top + window.scrollY,
+    }));
+  };
 
   const updateActiveLink = (): void => {
-    const offset = window.innerHeight * 0.28;
-    const active = headings.reduce<HTMLElement>((current, heading) => {
-      return heading.getBoundingClientRect().top <= offset ? heading : current;
-    }, headings[0]!);
+    const offset = window.scrollY + window.innerHeight * 0.28;
+    const active = headingOffsets.reduce((current, heading) => (
+      heading.top <= offset ? heading : current
+    ), headingOffsets[0]!);
+    if (active.id === activeId) return;
+    activeId = active.id;
 
     links.forEach((link) => {
-      const isActive = decodeURIComponent(link.hash.slice(1)) === active.id;
+      const isActive = decodeURIComponent(link.hash.slice(1)) === activeId;
       link.toggleAttribute("data-active", isActive);
       if (isActive) link.setAttribute("aria-current", "location");
       else link.removeAttribute("aria-current");
@@ -134,26 +170,54 @@ function initializeTableOfContents(article: HTMLElement): void {
 
   let frame = 0;
   const scheduleUpdate = (): void => {
-    if (frame !== 0) return;
+    if (signal.aborted || frame !== 0) return;
     frame = window.requestAnimationFrame(() => {
       frame = 0;
       updateActiveLink();
     });
   };
 
+  const measureAndUpdate = (): void => {
+    measureHeadings();
+    activeId = "";
+    scheduleUpdate();
+  };
+
+  measureHeadings();
   updateActiveLink();
-  window.addEventListener("scroll", scheduleUpdate, { passive: true });
-  window.addEventListener("resize", scheduleUpdate, { passive: true });
+  window.addEventListener("scroll", scheduleUpdate, { passive: true, signal });
+  window.addEventListener("resize", measureAndUpdate, { passive: true, signal });
+  const observer = new ResizeObserver(measureAndUpdate);
+  observer.observe(article);
+  return () => {
+    observer.disconnect();
+    if (frame !== 0) window.cancelAnimationFrame(frame);
+  };
 }
+
+let activeArticle: HTMLElement | undefined;
+let cleanupActiveArticle: (() => void) | undefined;
 
 function initializeArticle(): void {
   const article = document.querySelector<HTMLElement>("[data-article-root]");
+  if (article && article === activeArticle) return;
+  cleanupActiveArticle?.();
+  activeArticle = article ?? undefined;
   if (!article) return;
+  const controller = new AbortController();
   initializeCodeCopy(article);
   initializeCopyLink(article);
-  initializeProgress(article);
-  initializeTableOfContents(article);
+  const cleanupProgress = initializeProgress(article, controller.signal);
+  const cleanupTableOfContents = initializeTableOfContents(article, controller.signal);
+  cleanupActiveArticle = () => {
+    controller.abort();
+    cleanupProgress();
+    cleanupTableOfContents();
+    if (activeArticle === article) activeArticle = undefined;
+    cleanupActiveArticle = undefined;
+  };
 }
 
 initializeArticle();
 document.addEventListener("astro:page-load", initializeArticle);
+document.addEventListener("astro:before-swap", () => cleanupActiveArticle?.());

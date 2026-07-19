@@ -1,9 +1,18 @@
 ---
-import { loadRuntimeEditorial, loadRuntimeProfile } from "../../lib/runtime-content";
+import type { HomepageContent } from "../../data/content";
+import type { RuntimeProfile } from "../../lib/runtime-content";
 
-const [profile, editorial] = await Promise.all([loadRuntimeProfile(), loadRuntimeEditorial()]);
-const copy = editorial.homepage.introduction;
-const artwork = editorial.artwork.aboutSummerDream;
+interface Props {
+  profile: RuntimeProfile;
+  copy: HomepageContent["introduction"];
+  artwork: {
+    imageUrl: string;
+    alt: string;
+    sourceUrl: string;
+    uploader: string;
+  };
+}
+const { profile, copy, artwork } = Astro.props;
 ---
 
 <section

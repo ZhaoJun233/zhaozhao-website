@@ -1,9 +1,13 @@
 ---
-import { loadRuntimeEditorial, loadRuntimeProfile } from "../../lib/runtime-content";
+import type { RuntimeProfile } from "../../lib/runtime-content";
+import type { HomepageContent } from "../../data/content";
 
-const [profile, editorial] = await Promise.all([loadRuntimeProfile(), loadRuntimeEditorial()]);
-const { hero } = editorial.homepage;
-const heroArtwork = editorial.artwork.homeHero;
+interface Props {
+  profile: RuntimeProfile;
+  hero: HomepageContent["hero"];
+  heroArtwork: { imageUrl: string; alt: string };
+}
+const { profile, hero, heroArtwork } = Astro.props;
 const typingLines = hero.typingPhrases;
 ---
 

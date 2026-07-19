@@ -3,7 +3,17 @@ import { ClientRouter } from "astro:transitions";
 import Footer from "../components/layout/Footer.astro";
 import Header from "../components/layout/Header.astro";
 import SeoHead from "../components/seo/SeoHead.astro";
-import { loadRuntimeProfile } from "../lib/runtime-content";
+import { getDatabase } from "../lib/cloudflare/bindings";
+import {
+  listEnabledMusicTracks,
+  type AdminMusicTrack,
+} from "../lib/database/music-repository";
+import {
+  loadRuntimeNavigation,
+  loadRuntimeProfile,
+  type RuntimeNavigation,
+  type RuntimeProfile,
+} from "../lib/runtime-content";
 import { buildWebsiteJsonLd, type JsonLdNode, type SeoImage } from "../lib/seo";
 import "../styles/tokens.css";
 import "../styles/global.css";
@@ -20,6 +30,9 @@ interface Props {
   headerOverlay?: boolean;
   class?: string;
   mainClass?: string;
+  runtimeProfile?: RuntimeProfile;
+  runtimeNavigation?: RuntimeNavigation;
+  musicTracks?: AdminMusicTrack[];
 }
 
 const {
@@ -32,9 +45,16 @@ const {
   page,
   headerOverlay = page === "home",
   mainClass,
+  runtimeProfile: providedProfile,
+  runtimeNavigation: providedNavigation,
+  musicTracks: providedTracks,
 } = Astro.props;
 const mainClasses = Astro.props.class ?? mainClass;
-const runtimeProfile = await loadRuntimeProfile();
+const [runtimeProfile, runtimeNavigation, musicTracks] = await Promise.all([
+  providedProfile ?? loadRuntimeProfile(),
+  providedNavigation ?? loadRuntimeNavigation(),
+  providedTracks ?? listEnabledMusicTracks(getDatabase()),
+]);
 const runtimeSiteTitle = `${runtimeProfile.name} - ${runtimeProfile.siteTitle}`;
 const structuredData = jsonLd ?? (type === "website" ? buildWebsiteJsonLd({
   name: runtimeProfile.name,
@@ -73,11 +93,17 @@ const themeBootstrap = `(() => { try { const saved = localStorage.getItem("zhaoz
   </head>
   <body>
     <a class="skip-link" href="#main-content">跳到主要内容</a>
-    <Header currentPath={Astro.url.pathname} overlay={headerOverlay} />
+    <Header
+      currentPath={Astro.url.pathname}
+      overlay={headerOverlay}
+      profile={runtimeProfile}
+      navigation={runtimeNavigation}
+      tracks={musicTracks}
+    />
     <main id="main-content" class={mainClasses} tabindex="-1">
       <slot />
     </main>
-    <Footer />
+    <Footer profile={runtimeProfile} navigation={runtimeNavigation} />
     <script>
       import "../scripts/navigation";
       import "../scripts/theme";

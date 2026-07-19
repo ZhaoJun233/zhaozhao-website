@@ -66,6 +66,8 @@ export const homepageSchema = z.object({
   }),
 });
 
+export type HomepageContent = z.infer<typeof homepageSchema>;
+
 export const aboutSchema = z.object({
   seoDescription: text,
   hero: z.object({

@@ -7,24 +7,37 @@ const focusableSelector = [
   "[tabindex]:not([tabindex='-1'])",
 ].join(",");
 
-function initializeNavigation(): void {
+let headerFrame = 0;
+let activeNavigation: HTMLElement | undefined;
+let cleanupActiveNavigation: (() => void) | undefined;
+
+function updateHeader(): void {
+  headerFrame = 0;
   const header = document.querySelector<HTMLElement>("[data-site-header]");
+  if (!header) return;
+  const scrolled = String(window.scrollY > 24);
+  if (header.dataset.scrolled !== scrolled) header.dataset.scrolled = scrolled;
+}
+
+function scheduleHeaderUpdate(): void {
+  if (headerFrame !== 0) return;
+  headerFrame = window.requestAnimationFrame(updateHeader);
+}
+
+window.addEventListener("scroll", scheduleHeaderUpdate, { passive: true });
+
+function initializeNavigation(): void {
   const navigation = document.querySelector<HTMLElement>("[data-mobile-nav]");
   const panel = navigation?.querySelector<HTMLElement>("[data-nav-panel]");
   const trigger = document.querySelector<HTMLButtonElement>("[data-nav-trigger]");
 
-  const updateHeader = (): void => {
-    if (header) header.dataset.scrolled = String(window.scrollY > 24);
-  };
-
   updateHeader();
-  if (header?.dataset.scrollReady !== "true") {
-    header?.setAttribute("data-scroll-ready", "true");
-    window.addEventListener("scroll", updateHeader, { passive: true });
-  }
-
-  if (!navigation || !panel || !trigger || navigation.dataset.navReady === "true") return;
-  navigation.dataset.navReady = "true";
+  if (navigation && navigation === activeNavigation) return;
+  cleanupActiveNavigation?.();
+  activeNavigation = navigation ?? undefined;
+  if (!navigation || !panel || !trigger) return;
+  const controller = new AbortController();
+  const { signal } = controller;
 
   const focusableElements = (): HTMLElement[] =>
     [...panel.querySelectorAll<HTMLElement>(focusableSelector)].filter(
@@ -51,14 +64,14 @@ function initializeNavigation(): void {
   trigger.addEventListener("click", () => {
     if (navigation.hidden) openNavigation();
     else closeNavigation();
-  });
+  }, { signal });
 
   navigation.addEventListener("click", (event) => {
     const target = event.target as Element;
     if (target.closest("[data-nav-close], [data-nav-link]")) {
       closeNavigation(target.closest("[data-nav-link]") === null);
     }
-  });
+  }, { signal });
 
   panel.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
@@ -85,15 +98,21 @@ function initializeNavigation(): void {
       event.preventDefault();
       first.focus();
     }
-  });
+  }, { signal });
 
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !navigation.hidden) closeNavigation();
-  });
+  }, { signal });
 
   window.matchMedia("(min-width: 900px)").addEventListener("change", (event) => {
     if (event.matches) closeNavigation(false);
-  });
+  }, { signal });
+
+  cleanupActiveNavigation = () => {
+    controller.abort();
+    if (activeNavigation === navigation) activeNavigation = undefined;
+    cleanupActiveNavigation = undefined;
+  };
 }
 
 initializeNavigation();
