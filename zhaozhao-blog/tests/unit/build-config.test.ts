@@ -42,6 +42,12 @@ describe("deployment site URL", () => {
     expect(config).toContain('replace(/^\\.+/, "_")');
   });
 
+  it("places the Worker near D1 to keep dynamic navigation responsive", () => {
+    const config = readFileSync(resolve("wrangler.jsonc"), "utf8");
+    expect(config).toContain('"placement"');
+    expect(config).toContain('"mode": "smart"');
+  });
+
   it("keeps a stable localhost default for development and local tests", () => {
     expect(resolveSiteUrl({})).toBe("http://localhost:4321");
   });
