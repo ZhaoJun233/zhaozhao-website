@@ -20,8 +20,9 @@ const layout = resolveHomePostLayout(posts.length, leadPost?.data.coverUrl !== u
   data-testid="featured-posts"
   aria-labelledby="featured-posts-title"
 >
+  <span class="vertical-accent" aria-hidden="true">綴る</span>
   <div class="section-inner">
-    <header class="section-heading">
+    <header class="section-heading" data-reveal>
       <div>
         <p class="section-kicker">{copy.eyebrow} <span>01</span></p>
         <h2 id="featured-posts-title">{copy.title}</h2>
@@ -34,6 +35,7 @@ const layout = resolveHomePostLayout(posts.length, leadPost?.data.coverUrl !== u
         class:list={["posts-layout", `posts-layout--${layout}`]}
         data-layout={layout}
         data-post-count={posts.length}
+        data-reveal-stagger="95"
       >
         {layout === "single" ? (
           <div class="lead-post"><PostCard post={leadPost} prominence="featured" /></div>
@@ -58,11 +60,34 @@ const layout = resolveHomePostLayout(posts.length, leadPost?.data.coverUrl !== u
 
 <style>
   .featured-posts {
+    position: relative;
     padding: clamp(4.5rem, 8vw, 7.5rem) var(--page-gutter, 1.25rem);
     background:
       radial-gradient(circle at 8% 12%, rgb(87 185 195 / 0.08), transparent 23rem),
       var(--color-bg, #fbfaf7);
     color: var(--color-text, #172b34);
+  }
+
+  .vertical-accent {
+    position: absolute;
+    top: clamp(3.4rem, 7vw, 5.6rem);
+    right: max(1.4rem, calc((100vw - var(--content-width, 1180px)) / 2 - 4.2rem));
+    color: transparent;
+    -webkit-text-stroke: 1px #63949c;
+    font-family: var(--font-display, "Iowan Old Style", "Noto Serif SC", serif);
+    font-size: clamp(1.6rem, 2.3vw, 2.15rem);
+    font-weight: 600;
+    letter-spacing: 0.42em;
+    line-height: 1;
+    pointer-events: none;
+    user-select: none;
+    writing-mode: vertical-rl;
+  }
+
+  @media (max-width: 1279px) {
+    .vertical-accent {
+      display: none;
+    }
   }
 
   .section-inner {

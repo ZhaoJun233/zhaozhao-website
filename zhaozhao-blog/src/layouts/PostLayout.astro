@@ -138,7 +138,7 @@ const jsonLd = buildBlogPostingJsonLd({
     )}
 
     <div class="article-shell site-container">
-      <aside class="article-shell__toc">
+      <aside class="article-shell__toc" data-reveal="fade">
         <TableOfContents headings={headings} />
       </aside>
 
@@ -147,7 +147,7 @@ const jsonLd = buildBlogPostingJsonLd({
           <slot />
         </div>
 
-        <footer class="article-end">
+        <footer class="article-end" data-reveal>
           <div class="article-end__author">
             <img
               src={profile.avatarUrl}
@@ -169,7 +169,7 @@ const jsonLd = buildBlogPostingJsonLd({
           <p class="sr-only" data-article-announcer aria-live="polite"></p>
         </footer>
 
-        <nav class="post-navigation" aria-label="文章翻页">
+        <nav class="post-navigation" aria-label="文章翻页" data-reveal>
           {previousPost ? (
             <a class="post-navigation__previous" href={encodeURI(`/posts/${previousPost.id}/`)} rel="prev">
               <ArrowLeft size={18} stroke-width={1.7} aria-hidden="true" />
@@ -547,6 +547,56 @@ const jsonLd = buildBlogPostingJsonLd({
   .post-navigation :global(svg) {
     flex: 0 0 auto;
     color: var(--color-accent);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .article-hero__inner > * {
+      animation: article-hero-rise 0.82s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    .article-hero__inner > *:nth-child(2) {
+      animation-delay: 0.07s;
+    }
+
+    .article-hero__inner > *:nth-child(3) {
+      animation-delay: 0.14s;
+    }
+
+    .article-hero__inner > *:nth-child(4) {
+      animation-delay: 0.21s;
+    }
+
+    .article-hero__inner > *:nth-child(5) {
+      animation-delay: 0.28s;
+    }
+
+    .article-cover {
+      animation: article-cover-in 0.95s cubic-bezier(0.22, 1, 0.36, 1) 0.3s both;
+    }
+  }
+
+  @keyframes article-hero-rise {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 1.2rem, 0);
+    }
+
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes article-cover-in {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 1.4rem, 0) scale(0.985);
+    }
+
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
 
   @media (max-width: 1023px) {

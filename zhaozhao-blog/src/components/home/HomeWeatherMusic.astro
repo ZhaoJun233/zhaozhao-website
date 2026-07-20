@@ -200,13 +200,13 @@ const { tracks, content } = Astro.props;
   :global(.now-player-frame__timeline) { display: grid; min-width: 0; gap: .35rem; }
   :global(.now-player-frame__timeline > span) { overflow: hidden; color: #567077; font-size: .58rem; text-overflow: ellipsis; white-space: nowrap; }
   :global(.now-player-frame__timeline input), :global(.now-player-frame__volume input) { width: 100%; accent-color: #d65379; }
-  :global(.now-player-frame__timeline > div) { display: flex; justify-content: space-between; color: #718084; font: 680 .5rem/1 var(--font-mono); }
-  :global(.now-player-frame__volume) { display: grid; grid-column: 1 / -1; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: .5rem; color: #718084; font: 720 .48rem/1 var(--font-mono); }
+  :global(.now-player-frame__timeline > div) { display: flex; justify-content: space-between; color: #5f6d72; font: 680 .5rem/1 var(--font-mono); }
+  :global(.now-player-frame__volume) { display: grid; grid-column: 1 / -1; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: .5rem; color: #5f6d72; font: 720 .48rem/1 var(--font-mono); }
   :global(.now-track-list) { display: grid; max-height: 12rem; align-content: start; gap: .35rem; overflow: auto; padding-right: .15rem; }
   :global(.now-track-list button) { display: grid; min-height: 3.45rem; min-width: 0; grid-template-columns: 1.7rem 2.35rem minmax(0, 1fr) auto; align-items: center; gap: .5rem; padding: .42rem .52rem; border: 1px solid transparent; border-radius: .58rem; background: rgb(255 255 255 / 45%); color: var(--drawer-ink); text-align: start; cursor: pointer; transition: border-color 180ms ease, background-color 180ms ease, transform 180ms ease; }
   :global(.now-track-list button:hover) { border-color: rgb(49 94 105 / 26%); background: rgb(255 255 255 / 82%); transform: translateX(-2px); }
   :global(.now-track-list button[aria-pressed="true"]) { border-color: #4e7d86; background: #e9f2f1; }
-  :global(.now-track-list__index) { color: #8a7874; font-family: var(--font-mono); font-size: .52rem; }
+  :global(.now-track-list__index) { color: #6f615e; font-family: var(--font-mono); font-size: .52rem; }
   :global(.now-track-list__cover) { display: grid; width: 2.35rem; aspect-ratio: 1; overflow: hidden; place-items: center; border-radius: .4rem; background: #dce9e8; color: #416c74; }
   :global(.now-track-list__cover img) { width: 100%; height: 100%; object-fit: cover; }
   :global(.now-track-list__copy) { display: grid; min-width: 0; gap: .1rem; }

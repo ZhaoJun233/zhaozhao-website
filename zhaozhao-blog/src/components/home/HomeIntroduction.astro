@@ -20,8 +20,9 @@ const { profile, copy, artwork } = Astro.props;
   data-testid="home-introduction"
   aria-labelledby="home-introduction-title"
 >
+  <span class="vertical-accent" aria-hidden="true">暮らす</span>
   <div class="introduction-inner">
-    <figure class="introduction-artwork">
+    <figure class="introduction-artwork" data-reveal="scale">
       <img
         src={artwork.imageUrl}
         alt={artwork.alt}
@@ -37,7 +38,7 @@ const { profile, copy, artwork } = Astro.props;
       </figcaption>
     </figure>
 
-    <div class="introduction-copy">
+    <div class="introduction-copy" data-reveal>
       <p class="introduction-kicker">{copy.eyebrow} <span>03</span></p>
       <h2 id="home-introduction-title">{copy.title}</h2>
       <p class="introduction-lead">{profile.bio}</p>
@@ -54,10 +55,33 @@ const { profile, copy, artwork } = Astro.props;
 
 <style>
   .home-introduction {
+    position: relative;
     padding: clamp(5rem, 10vw, 9rem) var(--page-gutter, 1.25rem);
     overflow: hidden;
     background: var(--color-bg, #fbfaf7);
     color: var(--color-text, #172b34);
+  }
+
+  .vertical-accent {
+    position: absolute;
+    top: clamp(3.6rem, 8vw, 6.2rem);
+    right: max(1.4rem, calc((100vw - var(--content-width, 1180px)) / 2 - 4.2rem));
+    color: transparent;
+    -webkit-text-stroke: 1px #63949c;
+    font-family: var(--font-display, "Iowan Old Style", "Noto Serif SC", serif);
+    font-size: clamp(1.6rem, 2.3vw, 2.15rem);
+    font-weight: 600;
+    letter-spacing: 0.42em;
+    line-height: 1;
+    pointer-events: none;
+    user-select: none;
+    writing-mode: vertical-rl;
+  }
+
+  @media (max-width: 1279px) {
+    .vertical-accent {
+      display: none;
+    }
   }
 
   .introduction-inner {
@@ -94,6 +118,11 @@ const { profile, copy, artwork } = Astro.props;
     aspect-ratio: 16 / 10;
     object-fit: cover;
     object-position: 43% center;
+    transition: transform 900ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .introduction-artwork:hover :global(img) {
+    transform: scale(1.035);
   }
 
   .artwork-overlay {
@@ -264,6 +293,16 @@ const { profile, copy, artwork } = Astro.props;
 
     figcaption a {
       margin-left: auto;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .introduction-artwork :global(img) {
+      transition: none;
+    }
+
+    .introduction-artwork:hover :global(img) {
+      transform: none;
     }
   }
 </style>

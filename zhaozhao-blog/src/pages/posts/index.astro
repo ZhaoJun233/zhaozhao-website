@@ -19,7 +19,7 @@ const copy = editorial.pageCopy.posts;
 >
   <section class="posts-page section" aria-labelledby="posts-title">
     <div class="site-container">
-      <header class="page-heading">
+      <header class="page-heading" data-reveal>
         <div>
           <p class="eyebrow">{copy.eyebrow}</p>
           <h1 id="posts-title">{copy.heading}</h1>
@@ -38,8 +38,10 @@ const copy = editorial.pageCopy.posts;
       </header>
 
       {page.items.length > 0 ? (
-        <div class="post-list">
-          {page.items.map((post) => <PostCard post={post} prominence="compact" />)}
+        <div class="post-list" data-reveal-stagger="90">
+          {page.items.map((post, itemIndex) => (
+            <PostCard post={post} prominence="compact" index={itemIndex + 1} />
+          ))}
         </div>
       ) : (
         <section class="empty-state" aria-labelledby="posts-empty-title">

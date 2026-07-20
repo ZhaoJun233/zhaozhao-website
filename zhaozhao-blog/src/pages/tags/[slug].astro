@@ -28,7 +28,7 @@ const posts = sortPostEntries(
         <a href="/tags/">全部标签</a><span aria-hidden="true">/</span><span>{tag.label}</span>
       </nav>
 
-      <header class="term-heading">
+      <header class="term-heading" data-reveal>
         <div>
           <p class="eyebrow">Tag · 标签</p>
           <h1 id="tag-title"><span aria-hidden="true">#</span>{tag.label}</h1>
@@ -40,8 +40,10 @@ const posts = sortPostEntries(
       </header>
 
       {posts.length > 0 ? (
-        <div class="post-list">
-          {posts.map((post) => <PostCard post={post} prominence="compact" />)}
+        <div class="post-list" data-reveal-stagger="90">
+          {posts.map((post, itemIndex) => (
+            <PostCard post={post} prominence="compact" index={itemIndex + 1} />
+          ))}
         </div>
       ) : (
         <section class="empty-state" aria-labelledby="tag-empty-title">

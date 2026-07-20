@@ -17,7 +17,7 @@ const messages = await listApprovedMessages(getDatabase());
   class="guestbook-page"
 >
   <section class="guestbook-hero" aria-labelledby="guestbook-title">
-    <div class="site-container guestbook-hero__inner">
+    <div class="site-container guestbook-hero__inner" data-reveal>
       <div class="guestbook-hero__number" aria-hidden="true">{hero.badge}</div>
       <div>
         <p class="eyebrow">{hero.eyebrow}</p>
@@ -31,7 +31,7 @@ const messages = await listApprovedMessages(getDatabase());
 
   <section class="guestbook-content" aria-labelledby="guestbook-discussion-title">
     <div class="site-container guestbook-shell">
-      <aside class="guestbook-notes" aria-labelledby="guestbook-notes-title">
+      <aside class="guestbook-notes" aria-labelledby="guestbook-notes-title" data-reveal="fade">
         <p class="eyebrow">{guidelines.eyebrow}</p>
         <h2 id="guestbook-notes-title">{guidelines.title}</h2>
         <ol>
@@ -42,7 +42,7 @@ const messages = await listApprovedMessages(getDatabase());
         <a href="#guestbook-form">{guidelines.setupLabel} <span aria-hidden="true">→</span></a>
       </aside>
 
-      <div class="guestbook-discussion" data-guestbook-term="guestbook">
+      <div class="guestbook-discussion" data-guestbook-term="guestbook" data-reveal>
         <header>
           <p class="eyebrow">{discussion.eyebrow}</p>
           <h2 id="guestbook-discussion-title">{discussion.title}</h2>

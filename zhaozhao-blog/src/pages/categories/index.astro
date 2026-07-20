@@ -19,7 +19,7 @@ const copy = editorial.pageCopy.categories;
 >
   <section class="taxonomy-page section" aria-labelledby="categories-title">
     <div class="site-container taxonomy-shell">
-      <header class="taxonomy-heading">
+      <header class="taxonomy-heading" data-reveal>
         <div>
           <p class="eyebrow">{copy.eyebrow}</p>
           <h1 id="categories-title">{copy.heading}</h1>
@@ -30,9 +30,9 @@ const copy = editorial.pageCopy.categories;
       </header>
 
       {categories.length > 0 ? (
-        <ol class="taxonomy-ledger">
+        <ol class="taxonomy-ledger" data-reveal-stagger="85">
           {categories.map((category, index) => (
-            <li>
+            <li data-reveal>
               <a href={encodeURI(`/categories/${category.slug}/`)}>
                 <span class="taxonomy-ledger__number" aria-hidden="true">
                   {String(index + 1).padStart(2, "0")}

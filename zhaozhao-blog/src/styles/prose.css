@@ -24,11 +24,22 @@
 }
 
 .prose h2 {
+  position: relative;
   margin-block: 2.15em 0.75em;
   padding-block-end: 0.48em;
   border-block-end: 1px solid var(--color-border);
   font-size: clamp(1.55rem, 3vw, 2rem);
   letter-spacing: -0.025em;
+}
+
+.prose h2::after {
+  position: absolute;
+  inset-block-end: -1px;
+  inset-inline-start: 0;
+  inline-size: 3.4rem;
+  block-size: 2px;
+  background: linear-gradient(90deg, var(--color-accent), var(--color-pink));
+  content: "";
 }
 
 .prose h3 {
@@ -41,6 +52,12 @@
   font-size: 1.08rem;
 }
 
+.prose > p:first-of-type {
+  color: var(--color-text);
+  font-size: 1.06em;
+  line-height: 1.86;
+}
+
 .prose strong {
   color: var(--color-text);
   font-weight: 700;
@@ -49,7 +66,17 @@
 .prose a {
   color: var(--color-accent-strong);
   font-weight: 600;
+  text-decoration-color: color-mix(in srgb, var(--color-pink) 55%, transparent);
   text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.22em;
+  transition:
+    color var(--transition-fast),
+    text-decoration-color var(--transition-fast);
+}
+
+.prose a:hover {
+  color: var(--color-pink-strong);
+  text-decoration-color: currentColor;
 }
 
 .prose :where(ul, ol) {
@@ -128,6 +155,7 @@
   inline-size: auto;
   max-inline-size: 100%;
   margin-inline: auto;
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
 }

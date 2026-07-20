@@ -16,14 +16,15 @@ const { topics, copy } = Astro.props;
 ---
 
 <section class="topic-band" aria-labelledby="topic-band-title">
+  <span class="vertical-accent" aria-hidden="true">感じる</span>
   <div class="topic-inner">
-    <header class="topic-heading">
+    <header class="topic-heading" data-reveal>
       <p>{copy.eyebrow}</p>
       <h2 id="topic-band-title">{copy.title}</h2>
     </header>
-    <nav class="topic-list" aria-label={copy.navigationLabel}>
+    <nav class="topic-list" aria-label={copy.navigationLabel} data-reveal-stagger="110">
       {topics.map((topic, index) => (
-        <a href={topic.href} class="topic-link">
+        <a href={topic.href} class="topic-link" data-reveal>
           <span class="topic-index">{String(index + 1).padStart(2, "0")}</span>
           <strong>{topic.label}</strong>
           <span class="topic-count">{topic.count} 篇</span>
@@ -36,11 +37,37 @@ const { topics, copy } = Astro.props;
 
 <style>
   .topic-band {
+    position: relative;
     padding: clamp(3rem, 6vw, 5rem) var(--page-gutter, 1.25rem);
+    overflow: hidden;
     background:
+      radial-gradient(circle at 88% -10%, rgb(245 166 189 / 0.14), transparent 22rem),
+      radial-gradient(circle at 6% 118%, rgb(126 209 213 / 0.16), transparent 24rem),
       linear-gradient(115deg, rgb(11 125 139 / 0.96), rgb(36 83 93 / 0.98)),
       #1e5963;
     color: #f7fbfa;
+  }
+
+  .vertical-accent {
+    position: absolute;
+    top: clamp(2.4rem, 5vw, 3.6rem);
+    right: max(1.4rem, calc((100vw - var(--content-width, 1180px)) / 2 - 4.2rem));
+    color: transparent;
+    -webkit-text-stroke: 1px rgb(255 255 255 / 0.42);
+    font-family: var(--font-display, "Iowan Old Style", "Noto Serif SC", serif);
+    font-size: clamp(1.5rem, 2.1vw, 2rem);
+    font-weight: 600;
+    letter-spacing: 0.4em;
+    line-height: 1;
+    pointer-events: none;
+    user-select: none;
+    writing-mode: vertical-rl;
+  }
+
+  @media (max-width: 1279px) {
+    .vertical-accent {
+      display: none;
+    }
   }
 
   .topic-inner {
@@ -109,9 +136,15 @@ const { topics, copy } = Astro.props;
   }
 
   .topic-link strong {
+    display: inline-block;
     font-family: var(--font-display, "Iowan Old Style", "Noto Serif SC", serif);
     font-size: clamp(1.15rem, 2vw, 1.45rem);
     font-weight: 580;
+    transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .topic-link:hover strong {
+    transform: translateX(0.32rem);
   }
 
   .topic-count {
@@ -154,11 +187,13 @@ const { topics, copy } = Astro.props;
 
   @media (prefers-reduced-motion: reduce) {
     .topic-link,
-    .topic-arrow {
+    .topic-arrow,
+    .topic-link strong {
       transition: none;
     }
 
-    .topic-link:hover .topic-arrow {
+    .topic-link:hover .topic-arrow,
+    .topic-link:hover strong {
       transform: none;
     }
   }

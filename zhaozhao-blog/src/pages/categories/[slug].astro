@@ -33,7 +33,7 @@ const posts = sortPostEntries(
         <a href="/categories/">全部分类</a><span aria-hidden="true">/</span><span>{category.label}</span>
       </nav>
 
-      <header class="term-heading">
+      <header class="term-heading" data-reveal>
         <div>
           <p class="eyebrow">Category · 分类</p>
           <h1 id="category-title">{category.label}</h1>
@@ -46,8 +46,10 @@ const posts = sortPostEntries(
       </header>
 
       {posts.length > 0 ? (
-        <div class="post-list">
-          {posts.map((post) => <PostCard post={post} prominence="compact" />)}
+        <div class="post-list" data-reveal-stagger="90">
+          {posts.map((post, itemIndex) => (
+            <PostCard post={post} prominence="compact" index={itemIndex + 1} />
+          ))}
         </div>
       ) : (
         <section class="empty-state" aria-labelledby="category-empty-title">

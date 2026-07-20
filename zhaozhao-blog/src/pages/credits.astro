@@ -25,7 +25,7 @@ const { hero, artwork: artworkCopy, libraries } = creditsContent;
   class="credits-page"
 >
   <section class="credits-hero" aria-labelledby="credits-title">
-    <div class="site-container credits-hero__inner">
+    <div class="site-container credits-hero__inner" data-reveal>
       <div>
         <p class="eyebrow">{hero.eyebrow}</p>
         <h1 id="credits-title">{hero.heading}</h1>
@@ -44,9 +44,9 @@ const { hero, artwork: artworkCopy, libraries } = creditsContent;
         <p>{artworkCopy.introduction}</p>
       </header>
 
-      <div class="artwork-list">
+      <div class="artwork-list" data-reveal-stagger="110">
         {artworkRecords.map((record, index) => (
-          <article class="artwork-record">
+          <article class="artwork-record" data-reveal>
             <figure>
               <img
                 src={record.imageUrl}
@@ -92,9 +92,9 @@ const { hero, artwork: artworkCopy, libraries } = creditsContent;
         <h2 id="libraries-title">{libraries.heading}</h2>
       </header>
 
-      <ul class="library-list">
+      <ul class="library-list" data-reveal-stagger="70">
         {libraries.items.map((library) => (
-          <li>
+          <li data-reveal>
             <div><strong>{library.name}</strong><span>{library.license}</span></div>
             <p>{library.role}</p>
             <a href={library.url} target="_blank" rel="noreferrer noopener">

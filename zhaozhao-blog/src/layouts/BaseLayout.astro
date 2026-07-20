@@ -78,6 +78,9 @@ const themeBootstrap = `(() => { try { const saved = localStorage.getItem("zhaoz
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="alternate" type="application/rss+xml" title={`${runtimeProfile.name} RSS`} href="/rss.xml" />
     <script is:inline set:html={themeBootstrap}></script>
+    <script is:inline>
+      document.documentElement.dataset.reveal = "on";
+    </script>
     <ClientRouter fallback="swap" />
     <SeoHead
       title={title}
@@ -108,6 +111,7 @@ const themeBootstrap = `(() => { try { const saved = localStorage.getItem("zhaoz
       import "../scripts/navigation";
       import "../scripts/theme";
       import "../scripts/guestbook-messages";
+      import "../scripts/scroll-reveal";
     </script>
     <slot name="scripts" />
   </body>

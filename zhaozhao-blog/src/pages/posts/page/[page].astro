@@ -21,7 +21,7 @@ const page = paginate(posts, currentPage, siteConfig.pageSize);
 >
   <section class="posts-page section" aria-labelledby="posts-title">
     <div class="site-container">
-      <header class="page-heading">
+      <header class="page-heading" data-reveal>
         <div>
           <p class="eyebrow">Writing index · 第 {page.page} 页</p>
           <h1 id="posts-title">所有文章</h1>
@@ -33,8 +33,14 @@ const page = paginate(posts, currentPage, siteConfig.pageSize);
         </p>
       </header>
 
-      <div class="post-list">
-        {page.items.map((post) => <PostCard post={post} prominence="compact" />)}
+      <div class="post-list" data-reveal-stagger="90">
+        {page.items.map((post, itemIndex) => (
+          <PostCard
+            post={post}
+            prominence="compact"
+            index={(page.page - 1) * siteConfig.pageSize + itemIndex + 1}
+          />
+        ))}
       </div>
 
       <Pagination currentPage={page.page} pageCount={page.pageCount} />

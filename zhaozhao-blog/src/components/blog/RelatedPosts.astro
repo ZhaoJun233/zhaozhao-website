@@ -17,13 +17,13 @@ const dateFormatter = new Intl.DateTimeFormat(siteConfig.locale, {
 
 {posts.length > 0 && (
   <section class="related-posts" aria-labelledby="related-posts-title">
-    <header>
+    <header data-reveal>
       <p class="eyebrow">Keep reading · 延伸阅读</p>
       <h2 id="related-posts-title">也许你还会喜欢</h2>
     </header>
-    <div class="related-posts__grid">
+    <div class="related-posts__grid" data-reveal-stagger="90">
       {posts.map((post, index) => (
-        <article class="related-post">
+        <article class="related-post" data-reveal>
           <span class="related-post__number" aria-hidden="true">
             {String(index + 1).padStart(2, "0")}
           </span>

@@ -30,7 +30,7 @@ const copy = editorial.pageCopy.archive;
 >
   <section class="archive-page section" aria-labelledby="archive-title">
     <div class="site-container archive-shell">
-      <header class="archive-heading">
+      <header class="archive-heading" data-reveal>
         <div>
           <p class="eyebrow">{copy.eyebrow}</p>
           <h1 id="archive-title">{copy.heading}</h1>
@@ -43,9 +43,9 @@ const copy = editorial.pageCopy.archive;
       </header>
 
       {groups.length > 0 ? (
-        <div class="archive" aria-label="文章时间线">
+        <div class="archive" aria-label="文章时间线" data-reveal-stagger="120">
           {years.map((year) => (
-            <section class="archive-year" aria-labelledby={`archive-year-${year}`}>
+            <section class="archive-year" aria-labelledby={`archive-year-${year}`} data-reveal>
               <header class="archive-year__heading">
                 <h2 id={`archive-year-${year}`}>{year}</h2>
                 <span aria-hidden="true">年</span>

@@ -28,7 +28,7 @@ const copy = editorial.pageCopy.projects;
   class="projects-page"
 >
   <section class="projects-hero" aria-labelledby="projects-title">
-    <div class="site-container projects-hero__inner">
+    <div class="site-container projects-hero__inner" data-reveal>
       <div>
         <p class="eyebrow">{copy.eyebrow}</p>
         <h1 id="projects-title">{copy.heading}</h1>
@@ -49,7 +49,7 @@ const copy = editorial.pageCopy.projects;
       <ProjectFilters total={projects.length} counts={counts} />
 
       {projects.length > 0 ? (
-        <div class="projects-grid" id="project-grid">
+        <div class="projects-grid" id="project-grid" data-reveal-stagger="90">
           {projects.map((project, index) => <ProjectCard project={project} index={index} />)}
         </div>
       ) : (

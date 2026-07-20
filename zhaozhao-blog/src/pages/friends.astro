@@ -14,7 +14,7 @@ const { hero, invitation, links: friends } = friendsContent;
   class="friends-page"
 >
   <section class="friends-hero" aria-labelledby="friends-title">
-    <div class="site-container friends-hero__inner">
+    <div class="site-container friends-hero__inner" data-reveal>
       <div>
         <p class="eyebrow">{hero.eyebrow}</p>
         <h1 id="friends-title">{hero.title}</h1>
@@ -27,7 +27,7 @@ const { hero, invitation, links: friends } = friendsContent;
 
   <section class="friends-directory" aria-labelledby="friends-directory-title">
     <div class="site-container">
-      <div class="friends-notice" role="note">
+      <div class="friends-notice" role="note" data-reveal="fade">
         <span aria-hidden="true">i</span>
         <div>
           <h2 id="friends-directory-title">{friendsContent.noticeTitle}</h2>
@@ -36,9 +36,9 @@ const { hero, invitation, links: friends } = friendsContent;
       </div>
 
       {friends.length > 0 ? (
-        <ul class="friends-grid" aria-label="友链列表">
+        <ul class="friends-grid" aria-label="友链列表" data-reveal-stagger="100">
           {friends.map((friend, index) => (
-            <li>
+            <li data-reveal>
               <a
                 class="friend-card"
                 data-friend-card
@@ -71,7 +71,7 @@ const { hero, invitation, links: friends } = friendsContent;
         </div>
       )}
 
-      <aside class="friends-invitation" aria-labelledby="friends-invitation-title">
+      <aside class="friends-invitation" aria-labelledby="friends-invitation-title" data-reveal>
         <p class="eyebrow">{invitation.eyebrow}</p>
         <h2 id="friends-invitation-title">{invitation.title}</h2>
         <p>

@@ -13,6 +13,10 @@ const representativePages = [
 for (const [label, path] of representativePages) {
   test(`${label}没有自动检测到的 WCAG A/AA 问题`, async ({ page }) => {
     await page.goto(path);
+    // 等待入场动效（data-reveal 交错 + 0.72s 过渡）结束，避免 axe 把
+    // 过渡中间态的透明度误判为对比度违规；未进入视口的元素保持
+    // opacity: 0，axe 会将其视为不可见而跳过。
+    await page.waitForTimeout(1600);
     const results = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
       .analyze();

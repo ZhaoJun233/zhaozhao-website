@@ -12,8 +12,9 @@ const statusLabels = copy.statusLabels;
 ---
 
 <section class="featured-projects" aria-labelledby="featured-projects-title">
+  <span class="vertical-accent" aria-hidden="true">つくる</span>
   <div class="projects-inner">
-    <header class="projects-heading">
+    <header class="projects-heading" data-reveal>
       <div>
         <p>{copy.eyebrow} <span>02</span></p>
         <h2 id="featured-projects-title">{copy.title}</h2>
@@ -21,9 +22,9 @@ const statusLabels = copy.statusLabels;
       <p class="projects-intro">{copy.description}</p>
     </header>
 
-    <div class="projects-grid">
+    <div class="projects-grid" data-reveal-stagger="95">
       {projects.map((project, index) => (
-        <article class="project-card">
+        <article class="project-card" data-reveal>
           <div class="project-card-topline">
             <span class="project-number">{String(index + 1).padStart(2, "0")}</span>
             <span class:list={["project-status", `project-status-${project.data.status}`]}>
@@ -42,17 +43,40 @@ const statusLabels = copy.statusLabels;
       ))}
     </div>
 
-    <a class="all-projects-link" href="/projects/">{copy.allLabel} <span aria-hidden="true">→</span></a>
+    <a class="all-projects-link" href="/projects/" data-reveal>{copy.allLabel} <span aria-hidden="true">→</span></a>
   </div>
 </section>
 
 <style>
   .featured-projects {
+    position: relative;
     padding: clamp(4.7rem, 9vw, 8rem) var(--page-gutter, 1.25rem);
     background:
       radial-gradient(circle at 92% 18%, rgb(234 135 166 / 0.1), transparent 24rem),
       var(--color-bg-soft, #f3f6f4);
     color: var(--color-text, #172b34);
+  }
+
+  .vertical-accent {
+    position: absolute;
+    top: clamp(3.4rem, 7vw, 5.6rem);
+    right: max(1.4rem, calc((100vw - var(--content-width, 1180px)) / 2 - 4.2rem));
+    color: transparent;
+    -webkit-text-stroke: 1px #bd7889;
+    font-family: var(--font-display, "Iowan Old Style", "Noto Serif SC", serif);
+    font-size: clamp(1.6rem, 2.3vw, 2.15rem);
+    font-weight: 600;
+    letter-spacing: 0.42em;
+    line-height: 1;
+    pointer-events: none;
+    user-select: none;
+    writing-mode: vertical-rl;
+  }
+
+  @media (max-width: 1279px) {
+    .vertical-accent {
+      display: none;
+    }
   }
 
   .projects-inner {
@@ -203,6 +227,11 @@ const statusLabels = copy.statusLabels;
   .project-card h3 a {
     color: inherit;
     text-decoration: none;
+    transition: color 200ms ease;
+  }
+
+  .project-card:hover h3 a {
+    color: var(--color-accent-strong, var(--color-accent, #087f8c));
   }
 
   .project-card h3 a::after {
@@ -309,7 +338,8 @@ const statusLabels = copy.statusLabels;
 
   @media (prefers-reduced-motion: reduce) {
     .project-card,
-    .project-card::before {
+    .project-card::before,
+    .project-card h3 a {
       transition: none;
     }
 

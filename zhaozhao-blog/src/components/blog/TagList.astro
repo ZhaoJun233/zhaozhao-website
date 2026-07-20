@@ -46,7 +46,17 @@ const { tags, compact = false } = Astro.props;
     font-weight: 650;
     line-height: 1;
     text-decoration: none;
-    transition: border-color 180ms ease, color 180ms ease, background-color 180ms ease;
+    transition:
+      border-color 180ms ease,
+      color 180ms ease,
+      background-color 180ms ease,
+      transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .tag-list a span {
+    margin-right: 0.08rem;
+    color: var(--color-accent-pink, #e76f98);
+    font-weight: 750;
   }
 
   .tag-list a:hover {
@@ -57,6 +67,7 @@ const { tags, compact = false } = Astro.props;
       var(--color-surface, Canvas) 84%,
       var(--color-accent-cyan, #20a8b4) 16%
     );
+    transform: translateY(-1px);
   }
 
   .tag-list a:focus-visible {
@@ -73,6 +84,10 @@ const { tags, compact = false } = Astro.props;
   @media (prefers-reduced-motion: reduce) {
     .tag-list a {
       transition: none;
+    }
+
+    .tag-list a:hover {
+      transform: none;
     }
   }
 </style>

@@ -47,7 +47,7 @@ const profileDetails = [
     </figure>
 
     <div class="site-container about-profile">
-      <div class="about-profile__avatar">
+      <div class="about-profile__avatar" data-reveal="scale">
         <img
           src={profile.avatarUrl}
           alt={`${profile.name} 的头像`}
@@ -56,7 +56,7 @@ const profileDetails = [
           loading="eager"
         />
       </div>
-      <div class="about-profile__copy">
+      <div class="about-profile__copy" data-reveal>
         <p class="eyebrow">{hero.eyebrow}</p>
         <h1 id="about-title">{profile.name}</h1>
         <p class="about-profile__bio">{profile.bio}</p>
@@ -77,7 +77,7 @@ const profileDetails = [
           {hero.introduction}
         </p>
       </div>
-      <nav class="about-profile__links" aria-label="联系与订阅">
+      <nav class="about-profile__links" aria-label="联系与订阅" data-reveal>
         <a href="/guestbook/">{hero.guestbookLabel} <span aria-hidden="true">→</span></a>
         <a href="/rss.xml">
           <Rss size={15} stroke-width={1.8} aria-hidden="true" /> {hero.rssLabel}
@@ -88,15 +88,15 @@ const profileDetails = [
 
   <section class="about-interests" aria-labelledby="interests-title">
     <div class="site-container">
-      <header class="about-section-heading">
+      <header class="about-section-heading" data-reveal>
         <p class="eyebrow">{interests.eyebrow}</p>
         <h2 id="interests-title">{interests.title}</h2>
         <p>{interests.description}</p>
       </header>
 
-      <ol class="interest-list">
+      <ol class="interest-list" data-reveal-stagger="95">
         {interests.items.map((interest, index) => (
-          <li>
+          <li data-reveal>
             <span aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
             <h3>{interest.title}</h3>
             <p>{interest.description}</p>
@@ -107,7 +107,7 @@ const profileDetails = [
   </section>
 
   <section class="about-workbench" aria-labelledby="tools-title">
-    <div class="site-container about-workbench__inner">
+    <div class="site-container about-workbench__inner" data-reveal>
       <div>
         <p class="eyebrow">{workbench.eyebrow}</p>
         <h2 id="tools-title">{workbench.title}</h2>
@@ -125,15 +125,15 @@ const profileDetails = [
 
   <section class="about-timeline" aria-labelledby="timeline-title">
     <div class="site-container about-timeline__inner">
-      <header class="about-section-heading">
+      <header class="about-section-heading" data-reveal>
         <p class="eyebrow">{timeline.eyebrow}</p>
         <h2 id="timeline-title">{timeline.title}</h2>
         <p>{timeline.description}</p>
       </header>
 
-      <ol class="timeline-list">
+      <ol class="timeline-list" data-reveal-stagger="110">
         {timeline.entries.map((entry) => (
-          <li>
+          <li data-reveal>
             <time datetime={entry.date.length === 7 ? `${entry.date}-01` : entry.date}>
               {entry.date.replaceAll("-", ".")}
             </time>
