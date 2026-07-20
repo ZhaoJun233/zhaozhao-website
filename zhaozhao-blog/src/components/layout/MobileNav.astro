@@ -47,7 +47,7 @@ function isCurrent(href: string): boolean {
       <ul>
         {navigation.items.map((item, index) => (
           <li>
-            <a href={item.href} data-astro-prefetch="hover" aria-current={isCurrent(item.href) ? "page" : undefined} data-nav-link>
+            <a href={item.href} data-astro-prefetch="viewport" aria-current={isCurrent(item.href) ? "page" : undefined} data-nav-link>
               <span aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
               <strong>{item.label}</strong>
             </a>

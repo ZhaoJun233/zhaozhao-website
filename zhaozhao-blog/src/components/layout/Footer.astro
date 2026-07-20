@@ -22,7 +22,7 @@ const { footer, items } = navigation;
       <span>{footer.navigationLabel}</span>
       <ul>
         {items.slice(1).map((item) => (
-          <li><a href={item.href} data-astro-prefetch="hover">{item.label}</a></li>
+          <li><a href={item.href} data-astro-prefetch="viewport">{item.label}</a></li>
         ))}
       </ul>
     </nav>

@@ -37,7 +37,7 @@ function isCurrent(href: string): boolean {
 
 <header class:list={["site-header", { "site-header--overlay": overlay }]} data-site-header>
   <div class="site-header__inner site-container">
-    <a class="site-brand" href="/" aria-label={`${profile.name} 首页`}>
+    <a class="site-brand" href="/" aria-label={`${profile.name} 首页`} data-astro-prefetch="viewport">
       <span>{profile.name}</span>
     </a>
     <HeaderWeather />
@@ -46,7 +46,7 @@ function isCurrent(href: string): boolean {
       <ul>
         {navigation.items.map((item) => (
           <li>
-            <a href={item.href} data-astro-prefetch="hover" aria-current={isCurrent(item.href) ? "page" : undefined}>
+            <a href={item.href} data-astro-prefetch="viewport" aria-current={isCurrent(item.href) ? "page" : undefined}>
               {item.label}
             </a>
           </li>
@@ -60,6 +60,7 @@ function isCurrent(href: string): boolean {
         class="icon-button search-link"
         href="/search/"
         aria-label="搜索"
+        data-astro-prefetch="viewport"
       >
         <Search size={18} stroke-width={1.8} aria-hidden="true" />
         <span class="search-link__hint" aria-hidden="true">/</span>
