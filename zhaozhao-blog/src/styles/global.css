@@ -25,6 +25,7 @@ body {
   margin: 0;
   overflow-x: clip;
   background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='grain'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23grain)' opacity='0.06'/%3E%3C/svg%3E") 0 0 / 180px 180px,
     radial-gradient(circle at 8% 8%, color-mix(in srgb, var(--color-accent-soft) 52%, transparent) 0, transparent 27rem),
     radial-gradient(circle at 94% 24%, color-mix(in srgb, var(--color-pink-soft) 44%, transparent) 0, transparent 24rem),
     var(--color-bg);
@@ -218,30 +219,6 @@ iframe {
   }
 }
 
-/* Paper grain overlay — fixed, static, zero per-frame cost. */
-body::after {
-  position: fixed;
-  z-index: 2147483000;
-  inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='grain'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23grain)'/%3E%3C/svg%3E");
-  background-size: 180px 180px;
-  content: "";
-  mix-blend-mode: multiply;
-  opacity: 0.035;
-  pointer-events: none;
-}
-
-:root[data-theme="dark"] body::after {
-  mix-blend-mode: screen;
-  opacity: 0.05;
-}
-
-@media print {
-  body::after {
-    display: none;
-  }
-}
-
 .button {
   display: inline-flex;
   min-block-size: 2.75rem;
@@ -359,6 +336,7 @@ body::after {
 @media (max-width: 899px) {
   body {
     background:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='grain'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23grain)' opacity='0.06'/%3E%3C/svg%3E") 0 0 / 180px 180px,
       radial-gradient(circle at 0 5%, color-mix(in srgb, var(--color-accent-soft) 48%, transparent) 0, transparent 17rem),
       var(--color-bg);
   }
