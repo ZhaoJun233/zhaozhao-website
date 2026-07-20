@@ -17,7 +17,18 @@ export const onRequest = defineMiddleware(async (context, next) => {
     canonical.pathname = `${path}/`;
     return context.redirect(canonical.toString(), 308);
   }
-  if (!path.startsWith("/admin")) return next();
+  if (!path.startsWith("/admin")) {
+    const response = await next();
+    if (
+      context.request.method === "GET"
+      && !path.startsWith("/api")
+      && response.headers.get("content-type")?.includes("text/html")
+    ) {
+      // 公共页面 HTML 短缓存：预取结果可直接复用，客户端导航与边缘回源都走缓存。
+      response.headers.set("Cache-Control", "public, max-age=30");
+    }
+    return response;
+  }
   const authenticated = Boolean(await authenticateAdminSession(
     getDatabase(),
     readAdminSessionToken(context.request),
