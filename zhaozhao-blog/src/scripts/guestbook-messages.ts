@@ -1,5 +1,9 @@
+import { mountTurnstile, resetTurnstile } from "./turnstile";
+
 function initializeGuestbookMessages(): void {
   document.querySelectorAll<HTMLFormElement>("[data-guestbook-form]").forEach((form) => {
+    const turnstileHost = form.querySelector<HTMLElement>("[data-turnstile-sitekey]");
+    if (turnstileHost) void mountTurnstile(turnstileHost);
     if (form.dataset.guestbookReady === "true") return;
     form.dataset.guestbookReady = "true";
 
@@ -26,6 +30,8 @@ function initializeGuestbookMessages(): void {
         status.textContent = error instanceof Error ? error.message : "提交失败。";
         status.setAttribute("data-error", "");
       } finally {
+        // token 一次性，无论成败都换新，保证下一次提交可用
+        resetTurnstile(turnstileHost);
         if (submit) submit.disabled = false;
       }
     });

@@ -8,6 +8,7 @@ import {
   serializeAdminSessionCookie,
   verifyAdminPassword,
 } from "../../../../lib/admin/auth";
+import { verifyTurnstileToken } from "../../../../lib/turnstile";
 
 const attempts = new Map<string, { count: number; resetAt: number }>();
 const limitWindow = 5 * 60 * 1_000;
@@ -27,11 +28,16 @@ export const POST: APIRoute = async ({ request }) => {
     return Response.json({ error: "尝试次数过多，请稍后再试。" }, { status: 429, headers: noStore() });
   }
   let password = "";
+  let turnstileToken = "";
   try {
-    const body = await request.json() as { password?: unknown };
+    const body = await request.json() as { password?: unknown; turnstileToken?: unknown };
     password = typeof body.password === "string" ? body.password : "";
+    turnstileToken = typeof body.turnstileToken === "string" ? body.turnstileToken : "";
   } catch {
     return Response.json({ error: "请求内容格式不正确。" }, { status: 400, headers: noStore() });
+  }
+  if (!(await verifyTurnstileToken(env.TURNSTILE_SECRET_KEY, turnstileToken, key))) {
+    return Response.json({ error: "人机验证未通过，请重试。" }, { status: 403, headers: noStore() });
   }
   if (!verifyAdminPassword(password, env.ADMIN_PASSWORD)) {
     const next = current && current.resetAt > now

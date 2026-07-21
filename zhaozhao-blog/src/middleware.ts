@@ -22,9 +22,11 @@ export const onRequest = defineMiddleware(async (context, next) => {
     if (
       context.request.method === "GET"
       && !path.startsWith("/api")
+      && !env.HTML_CACHE_DISABLED
       && response.headers.get("content-type")?.includes("text/html")
     ) {
       // 公共页面 HTML 短缓存：预取结果可直接复用，客户端导航与边缘回源都走缓存。
+      // 本地开发 / e2e 通过 .dev.vars 的 HTML_CACHE_DISABLED=1 关闭，避免陈旧页面。
       response.headers.set("Cache-Control", "public, max-age=30");
     }
     return response;

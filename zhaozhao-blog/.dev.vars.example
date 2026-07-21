@@ -1,2 +1,8 @@
 ADMIN_PASSWORD=change-this-admin-password
 ADMIN_SESSION_SECRET=change-this-long-random-session-secret
+# Turnstile 人机验证：本地用 Cloudflare 官方测试站点密钥（widget 自动通过）。
+# 不配置 TURNSTILE_SECRET_KEY 时服务端跳过校验（本地开发 / e2e）。
+PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA
+# TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
+# 关闭公共页面 HTML 短缓存，避免本地开发 / e2e 拿到 30s 内的陈旧页面（生产不设置）。
+HTML_CACHE_DISABLED=1

@@ -1,5 +1,8 @@
 ---
+import { env } from "cloudflare:workers";
 import AdminLayout from "../../layouts/AdminLayout.astro";
+
+const turnstileSiteKey = env.PUBLIC_TURNSTILE_SITE_KEY?.trim() ?? "";
 ---
 
 <AdminLayout title="登录" login>
@@ -12,8 +15,15 @@ import AdminLayout from "../../layouts/AdminLayout.astro";
         <label for="admin-password">管理员密码</label>
         <input id="admin-password" name="password" type="password" autocomplete="current-password" required autofocus />
       </div>
+      {turnstileSiteKey && <div class="admin-turnstile" data-turnstile-sitekey={turnstileSiteKey}></div>}
       <p class="admin-status" data-admin-status aria-live="polite"></p>
       <button class="admin-button admin-button--primary" type="submit">进入后台</button>
     </form>
   </main>
 </AdminLayout>
+
+<style>
+  .admin-turnstile {
+    min-block-size: 4.05rem;
+  }
+</style>

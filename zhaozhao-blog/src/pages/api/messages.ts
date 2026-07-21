@@ -2,6 +2,7 @@ import { createHmac } from "node:crypto";
 import { env } from "cloudflare:workers";
 import type { APIRoute } from "astro";
 import { createGuestbookMessage, listApprovedMessages } from "../../lib/database/message-repository";
+import { verifyTurnstileToken } from "../../lib/turnstile";
 
 const attempts = new Map<string, { count: number; resetAt: number }>();
 const windowMs = 10 * 60 * 1_000;
@@ -29,6 +30,15 @@ export const POST: APIRoute = async ({ request }) => {
     const body = await request.json() as Record<string, unknown>;
     if (typeof body.company === "string" && body.company.trim()) {
       return Response.json({ accepted: true }, { status: 202 });
+    }
+    const turnstileToken = typeof body["cf-turnstile-response"] === "string"
+      ? body["cf-turnstile-response"]
+      : "";
+    if (!(await verifyTurnstileToken(env.TURNSTILE_SECRET_KEY, turnstileToken, ip))) {
+      return Response.json({ error: "人机验证未通过，请重试。" }, {
+        status: 403,
+        headers: { "cache-control": "no-store" },
+      });
     }
     const ipHash = createHmac("sha256", env.ADMIN_SESSION_SECRET).update(ip).digest("hex");
     await createGuestbookMessage(env.DB, { ...body, ipHash });

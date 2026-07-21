@@ -28,6 +28,7 @@
   ],
   "vars": {
     "PUBLIC_SITE_URL": "https://zhao233.de5.net",
+    "PUBLIC_TURNSTILE_SITE_KEY": "0x4AAAAAAD6M9WIAXDGPC8CM",
     "PUBLIC_GISCUS_REPO": "",
     "PUBLIC_GISCUS_REPO_ID": "",
     "PUBLIC_GISCUS_CATEGORY": "",

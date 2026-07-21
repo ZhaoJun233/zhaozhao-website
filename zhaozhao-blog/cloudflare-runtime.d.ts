@@ -57,5 +57,9 @@ declare namespace Cloudflare {
   interface Env {
     ADMIN_PASSWORD: string;
     ADMIN_SESSION_SECRET: string;
+    /** Turnstile 服务端校验密钥，仅生产通过 wrangler secret 配置；未配置时跳过校验。 */
+    TURNSTILE_SECRET_KEY?: string;
+    /** 置 1 时关闭公共页面 HTML 短缓存（本地开发 / e2e 使用）。 */
+    HTML_CACHE_DISABLED?: string;
   }
 }

@@ -1,4 +1,5 @@
 ---
+import { env } from "cloudflare:workers";
 import { getDatabase } from "../lib/cloudflare/bindings";
 import { listApprovedMessages } from "../lib/database/message-repository";
 import { loadRuntimeEditorial, loadRuntimeProfile } from "../lib/runtime-content";
@@ -8,6 +9,7 @@ const [profile, editorial] = await Promise.all([loadRuntimeProfile(), loadRuntim
 const guestbookContent = editorial.guestbook;
 const { hero, guidelines, discussion } = guestbookContent;
 const messages = await listApprovedMessages(getDatabase());
+const turnstileSiteKey = env.PUBLIC_TURNSTILE_SITE_KEY?.trim() ?? "";
 ---
 
 <BaseLayout
@@ -56,6 +58,7 @@ const messages = await listApprovedMessages(getDatabase());
           <label><span>个人网站</span><input name="website" type="url" autocomplete="url" placeholder="https://" /></label>
           <label><span>留言 *</span><textarea name="content" minlength="2" maxlength="2000" required></textarea></label>
           <label class="guestbook-honeypot" aria-hidden="true"><span>公司</span><input name="company" tabindex="-1" autocomplete="off" /></label>
+          {turnstileSiteKey && <div class="guestbook-turnstile" data-turnstile-sitekey={turnstileSiteKey}></div>}
           <div class="guestbook-form__footer">
             <p data-guestbook-status aria-live="polite">留言将在审核后公开。</p>
             <button type="submit">提交留言 <span aria-hidden="true">→</span></button>
@@ -265,6 +268,10 @@ const messages = await listApprovedMessages(getDatabase());
   .guestbook-honeypot {
     position: absolute;
     inset-inline-start: -10000px;
+  }
+
+  .guestbook-turnstile {
+    min-block-size: 4.05rem;
   }
 
   .guestbook-form__footer {
