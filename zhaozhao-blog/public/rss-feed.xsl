@@ -15,6 +15,7 @@
           h1 { max-width: 18ch; margin: 0; font-family: "Iowan Old Style", "Palatino Linotype", "Noto Serif CJK SC", serif; font-size: clamp(2.4rem, 7vw, 5.5rem); font-weight: 600; line-height: 1.05; }
           header p:last-of-type { max-width: 48rem; margin: 1.2rem 0 0; color: #716d66; }
           header a { display: inline-block; margin-top: 1.5rem; padding-bottom: .2rem; border-bottom: 1px solid #cf5677; color: inherit; font-size: .78rem; font-weight: 700; text-decoration: none; }
+          header a + a { margin-inline-start: 1.4rem; }
           main { width: min(calc(100% - 2.5rem), 68rem); margin: 0 auto; padding: 3rem 0 6rem; }
           .feed-meta { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; color: #77726b; font-size: .7rem; }
           ol { margin: 0; padding: 1px; background: #dedbd5; list-style: none; }
@@ -36,6 +37,7 @@
           <h1><xsl:value-of select="title" /></h1>
           <p><xsl:value-of select="description" /></p>
           <a href="{link}">返回博客首页 →</a>
+          <a href="https://github.com/ZhaoJun233">GitHub 主页 →</a>
         </header>
         <main>
           <div class="feed-meta"><span>最近更新</span><span><xsl:value-of select="count(item)" /> 篇文章</span></div>

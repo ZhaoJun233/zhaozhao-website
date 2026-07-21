@@ -1,5 +1,5 @@
 ---
-import { ExternalLink, Rss } from "lucide-astro";
+import { ExternalLink, Github, Rss } from "lucide-astro";
 import type { RuntimeNavigation, RuntimeProfile } from "../../lib/runtime-content";
 
 const year = new Date().getFullYear();
@@ -32,6 +32,10 @@ const { footer, items } = navigation;
       <a href="/rss.xml">
         <Rss size={14} stroke-width={1.8} aria-hidden="true" />
         {footer.rssLabel}
+      </a>
+      <a href="https://github.com/ZhaoJun233" target="_blank" rel="noreferrer noopener">
+        <Github size={14} stroke-width={1.8} aria-hidden="true" />
+        GitHub
       </a>
       <a href="/credits/">
         <ExternalLink size={14} stroke-width={1.8} aria-hidden="true" />

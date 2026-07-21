@@ -1,5 +1,5 @@
 ---
-import { BriefcaseBusiness, ExternalLink, Globe2, Mail, MapPin, Rss } from "lucide-astro";
+import { BriefcaseBusiness, ExternalLink, Github, Globe2, Mail, MapPin, Rss } from "lucide-astro";
 import { loadRuntimeEditorial, loadRuntimeProfile } from "../lib/runtime-content";
 import BaseLayout from "../layouts/BaseLayout.astro";
 
@@ -81,6 +81,9 @@ const profileDetails = [
         <a href="/guestbook/">{hero.guestbookLabel} <span aria-hidden="true">→</span></a>
         <a href="/rss.xml">
           <Rss size={15} stroke-width={1.8} aria-hidden="true" /> {hero.rssLabel}
+        </a>
+        <a href="https://github.com/ZhaoJun233" target="_blank" rel="noreferrer noopener">
+          <Github size={15} stroke-width={1.8} aria-hidden="true" /> GitHub
         </a>
       </nav>
     </div>
