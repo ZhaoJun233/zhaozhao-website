@@ -11,7 +11,7 @@ interface Props {
 
 const { posts, copy } = Astro.props;
 const [leadPost, ...supportingPosts] = posts;
-const layout = resolveHomePostLayout(posts.length, leadPost?.data.coverUrl !== undefined);
+const layout = resolveHomePostLayout(posts.length);
 ---
 
 <section
@@ -204,6 +204,22 @@ const layout = resolveHomePostLayout(posts.length, leadPost?.data.coverUrl !== u
 
   .posts-layout--grid :global(article) {
     height: 100%;
+  }
+
+  /* 三列网格中的卡片统一为「图上文下」的杂志式结构，与两列 pair 卡片保持同一视觉语言。 */
+  .posts-layout--grid :global(.post-card--standard) {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  .posts-layout--grid :global(.post-card--standard .post-card__media) {
+    aspect-ratio: 16 / 9;
+  }
+
+  .posts-layout--grid :global(.post-card--standard .post-card__content) {
+    justify-content: flex-start;
+    padding: clamp(1.15rem, 2.2vw, 1.6rem);
   }
 
   .empty-state {
