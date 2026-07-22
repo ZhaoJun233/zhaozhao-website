@@ -582,6 +582,44 @@ test("article editor stays operable without horizontal overflow", async ({ page 
   expect(documentWidth.scrollWidth).toBeLessThanOrEqual(documentWidth.clientWidth);
 });
 
+test("published article shows its configured source link", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-1440", "数据库写入流程只执行一次。" );
+  const unique = `${Date.now()}-${testInfo.retry}-${Math.random().toString(36).slice(2, 10)}`;
+  const slug = `article-source-${unique}`;
+  const sourceUrl = "https://www.bilibili.com/video/BV1WRRXBZE9r/";
+
+  try {
+    await loginAsAdministrator(page);
+    await page.goto("/admin/posts/");
+    await startNewPost(page);
+    await page.getByLabel("标题").fill(`文章来源测试 ${unique}`);
+    await page.getByLabel("Slug").fill(slug);
+    await page.getByLabel("摘要").fill("验证后台填写的原文来源会显示在文章页。" );
+    await page.getByLabel("分类").selectOption({ label: "开发" });
+    await page.getByLabel("标签").fill("测试, 来源");
+    await page.getByLabel("发布日期").fill("2026-07-22");
+    await page.getByLabel("规范链接（可选）").fill(sourceUrl);
+    await page.getByRole("textbox", { name: "Markdown 正文" }).fill("文章来源显示测试正文。" );
+    await page.getByLabel("保存为草稿").uncheck();
+    await page.getByRole("button", { name: "保存文章" }).click();
+    await expect(postRowBySlug(page, slug)).toBeVisible();
+
+    await page.goto(`/posts/${slug}/`);
+    const sourceLink = page.getByRole("link", { name: "查看原文来源" });
+    await expect(sourceLink).toBeVisible();
+    await expect(sourceLink).toHaveAttribute("href", sourceUrl);
+    await expect(sourceLink).toHaveAttribute("target", "_blank");
+  } finally {
+    await page.goto("/admin/posts/");
+    const row = postRowBySlug(page, slug);
+    if (await row.count()) {
+      await row.getByRole("button", { name: "删除" }).click();
+      await page.locator("[data-post-delete-dialog] [data-confirm-post-delete]").click();
+      await expect(row).toHaveCount(0);
+    }
+  }
+});
+
 test("mobile cover picker shows upload feedback and a preview", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-390", "手机上传流程只在一个窄屏尺寸执行。" );
   await loginAsAdministrator(page);

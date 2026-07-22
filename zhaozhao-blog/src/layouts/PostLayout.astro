@@ -1,6 +1,6 @@
 ---
 import type { MarkdownHeading } from "astro";
-import { ArrowLeft, ArrowRight, CalendarDays, Clock3, Link2, RefreshCw } from "lucide-astro";
+import { ArrowLeft, ArrowRight, CalendarDays, Clock3, ExternalLink, Link2, RefreshCw } from "lucide-astro";
 import Comments from "../components/blog/Comments.astro";
 import ReadingProgress from "../components/blog/ReadingProgress.astro";
 import RelatedPosts from "../components/blog/RelatedPosts.astro";
@@ -24,6 +24,9 @@ const { post, headings, relatedPosts, previousPost, nextPost } = Astro.props;
 const profile = await loadRuntimeProfile();
 const postPath = encodeURI(`/posts/${post.id}/`);
 const canonical = post.data.canonicalUrl ?? postPath;
+const sourceHost = post.data.canonicalUrl
+  ? new URL(post.data.canonicalUrl).hostname.replace(/^www\./, "")
+  : undefined;
 const readingMinutes = estimateReadingMinutes(post.body ?? "");
 const dateFormatter = new Intl.DateTimeFormat(siteConfig.locale, {
   timeZone: siteConfig.timeZone,
@@ -146,6 +149,23 @@ const jsonLd = buildBlogPostingJsonLd({
         <div class="prose article-body" data-article-body>
           <slot />
         </div>
+
+        {post.data.canonicalUrl && (
+          <aside class="article-source" aria-label="文章来源" data-article-source data-reveal>
+            <div>
+              <p>原文来源</p>
+              <strong>{sourceHost}</strong>
+            </div>
+            <a
+              href={post.data.canonicalUrl}
+              target="_blank"
+              rel="noopener noreferrer external"
+            >
+              查看原文来源
+              <ExternalLink size={16} stroke-width={1.8} aria-hidden="true" />
+            </a>
+          </aside>
+        )}
 
         <footer class="article-end" data-reveal>
           <div class="article-end__author">
@@ -428,6 +448,58 @@ const jsonLd = buildBlogPostingJsonLd({
     color: var(--color-accent-strong);
   }
 
+  .article-source {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem 2rem;
+    margin-block-start: clamp(3rem, 7vw, 4.5rem);
+    padding-block: 1.1rem;
+    border-block: 1px solid var(--color-border);
+  }
+
+  .article-source div {
+    display: grid;
+    gap: 0.2rem;
+    min-inline-size: 0;
+  }
+
+  .article-source p {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: 0.66rem;
+    font-weight: 720;
+  }
+
+  .article-source strong {
+    overflow: hidden;
+    color: var(--color-text-soft);
+    font-family: var(--font-serif);
+    font-size: 0.88rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .article-source a {
+    display: inline-flex;
+    min-block-size: 2.55rem;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.65rem 0.9rem;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
+    color: var(--color-accent-strong);
+    font-size: 0.76rem;
+    font-weight: 710;
+    text-decoration: none;
+  }
+
+  .article-source a:hover {
+    border-color: var(--color-accent);
+  }
+
   .article-end {
     display: flex;
     align-items: center;
@@ -621,6 +693,7 @@ const jsonLd = buildBlogPostingJsonLd({
     }
 
     .article-hero__footer,
+    .article-source,
     .article-end {
       align-items: flex-start;
       flex-direction: column;
