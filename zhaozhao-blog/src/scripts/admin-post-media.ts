@@ -1,4 +1,8 @@
 import { postUploadCoordinator } from "../lib/admin/post-editor-state";
+import {
+  compressArticleImage,
+  type ArticleImageCompressionResult,
+} from "../lib/admin/article-image-compression";
 
 type PostContext = { postId?: string; draftToken: string };
 type MediaAsset = {
@@ -83,6 +87,18 @@ if (page) {
     if (size < 1024) return `${size} B`;
     if (size < 1024 * 1024) return `${(size / 1024).toFixed(size < 10 * 1024 ? 1 : 0)} KiB`;
     return `${(size / (1024 * 1024)).toFixed(1)} MiB`;
+  };
+
+  const compressionSummary = ({
+    file,
+    originalBytes,
+    compressed,
+    animationPreserved,
+  }: ArticleImageCompressionResult) => {
+    if (animationPreserved) return "，动画已保留原格式";
+    if (!compressed) return "，原文件已是较小版本";
+    const savedPercent = Math.max(1, Math.round((1 - file.size / originalBytes) * 100));
+    return `，无损压缩 ${formatSize(originalBytes)} → ${formatSize(file.size)}，减少 ${savedPercent}%`;
   };
 
   const readableAssetName = (asset: MediaAsset) => asset.originalName
@@ -268,8 +284,9 @@ if (page) {
     const uploadContext = { ...context };
     const uploadVersion = contextVersion;
     if (!uploadContext.postId && !uploadContext.draftToken) throw new Error("草稿标识尚未准备好，请重试。");
+    const compression = await compressArticleImage(file);
     const body = new FormData();
-    body.append("file", file);
+    body.append("file", compression.file);
     body.append(
       uploadContext.postId ? "postId" : "draftToken",
       uploadContext.postId ?? uploadContext.draftToken,
@@ -287,7 +304,7 @@ if (page) {
     syncRetainedAssets();
     renderGallery();
     emitChanged();
-    return asset;
+    return { asset, compression };
   };
 
   const uploadCover = async (file?: File) => {
@@ -297,10 +314,11 @@ if (page) {
     coverImage.alt = coverAltInput.value.trim() || file.name.replace(/\.[^.]+$/, "");
     coverImage.hidden = false;
     coverEmpty.hidden = true;
-    setMediaStatus(`正在上传封面 ${file.name}…`, false, true);
+    setMediaStatus(`正在无损压缩并上传封面 ${file.name}…`, false, true);
     try {
-      setCover(await uploadFile(file));
-      setMediaStatus("封面已上传，保存文章后生效。");
+      const uploaded = await uploadFile(file);
+      setCover(uploaded.asset);
+      setMediaStatus(`封面已上传${compressionSummary(uploaded.compression)}，保存文章后生效。`);
     } catch (error) {
       renderCover();
       setMediaStatus(error instanceof Error ? error.message : "封面上传失败。", true);
@@ -315,10 +333,12 @@ if (page) {
     if (files.length === 0) return;
     try {
       for (const [index, file] of files.entries()) {
-        setMediaStatus(`正在上传第 ${index + 1} / ${files.length} 张：${file.name}`, false, true);
-        insertMarkdown(await uploadFile(file));
+        setMediaStatus(`正在无损压缩并上传第 ${index + 1} / ${files.length} 张：${file.name}`, false, true);
+        const uploaded = await uploadFile(file);
+        insertMarkdown(uploaded.asset);
+        setMediaStatus(`第 ${index + 1} / ${files.length} 张已上传${compressionSummary(uploaded.compression)}`);
       }
-      setMediaStatus(`已插入 ${files.length} 张图片，保存文章后生效。`);
+      setMediaStatus(`已压缩并插入 ${files.length} 张图片，保存文章后生效。`);
     } catch (error) {
       setMediaStatus(error instanceof Error ? error.message : "正文图片上传失败。", true);
       throw error;

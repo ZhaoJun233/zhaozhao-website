@@ -471,6 +471,8 @@ test("administrator manages article images", async ({ page, request }, testInfo)
     const inlineUrl = body.match(/\((\/media\/uploads\/[^)]+)\)/)?.[1];
     const coverUrl = await page.locator("[data-post-cover-preview] img").getAttribute("src");
     if (!inlineUrl || !coverUrl) throw new Error("文章图片 URL 未生成。");
+    expect(coverUrl).toMatch(/\.webp\/$/);
+    expect(inlineUrl).toMatch(/\.webp\/$/);
     mediaUrls.push(coverUrl, inlineUrl);
     await page.getByLabel("保存为草稿").uncheck();
     await page.getByLabel("首页精选").check();
@@ -488,8 +490,14 @@ test("administrator manages article images", async ({ page, request }, testInfo)
     await expect(articleCover).toBeVisible();
     await expect(articleCover).toHaveCSS("object-fit", "contain");
     await expect(page.locator(`img[src^="${inlineUrl}"]`)).toBeVisible();
-    expect((await request.get(`${coverUrl}?render=${Date.now()}`)).status()).toBe(200);
-    expect((await request.get(`${inlineUrl}?render=${Date.now()}`)).status()).toBe(200);
+    const coverResponse = await request.get(`${coverUrl}?render=${Date.now()}`);
+    const inlineResponse = await request.get(`${inlineUrl}?render=${Date.now()}`);
+    expect(coverResponse.status()).toBe(200);
+    expect(inlineResponse.status()).toBe(200);
+    expect(coverResponse.headers()["content-type"]).toBe("image/webp");
+    expect(inlineResponse.headers()["content-type"]).toBe("image/webp");
+    expect((await coverResponse.body()).byteLength).toBeLessThan(90);
+    expect((await inlineResponse.body()).byteLength).toBeLessThan(85);
     const legacyInlineUrl = inlineUrl.endsWith("/") ? inlineUrl.slice(0, -1) : inlineUrl;
     const legacyInlineResponse = await request.get(legacyInlineUrl, { maxRedirects: 0 });
     expect(legacyInlineResponse.status()).toBe(308);

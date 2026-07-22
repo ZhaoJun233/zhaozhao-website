@@ -86,7 +86,7 @@ const categories = categoryRows.filter(({ enabled }) => enabled);
               <div class="admin-post-cover__controls">
                 <label class="admin-post-dropzone" for="post-cover-upload" data-post-cover-dropzone>
                   <strong>拖放封面到这里</strong>
-                  <span>支持 JPEG、PNG、WebP 与 GIF</span>
+                  <span>JPEG、PNG、WebP 自动无损压缩，GIF 保留动画</span>
                 </label>
                 <div class="admin-post-cover__actions">
                   <label class="admin-button admin-post-file-button" for="post-cover-upload" role="button" data-post-cover-browse>
@@ -115,7 +115,7 @@ const categories = categoryRows.filter(({ enabled }) => enabled);
                 <FileUp size={15} /><span>上传并插入图片</span>
               </label>
               <input id="post-inline-upload" class="admin-post-file-input" type="file" accept="image/*" aria-label="上传并插入图片" multiple data-post-inline-upload />
-              <span data-post-upload-hint>可一次选择多张</span>
+              <span data-post-upload-hint>可一次选择多张，上传时自动无损压缩</span>
             </div>
             <p class="admin-post-media__status admin-post-inline__status" data-post-media-status data-post-inline-status aria-live="polite"></p>
             <div class="admin-field"><label class="sr-only" for="post-body">Markdown 正文</label><textarea id="post-body" name="body" data-body spellcheck="true" required></textarea></div>
