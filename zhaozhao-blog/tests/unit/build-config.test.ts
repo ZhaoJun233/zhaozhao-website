@@ -66,7 +66,7 @@ describe("deployment site URL", () => {
     const productionEnvPath = resolve(".env.production");
     expect(existsSync(productionEnvPath)).toBe(true);
     expect(readFileSync(productionEnvPath, "utf8")).toContain(
-      "PUBLIC_SITE_URL=https://zhao233.de5.net",
+      "PUBLIC_SITE_URL=https://zhao233.xyz",
     );
 
     const astroConfig = readFileSync(resolve("astro.config.mjs"), "utf8");
@@ -75,8 +75,11 @@ describe("deployment site URL", () => {
 
     const wranglerConfig = readFileSync(resolve("wrangler.jsonc"), "utf8");
     expect(wranglerConfig).toContain(
-      '"PUBLIC_SITE_URL": "https://zhao233.de5.net"',
+      '"PUBLIC_SITE_URL": "https://zhao233.xyz"',
     );
+    expect(wranglerConfig).toContain('"LEGACY_SITE_URL": "https://zhao233.de5.net"');
+    expect(wranglerConfig).toContain('"pattern": "zhao233.xyz"');
+    expect(wranglerConfig).toContain('"custom_domain": true');
   });
 
   it("rejects non-web deployment URL schemes", () => {

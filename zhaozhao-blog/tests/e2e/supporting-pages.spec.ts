@@ -180,7 +180,7 @@ test("RSS opens as a readable article index in a browser", async ({ page }) => {
   await expect(page.getByText("最近更新", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: /返回博客首页/ })).toHaveAttribute(
     "href",
-    "https://zhao233.de5.net/",
+    "https://zhao233.xyz/",
   );
   expect(await page.getByRole("listitem").count()).toBeGreaterThanOrEqual(6);
 });
