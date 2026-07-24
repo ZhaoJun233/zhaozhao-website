@@ -79,6 +79,7 @@ describe("deployment site URL", () => {
     );
     expect(wranglerConfig).toContain('"LEGACY_SITE_URL": "https://zhao233.de5.net"');
     expect(wranglerConfig).toContain('"pattern": "zhao233.xyz"');
+    expect(wranglerConfig).toContain('"pattern": "zhao233.de5.net"');
     expect(wranglerConfig).toContain('"custom_domain": true');
     expect(wranglerConfig).toContain('"workers_dev": true');
   });

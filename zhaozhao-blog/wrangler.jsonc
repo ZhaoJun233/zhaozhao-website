@@ -10,6 +10,10 @@
     {
       "pattern": "zhao233.xyz",
       "custom_domain": true
+    },
+    {
+      "pattern": "zhao233.de5.net",
+      "custom_domain": true
     }
   ],
   "assets": {
